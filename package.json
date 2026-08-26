@@ -29,7 +29,7 @@
     "db:studio": "npm run studio -w @comicz/database",
     "db:seed": "npm run seed -w @comicz/database",
     "db:reset": "npm run reset -w @comicz/database",
-    "import": "npm run import -w @comicz/worker",
+    "import": "tsx apps/worker/src/cli/import-local.ts",
     "setup": "npm install && npm run db:up && npm run db:generate && npm run db:migrate && npm run db:seed",
     "test": "npm run test --workspaces --if-present",
     "gen:secrets": "node scripts/gen-secrets.mjs"

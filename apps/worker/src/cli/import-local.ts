@@ -1,5 +1,6 @@
 import { readdir, stat } from 'node:fs/promises';
-import { basename, extname, join, relative, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { basename, dirname, extname, join, relative, resolve } from 'node:path';
 import { copyFile } from 'node:fs/promises';
 import {
   ComicFormat,
@@ -24,9 +25,13 @@ import { absolute, ensureDirFor, originalKey } from '../lib/storage';
 const log = createLogger('import');
 const prisma = new PrismaClient();
 
+/** Acima disto o import real exige --yes. Um engano aqui copia gigabytes. */
+const CONFIRM_THRESHOLD = 20;
+
 interface CliOptions {
   root: string;
   dryRun: boolean;
+  yes: boolean;
   enqueue: boolean;
   limit: number;
   only: string | null;
@@ -37,6 +42,7 @@ function parseArgs(argv: string[]): CliOptions {
   const options: CliOptions = {
     root: resolve(REPO_ROOT, workerConfig.comicsSourceDir),
     dryRun: false,
+    yes: false,
     enqueue: true,
     limit: Number.POSITIVE_INFINITY,
     only: null,
@@ -50,7 +56,7 @@ function parseArgs(argv: string[]): CliOptions {
       case '--dir':
       case '-d':
         if (next) {
-          options.root = resolve(process.cwd(), next);
+          options.root = resolveDir(next);
           i += 1;
         }
         break;
@@ -75,6 +81,10 @@ function parseArgs(argv: string[]): CliOptions {
       case '--dry-run':
         options.dryRun = true;
         break;
+      case '--yes':
+      case '-y':
+        options.yes = true;
+        break;
       case '--no-process':
         options.enqueue = false;
         break;
@@ -86,6 +96,18 @@ function parseArgs(argv: string[]): CliOptions {
   }
 
   return options;
+}
+
+/**
+ * `npm run import -w @comicz/worker` executa com cwd em apps/worker, então um
+ * caminho relativo digitado da raiz do repo não existiria. Tentamos o cwd e
+ * caímos para a raiz do repo — o log sempre diz qual pasta foi lida.
+ */
+function resolveDir(value: string): string {
+  const fromCwd = resolve(process.cwd(), value);
+  if (existsSync(fromCwd)) return fromCwd;
+  const fromRepo = resolve(REPO_ROOT, value);
+  return existsSync(fromRepo) ? fromRepo : fromCwd;
 }
 
 function printHelp(): void {
@@ -100,12 +122,23 @@ Opcoes:
       --publisher <nome>  Editora aplicada a tudo que for importado
       --limit <n>         Para depois de n arquivos
       --dry-run           Mostra o que faria, sem gravar nada
+  -y, --yes               Confirma import grande (mais de ${CONFIRM_THRESHOLD} arquivos)
       --no-process        Cadastra sem enfileirar a extracao das paginas
   -h, --help              Esta ajuda
 
+A pasta que contem o arquivo nomeia a SERIE; a pasta de primeiro nivel dentro
+da raiz lida vira a TAG de colecao.
+
+Lendo a raiz HQ's, o arquivo Superman/Superman Absolute/x.cbr da serie
+"Superman Absolute" e colecao "Superman". Como --dir troca a raiz, apontar
+--dir para HQ's/Superman/Superman Absolute mantem a serie mas faz a colecao
+virar "Superman Absolute" — por isso --only costuma ser a melhor escolha para
+importar uma saga sem perder a franquia.
+
 Exemplos:
   npm run import -- --dry-run
-  npm run import -- --only "Ultimate SpiderMan" --publisher "Marvel Comics"
+  npm run import -- --only "Superman Absolute" --publisher "DC Comics"
+  npm run import -- --dir "HQ's/Superman/Superman Absolute" --dry-run
   npm run import -- --only Batman --limit 5
 `);
 }
@@ -138,11 +171,19 @@ async function findArchives(root: string): Promise<FoundArchive[]> {
       const segments = relativePath.split(/[\\/]/);
       const info = await stat(full);
 
+      // A pasta que contem o arquivo nomeia a serie. Usar dirname (e nao a
+      // posicao no caminho relativo) faz --dir apontado direto para a subpasta
+      // dar o mesmo resultado que --only na raiz.
+      const parentFolder = basename(dirname(full));
+      const rootFolder = basename(root);
+
       found.push({
         absolutePath: full,
         relativePath,
-        seriesName: segments.length > 1 ? segments[segments.length - 2]! : 'Avulsas',
-        collection: segments[0] ?? 'Avulsas',
+        seriesName: parentFolder || rootFolder || 'Avulsas',
+        // Colecao e a pasta de primeiro nivel dentro da raiz lida; quando o
+        // arquivo esta na propria raiz, a raiz e a colecao.
+        collection: segments.length > 1 ? segments[0]! : rootFolder || 'Avulsas',
         sizeBytes: info.size,
       });
     }
@@ -234,6 +275,20 @@ async function main(): Promise<void> {
   log.info(`${archives.length} arquivo(s) encontrado(s)`);
   if (archives.length === 0) return;
 
+  // Trava: sem filtro, a raiz padrao pega o acervo inteiro. Copiar tudo para o
+  // storage e enfileirar a extracao consome dezenas de GB e horas de CPU, entao
+  // um import grande precisa ser dito com todas as letras.
+  if (!options.dryRun && !options.yes && archives.length > CONFIRM_THRESHOLD) {
+    const totalGb = archives.reduce((sum, item) => sum + item.sizeBytes, 0) / 1024 ** 3;
+    log.error(
+      `${archives.length} arquivos (${totalGb.toFixed(1)} GB) e mais do que ${CONFIRM_THRESHOLD}. ` +
+        'Confirme com --yes, ou reduza com --only / --dir / --limit. ' +
+        'Use --dry-run para ver a lista antes.',
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   const publisherId = options.publisher ? await ensurePublisher(options.publisher) : null;
 
   let created = 0;
@@ -258,11 +313,9 @@ async function main(): Promise<void> {
 
     if (options.dryRun) {
       log.info(
-        `[dry-run] ${label}  |  serie: ${archive.seriesName}  |  ano: ${parsed.year ?? '-'}  |  ${(
-          archive.sizeBytes /
-          1024 /
-          1024
-        ).toFixed(1)} MB`,
+        `[dry-run] ${label}  |  serie: ${archive.seriesName}  |  colecao: ${
+          archive.collection
+        }  |  ano: ${parsed.year ?? '-'}  |  ${(archive.sizeBytes / 1024 / 1024).toFixed(1)} MB`,
       );
       created += 1;
       continue;
