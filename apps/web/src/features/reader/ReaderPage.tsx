@@ -22,13 +22,11 @@ export function ReaderPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const initialized = useRef(false);
 
-  // As URLs já vêm com o token de mídia embutido pelo endpoint /reader.
-  const pageUrls = useMemo(() => {
-    if (!data) return [];
-    return data.pages.map(
-      (item) => `${API_BASE}${item.url}?t=${encodeURIComponent(data.pageToken)}`,
-    );
-  }, [data]);
+  // O /reader já devolve as URLs versionadas; o cookie de mídia autoriza os <img>.
+  const pageUrls = useMemo(
+    () => (data ? data.pages.map((item) => `${API_BASE}${item.url}`) : []),
+    [data],
+  );
 
   // Retoma na página salva, uma única vez por HQ aberta.
   useEffect(() => {

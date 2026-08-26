@@ -2,18 +2,16 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { FileStatus, LibraryStatus } from '@comicz/database';
 import type { ReaderPayload, UpdateProgressInput } from '@comicz/shared';
 import { PrismaService } from '../../prisma/prisma.service';
-import { MediaTokenService } from '../files/media-token.service';
+import { mediaVersion, pageUrl } from '../files/media-urls';
 
 @Injectable()
 export class ReaderService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly mediaToken: MediaTokenService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Payload unico que abre o leitor: metadados, lista de paginas, pagina atual
-   * e o token que autoriza os <img> a baixarem as imagens.
+   * Payload unico que abre o leitor: metadados, lista de paginas e pagina
+   * atual. As imagens sao autorizadas pelo cookie de midia, que o controller
+   * renova ao responder — nao ha token no corpo.
    */
   async open(comicId: string, userId: string): Promise<ReaderPayload> {
     const comic = await this.prisma.comic.findUnique({
@@ -39,6 +37,7 @@ export class ReaderService {
       where: { userId_comicId: { userId, comicId } },
     });
 
+    const version = mediaVersion(comic.file);
     const pageCount = comic.file.pages.length;
     const currentPage = Math.min(Math.max(progress?.currentPage ?? 1, 1), Math.max(pageCount, 1));
 
@@ -53,12 +52,10 @@ export class ReaderService {
       currentPage,
       pages: comic.file.pages.map((page) => ({
         index: page.index,
-        url: `/media/pages/${comic.file!.id}/${page.index}`,
+        url: pageUrl(comic.file!.id, page.index, version),
         width: page.width,
         height: page.height,
       })),
-      pageToken: this.mediaToken.issue(userId),
-      expiresIn: this.mediaToken.ttlSeconds,
     };
   }
 

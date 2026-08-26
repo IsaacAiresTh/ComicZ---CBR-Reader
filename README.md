@@ -22,6 +22,7 @@ complexidade de produção que ainda não é necessária.
 | Admin: criar guias, adicionar HQs, reordenar, notas, publicar | ✅ |
 | Admin: painel com fila de processamento e gestão de usuários | ✅ |
 | Processamento CBR/CBZ → páginas WebP em worker separado | ✅ |
+| Imagens com URL estável e versionada, cacheáveis por CDN | ✅ |
 | Leitor: página única, rolagem contínua, zoom, tela cheia, teclado | ✅ |
 | Progresso de leitura salvo e "continuar lendo" | ✅ |
 | Catálogo agrupado por título: uma saga = um card → página com as edições | ✅ |
@@ -340,6 +341,43 @@ esconda quais delas você tem.
 
 ---
 
+## Cache de imagens
+
+Toda a banda desta aplicação é imagem. Duas decisões fazem essa banda ser cacheável
+em vez de recomprada a cada visita.
+
+**A URL não carrega identidade.** A autorização vem de um cookie `httpOnly` com
+escopo em `/api/v1/media`, não de um token na query. Uma `<img>` não manda
+`Authorization`, mas manda cookies — então a URL de uma página é literalmente a
+mesma para todos os leitores, e um cache compartilhado (CDN) pode guardar uma cópia
+e servir a todos. Com o token na query, cada usuário gerava uma URL diferente para a
+mesma imagem, e o token rotativo mudava a URL de novo a cada renovação: a taxa de
+acerto de qualquer cache era zero.
+
+**A URL carrega uma versão.** Reprocessar um arquivo reescreve as *mesmas* chaves em
+storage — `attachUpload` reaproveita o `comicFileId`, e a capa mora em
+`covers/<comicId>.webp`. Sem versão na URL, `immutable` faria um CDN servir as
+páginas antigas por um ano depois de uma substituição. O segmento vem de
+`processedAt` e muda a cada reprocessamento:
+
+```
+/api/v1/media/pages/<comicFileId>/<versao>/<n>
+/api/v1/media/covers/<comicId>/<versao>
+```
+
+O servidor **ignora** o valor da versão — ela existe para ser chave de cache, e uma
+URL com versão antiga continua resolvendo em vez de virar link quebrado.
+
+Com isso as respostas saem como `public, max-age=31536000, immutable`.
+
+> **O que `public` custa.** Atrás de um CDN, a URL passa a valer como credencial:
+> quem souber o UUID busca a imagem sem cookie. Os UUIDs não são adivinháveis e a
+> origem continua exigindo o cookie, mas para fechar isso de vez a validação precisa
+> subir para a borda — um Worker no Cloudflare ou signed cookies do CloudFront.
+> É uma troca deliberada: sem ela, não existe cache compartilhado.
+
+---
+
 ## Como a leitura funciona
 
 ```
@@ -349,8 +387,8 @@ esconda quais delas você tem.
 upload/import ──► fila (jobs) ──► worker ──► 0001.webp, 0002.webp ... ──► storage
     │                                                                       │
   202 Accepted                                                              ▼
-                                                            GET /media/pages/:id/:n
-                                                                            │
+                                              GET /media/pages/:id/:versao/:n
+                                                       (cookie de mídia)     │
                                                                        leitor React
 ```
 
@@ -366,6 +404,9 @@ Decisões que valem registrar:
   nunca abre uma HQ pela metade (Estratégia A do RF0001 §9).
 - **Todo acesso a arquivo passa por `StorageService.resolveKey`**, que bloqueia path
   traversal. Trocar disco local por S3/R2 é reimplementar essa classe.
+- **As URLs de imagem são iguais para todos os usuários e imutáveis**, servidas com
+  `Cache-Control: public, max-age=31536000, immutable`. Ver
+  ["Cache de imagens"](#cache-de-imagens).
 
 ---
 
@@ -385,9 +426,11 @@ O que já está no código:
 - **Autorização por recurso**: biblioteca e progresso são sempre consultados a
   partir do `userId` da sessão, nunca de um id vindo da URL — não existe
   `GET /users/123/library` para trocar o `123` (IDOR/BOLA).
-- **Token de mídia separado**: `<img>` não envia header `Authorization`, então capas
-  e páginas são autorizadas por um JWT curto na query. Se vazar num log de proxy,
-  dá acesso apenas a leitura de imagens e expira em `PAGE_TOKEN_TTL`.
+- **Token de mídia separado**, em cookie `httpOnly` com escopo em `/api/v1/media`:
+  `<img>` não envia header `Authorization`, mas envia cookies. Cada cookie tem seu
+  próprio `path`, então o de mídia não viaja nas chamadas de API e o de refresh não
+  viaja em cada imagem. O token dá acesso apenas a leitura de imagens e expira em
+  `PAGE_TOKEN_TTL`; é renovado no login, no refresh e ao abrir o leitor.
 - Helmet, CORS restrito a `WEB_ORIGIN`, rate limit (5/min no registro, 10/min no
   login), validação Zod em toda entrada, limite de upload configurável.
 - Login responde a mesma mensagem para e-mail inexistente e senha errada, gastando

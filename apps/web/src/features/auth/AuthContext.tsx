@@ -14,7 +14,6 @@ import { api, onSessionChange, refreshSession, setSession } from '../../services
 interface AuthResponseBody {
   user: PublicUser;
   accessToken: string;
-  mediaToken: string;
   expiresIn: number;
 }
 
@@ -37,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
 
   const applyAuth = useCallback((body: AuthResponseBody) => {
-    setSession({ accessToken: body.accessToken, mediaToken: body.mediaToken });
+    setSession({ accessToken: body.accessToken });
     setUser(body.user);
   }, []);
 

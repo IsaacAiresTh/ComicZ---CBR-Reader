@@ -11,7 +11,6 @@ import { Role, type User } from '@comicz/database';
 import type { AuthResponse, LoginInput, PublicUser, RegisterInput } from '@comicz/shared';
 import { APP_CONFIG, type AppConfig } from '../../config/configuration';
 import { PrismaService } from '../../prisma/prisma.service';
-import { MediaTokenService } from '../files/media-token.service';
 
 /** Parametros do OWASP para argon2id (19 MiB, 2 iteracoes). */
 const ARGON2_OPTIONS = { memoryCost: 19456, timeCost: 2, parallelism: 1 } as const;
@@ -19,7 +18,6 @@ const ARGON2_OPTIONS = { memoryCost: 19456, timeCost: 2, parallelism: 1 } as con
 export interface AuthResult extends AuthResponse {
   refreshToken: string;
   refreshTtlSeconds: number;
-  mediaToken: string;
 }
 
 export interface SessionMeta {
@@ -32,7 +30,6 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
-    private readonly mediaToken: MediaTokenService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -155,7 +152,6 @@ export class AuthService {
       expiresIn: this.config.jwt.accessTtlSeconds,
       refreshToken,
       refreshTtlSeconds: this.config.jwt.refreshTtlSeconds,
-      mediaToken: this.mediaToken.issue(user.id),
     };
   }
 

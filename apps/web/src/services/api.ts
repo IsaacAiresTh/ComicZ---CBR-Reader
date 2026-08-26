@@ -13,7 +13,6 @@ export class ApiError extends Error {
 
 interface Session {
   accessToken: string;
-  mediaToken: string;
 }
 
 /**
@@ -39,12 +38,17 @@ export function onSessionChange(listener: (session: Session | null) => void): ()
   return () => listeners.delete(listener);
 }
 
-/** Monta a URL de uma imagem, anexando o token de midia. */
+/**
+ * Monta a URL de uma imagem. Sem token: quem autoriza é o cookie httpOnly de
+ * mídia, que a API renova no login/refresh e ao abrir o leitor. A URL fica igual
+ * para todos os usuários, então um CDN consegue cacheá-la.
+ *
+ * Continua devolvendo null sem sessão para a UI mostrar o placeholder em vez de
+ * uma imagem quebrada.
+ */
 export function mediaUrl(path: string | null | undefined): string | null {
-  if (!path) return null;
-  const token = session?.mediaToken;
-  if (!token) return null;
-  return `${API_BASE}${path}?t=${encodeURIComponent(token)}`;
+  if (!path || !session) return null;
+  return `${API_BASE}${path}`;
 }
 
 async function parseError(response: Response): Promise<ApiError> {
@@ -77,8 +81,8 @@ export async function refreshSession(): Promise<boolean> {
           setSession(null);
           return false;
         }
-        const body = (await response.json()) as { accessToken: string; mediaToken: string };
-        setSession({ accessToken: body.accessToken, mediaToken: body.mediaToken });
+        const body = (await response.json()) as { accessToken: string };
+        setSession({ accessToken: body.accessToken });
         return true;
       } catch {
         setSession(null);

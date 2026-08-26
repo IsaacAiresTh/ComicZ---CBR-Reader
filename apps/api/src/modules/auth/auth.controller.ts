@@ -12,6 +12,7 @@ import { CurrentUser, type AuthenticatedUser } from '../../common/decorators/cur
 import { Public } from '../../common/decorators/public.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { APP_CONFIG, type AppConfig } from '../../config/configuration';
+import { MediaTokenService } from '../files/media-token.service';
 import { AuthService, type AuthResult } from './auth.service';
 
 const REFRESH_COOKIE = 'comicz_rt';
@@ -21,6 +22,7 @@ const REFRESH_COOKIE = 'comicz_rt';
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
+    private readonly mediaToken: MediaTokenService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
@@ -66,6 +68,7 @@ export class AuthController {
     const cookies = req.cookies as Record<string, string> | undefined;
     await this.auth.logout(cookies?.[REFRESH_COOKIE]);
     res.clearCookie(REFRESH_COOKIE, { path: `/${this.config.prefix}/auth` });
+    this.mediaToken.clear(res);
   }
 
   @Post('logout-all')
@@ -77,6 +80,7 @@ export class AuthController {
   ): Promise<void> {
     await this.auth.logoutAll(user.id);
     res.clearCookie(REFRESH_COOKIE, { path: `/${this.config.prefix}/auth` });
+    this.mediaToken.clear(res);
   }
 
   @Get('me')
@@ -85,7 +89,11 @@ export class AuthController {
     return user;
   }
 
-  /** Refresh token vai apenas no cookie httpOnly; nunca no corpo da resposta. */
+  /**
+   * Refresh e token de midia vao apenas em cookies httpOnly, nunca no corpo.
+   * Cada um tem seu proprio escopo de path, entao o cookie de midia nao viaja
+   * em toda chamada de API e o de refresh nao viaja em toda imagem.
+   */
   private respond(result: AuthResult, res: Response) {
     res.cookie(REFRESH_COOKIE, result.refreshToken, {
       httpOnly: true,
@@ -94,12 +102,12 @@ export class AuthController {
       path: `/${this.config.prefix}/auth`,
       maxAge: result.refreshTtlSeconds * 1000,
     });
+    this.mediaToken.attach(res, result.user.id);
 
     return {
       user: result.user,
       accessToken: result.accessToken,
       expiresIn: result.expiresIn,
-      mediaToken: result.mediaToken,
     };
   }
 

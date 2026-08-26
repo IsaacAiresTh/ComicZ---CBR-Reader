@@ -6,7 +6,12 @@ import type {
   UpsertGuideInput,
 } from '@comicz/shared';
 import { PrismaService } from '../../prisma/prisma.service';
-import { comicSummaryInclude, toComicSummary } from '../comics/comic-mapper';
+import {
+  comicSummaryInclude,
+  coverUrl,
+  mediaVersion,
+  toComicSummary,
+} from '../comics/comic-mapper';
 import { ComicsService } from '../comics/comics.service';
 import { TaxonomyService } from '../comics/taxonomy.service';
 
@@ -28,7 +33,15 @@ export class GuidesService {
         items: {
           orderBy: { position: 'asc' },
           take: 1,
-          include: { comic: { select: { id: true, coverPath: true } } },
+          include: {
+            comic: {
+              select: {
+                id: true,
+                coverPath: true,
+                file: { select: { processedAt: true, updatedAt: true } },
+              },
+            },
+          },
         },
       },
     });
@@ -43,7 +56,7 @@ export class GuidesService {
         published: row.published,
         itemCount: row._count.items,
         // A capa do guia e, por padrao, a capa da primeira HQ da ordem.
-        coverUrl: first?.coverPath ? `/media/covers/${first.id}` : null,
+        coverUrl: first ? coverUrl(first, mediaVersion(first.file)) : null,
       };
     });
   }
@@ -88,7 +101,7 @@ export class GuidesService {
       description: guide.description,
       published: guide.published,
       itemCount: guide._count.items,
-      coverUrl: firstCover?.coverPath ? `/media/covers/${firstCover.id}` : null,
+      coverUrl: firstCover ? coverUrl(firstCover, mediaVersion(firstCover.file)) : null,
       items,
       readCount,
     };

@@ -150,10 +150,8 @@ export interface ReaderPayload {
   comic: { id: string; title: string; issueNumber: number | null; seriesName: string | null };
   pageCount: number;
   currentPage: number;
+  /** URLs ja versionadas e sem token — o cookie de mídia autoriza os <img>. */
   pages: ReaderPage[];
-  /** Token curto que autoriza o <img> a baixar as paginas desta HQ. */
-  pageToken: string;
-  expiresIn: number;
 }
 
 export interface GuideItemView {

@@ -1,5 +1,8 @@
 import type { ComicDetail, ComicSummary } from '@comicz/shared';
 import { Prisma } from '@comicz/database';
+import { coverUrl, mediaVersion } from '../files/media-urls';
+
+export { coverUrl, mediaVersion } from '../files/media-urls';
 
 /** Seleção usada em listagens: só o necessário para renderizar um card. */
 export const comicSummaryInclude = {
@@ -14,6 +17,9 @@ export const comicSummaryInclude = {
       sizeBytes: true,
       originalFilename: true,
       errorMessage: true,
+      // Nao vao para a resposta: alimentam a versao da URL da capa.
+      processedAt: true,
+      updatedAt: true,
     },
   },
 } satisfies Prisma.ComicInclude;
@@ -33,14 +39,6 @@ export interface UserComicContext {
   progress?: { currentPage: number; pageCount: number; completed: boolean } | null;
 }
 
-/**
- * As URLs saem relativas e sem token. O frontend acrescenta ?t=<mediaToken>,
- * assim uma unica resposta serve para qualquer numero de imagens.
- */
-export function coverUrl(comic: { id: string; coverPath: string | null }): string | null {
-  return comic.coverPath ? `/media/covers/${comic.id}` : null;
-}
-
 export function toComicSummary(
   comic: ComicWithSummary,
   context: UserComicContext = {},
@@ -50,7 +48,7 @@ export function toComicSummary(
     title: comic.title,
     slug: comic.slug,
     issueNumber: comic.issueNumber,
-    coverUrl: coverUrl(comic),
+    coverUrl: coverUrl(comic, mediaVersion(comic.file)),
     series: comic.series
       ? {
           id: comic.series.id,

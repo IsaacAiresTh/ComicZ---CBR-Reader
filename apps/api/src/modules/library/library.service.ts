@@ -10,7 +10,7 @@ import type {
 } from '@comicz/shared';
 import { paginate, toSkipTake } from '../../common/utils/pagination';
 import { PrismaService } from '../../prisma/prisma.service';
-import { comicSummaryInclude, coverUrl, toComicSummary } from '../comics/comic-mapper';
+import { comicSummaryInclude, coverUrl, mediaVersion, toComicSummary } from '../comics/comic-mapper';
 
 type LibrarySeriesCard = Extract<LibraryGroup, { kind: 'series' }>['series'];
 
@@ -149,7 +149,12 @@ export class LibraryService {
       // Capa: a primeira edicao SALVA que tiver uma.
       this.prisma.comic.findMany({
         where: { id: { in: groups.flatMap((group) => group.comicIds) } },
-        select: { id: true, seriesId: true, coverPath: true },
+        select: {
+          id: true,
+          seriesId: true,
+          coverPath: true,
+          file: { select: { processedAt: true, updatedAt: true } },
+        },
         orderBy: [{ issueNumber: 'asc' }, { title: 'asc' }],
       }),
       this.prisma.comic.groupBy({
@@ -166,7 +171,9 @@ export class LibraryService {
     const coverBySeries = new Map<string, string | null>();
     for (const issue of issues) {
       if (!issue.seriesId || coverBySeries.get(issue.seriesId)) continue;
-      if (issue.coverPath) coverBySeries.set(issue.seriesId, coverUrl(issue));
+      if (issue.coverPath) {
+        coverBySeries.set(issue.seriesId, coverUrl(issue, mediaVersion(issue.file)));
+      }
     }
 
     for (const group of groups) {
