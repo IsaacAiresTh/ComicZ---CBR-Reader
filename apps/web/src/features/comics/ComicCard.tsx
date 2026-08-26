@@ -5,7 +5,16 @@ import { comicLabel, fileStatusLabel, percent } from '../../lib/format';
 import { mediaUrl } from '../../services/api';
 
 /** Card de HQ usado no catálogo, na biblioteca e nos guias. */
-export function ComicCard({ comic, showStatus = false }: { comic: ComicSummary; showStatus?: boolean }) {
+export function ComicCard({
+  comic,
+  showStatus = false,
+  showSeries = true,
+}: {
+  comic: ComicSummary;
+  showStatus?: boolean;
+  /** Desligado na página da série, onde o nome dela já é o título da página. */
+  showSeries?: boolean;
+}) {
   const cover = mediaUrl(comic.coverUrl);
   const progress = comic.progress;
   const readable = comic.file?.status === 'READY';
@@ -63,7 +72,10 @@ export function ComicCard({ comic, showStatus = false }: { comic: ComicSummary; 
         <p className="line-clamp-2 text-sm font-medium leading-snug text-ink-100">
           {comicLabel(comic.title, comic.issueNumber)}
         </p>
-        {comic.series && <p className="truncate text-xs text-ink-500">{comic.series.name}</p>}
+        {/* Série de uma edição só tem nome igual ao título: não repetimos. */}
+        {showSeries && comic.series && comic.series.name !== comic.title && (
+          <p className="truncate text-xs text-ink-500">{comic.series.name}</p>
+        )}
         {showStatus && progress && progress.pageCount > 0 && (
           <p className="mt-auto pt-1 text-xs text-ink-400">
             página {progress.currentPage} de {progress.pageCount}
@@ -74,11 +86,23 @@ export function ComicCard({ comic, showStatus = false }: { comic: ComicSummary; 
   );
 }
 
-export function ComicGrid({ comics, showStatus }: { comics: ComicSummary[]; showStatus?: boolean }) {
+/** Compartilhado com o CatalogGrid para que os dois grids fiquem alinhados. */
+export const CARD_GRID_CLASS =
+  'grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6';
+
+export function ComicGrid({
+  comics,
+  showStatus,
+  showSeries,
+}: {
+  comics: ComicSummary[];
+  showStatus?: boolean;
+  showSeries?: boolean;
+}) {
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+    <div className={CARD_GRID_CLASS}>
       {comics.map((comic) => (
-        <ComicCard key={comic.id} comic={comic} showStatus={showStatus} />
+        <ComicCard key={comic.id} comic={comic} showStatus={showStatus} showSeries={showSeries} />
       ))}
     </div>
   );

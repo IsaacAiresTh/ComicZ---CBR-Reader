@@ -1,13 +1,15 @@
 import { Link } from 'react-router-dom';
 import { EmptyState, LinkButton, Spinner } from '../../components/ui';
 import { useAuth } from '../auth/AuthContext';
+import { CatalogGrid } from './CatalogGrid';
 import { ComicGrid } from './ComicCard';
-import { useComics, useContinueReading, useGuides, useUserStats } from './queries';
+import { useCatalog, useContinueReading, useGuides, useUserStats } from './queries';
 
 export function HomePage() {
   const { user } = useAuth();
   const continueReading = useContinueReading();
-  const recent = useComics({ sort: 'recent', page: 1 });
+  // Agrupado por titulo, como no catalogo: uma serie nao ocupa a vitrine toda.
+  const recent = useCatalog({ sort: 'recent', page: 1, perPage: 12 });
   const guides = useGuides();
   const stats = useUserStats();
 
@@ -98,7 +100,7 @@ export function HomePage() {
             action={<LinkButton to="/admin/hqs">Ir para o admin</LinkButton>}
           />
         ) : (
-          <ComicGrid comics={(recent.data?.items ?? []).slice(0, 12)} />
+          <CatalogGrid entries={recent.data?.items ?? []} />
         )}
       </section>
     </div>

@@ -65,6 +65,31 @@ export interface ComicSummary {
   progress?: { currentPage: number; pageCount: number; completed: boolean } | null;
 }
 
+/**
+ * Um titulo no catalogo. Uma serie com varias edicoes vira UMA entrada
+ * `series` (a lista de edicoes fica na pagina da serie); uma HQ avulsa — ou
+ * uma serie com uma unica edicao, onde nao ha lista para abrir — vira uma
+ * entrada `comic`.
+ */
+export interface CatalogSeriesEntry {
+  id: string;
+  name: string;
+  slug: string;
+  startYear: number | null;
+  publisher: PublisherSummary | null;
+  /** Capa da primeira edicao que tiver uma. */
+  coverUrl: string | null;
+  issueCount: number;
+  /** Quantas edicoes ja terminaram de processar e podem ser lidas. */
+  readyCount: number;
+  readCount: number;
+  inLibraryCount: number;
+}
+
+export type CatalogEntry =
+  | { kind: 'series'; series: CatalogSeriesEntry }
+  | { kind: 'comic'; comic: ComicSummary };
+
 export interface ComicDetail extends ComicSummary {
   description: string | null;
   publicationDate: string | null;

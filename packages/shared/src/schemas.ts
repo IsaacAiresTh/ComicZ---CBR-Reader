@@ -47,6 +47,20 @@ export const listComicsQuerySchema = z.object({
   perPage: z.coerce.number().int().min(1).max(60).default(24),
 });
 
+/**
+ * Catalogo agrupado por titulo. Nao tem `seriesId`: escolher uma serie deixou
+ * de ser um filtro e passou a ser navegar para a pagina dela. `issue` tambem
+ * sai do sort — nao existe "numero da edicao" num titulo.
+ */
+export const catalogQuerySchema = z.object({
+  q: z.string().trim().max(120).optional(),
+  publisherId: z.string().uuid().optional(),
+  tag: z.string().trim().max(60).optional(),
+  sort: z.enum(['recent', 'title']).default('recent'),
+  page: z.coerce.number().int().min(1).default(1),
+  perPage: z.coerce.number().int().min(1).max(60).default(24),
+});
+
 const nameList = z
   .union([z.string(), z.array(z.string())])
   .transform((value) =>
@@ -137,6 +151,7 @@ export type LoginInput = z.infer<typeof loginSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type ListComicsQuery = z.infer<typeof listComicsQuerySchema>;
+export type CatalogQuery = z.infer<typeof catalogQuerySchema>;
 export type UpsertComicInput = z.infer<typeof upsertComicSchema>;
 /**
  * Lado de ENTRADA do schema: campos como `creators` aceitam

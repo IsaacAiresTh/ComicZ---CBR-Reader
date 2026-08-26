@@ -19,8 +19,10 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@comicz/database';
 import {
+  catalogQuerySchema,
   listComicsQuerySchema,
   upsertComicSchema,
+  type CatalogQuery,
   type ListComicsQuery,
   type UpsertComicInput,
 } from '@comicz/shared';
@@ -45,6 +47,16 @@ export class ComicsController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.comics.list(query, user.id);
+  }
+
+  /** Rotas literais vem antes de :idOrSlug, senao o Nest casa "catalog" como slug. */
+  @Get('catalog')
+  @ApiOperation({ summary: 'Catalogo agrupado por titulo (uma serie = um card)' })
+  catalog(
+    @Query(new ZodValidationPipe(catalogQuerySchema)) query: CatalogQuery,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.comics.catalog(query, user.id);
   }
 
   @Get('continue-reading')

@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Button, EmptyState, Input, Select, Spinner } from '../../components/ui';
-import { ComicGrid } from './ComicCard';
-import { useComics, usePublishers, useSeriesList } from './queries';
+import { CatalogGrid } from './CatalogGrid';
+import { useCatalog, usePublishers } from './queries';
 
 export function CatalogPage() {
   const [params, setParams] = useSearchParams();
@@ -10,14 +10,12 @@ export function CatalogPage() {
 
   const filters = {
     q: params.get('q') ?? undefined,
-    seriesId: params.get('seriesId') ?? undefined,
     publisherId: params.get('publisherId') ?? undefined,
-    sort: (params.get('sort') as 'recent' | 'title' | 'issue' | null) ?? 'recent',
+    sort: (params.get('sort') as 'recent' | 'title' | null) ?? 'recent',
     page: Number(params.get('page') ?? 1),
   };
 
-  const comics = useComics(filters);
-  const series = useSeriesList();
+  const catalog = useCatalog(filters);
   const publishers = usePublishers();
 
   function updateParam(key: string, value: string) {
@@ -29,15 +27,17 @@ export function CatalogPage() {
     setParams(next);
   }
 
-  const totalPages = comics.data?.totalPages ?? 1;
-  const page = comics.data?.page ?? 1;
+  const totalPages = catalog.data?.totalPages ?? 1;
+  const page = catalog.data?.page ?? 1;
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-ink-100">Catálogo</h1>
         <p className="mt-1 text-sm text-ink-400">
-          {comics.data ? `${comics.data.total} HQs disponíveis` : 'Carregando...'}
+          {catalog.data
+            ? `${catalog.data.total} ${catalog.data.total === 1 ? 'título' : 'títulos'} — abra um para ver as edições`
+            : 'Carregando...'}
         </p>
       </div>
 
@@ -55,19 +55,6 @@ export function CatalogPage() {
             placeholder="Buscar por título, série ou personagem"
           />
         </div>
-
-        <Select
-          className="w-auto"
-          value={filters.seriesId ?? ''}
-          onChange={(event) => updateParam('seriesId', event.target.value)}
-        >
-          <option value="">Todas as séries</option>
-          {(series.data ?? []).map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name} ({item.comicCount})
-            </option>
-          ))}
-        </Select>
 
         <Select
           className="w-auto"
@@ -89,7 +76,6 @@ export function CatalogPage() {
         >
           <option value="recent">Mais recentes</option>
           <option value="title">Título A-Z</option>
-          <option value="issue">Número da edição</option>
         </Select>
 
         <Button type="submit" variant="secondary">
@@ -97,16 +83,16 @@ export function CatalogPage() {
         </Button>
       </form>
 
-      {comics.isLoading ? (
+      {catalog.isLoading ? (
         <Spinner label="Carregando catálogo..." />
-      ) : (comics.data?.items.length ?? 0) === 0 ? (
+      ) : (catalog.data?.items.length ?? 0) === 0 ? (
         <EmptyState
           title="Nada encontrado"
           description="Tente outro termo de busca ou remova os filtros aplicados."
         />
       ) : (
         <>
-          <ComicGrid comics={comics.data?.items ?? []} />
+          <CatalogGrid entries={catalog.data?.items ?? []} />
 
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-3 pt-4">

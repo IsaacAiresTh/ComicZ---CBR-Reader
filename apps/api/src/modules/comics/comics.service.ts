@@ -10,6 +10,8 @@ import {
   formatComicLabel,
   parseComicFilename,
   slugify,
+  type CatalogEntry,
+  type CatalogQuery,
   type ComicDetail,
   type ComicSummary,
   type ListComicsQuery,
@@ -22,6 +24,7 @@ import { StorageService } from '../files/storage.service';
 import {
   comicDetailInclude,
   comicSummaryInclude,
+  coverUrl,
   toComicDetail,
   toComicSummary,
   type UserComicContext,
@@ -45,19 +48,7 @@ export class ComicsService {
   // ------------------------------------------------------------------ leitura
 
   async list(query: ListComicsQuery, userId: string): Promise<Paginated<ComicSummary>> {
-    const where: Prisma.ComicWhereInput = {};
-
-    if (query.q) {
-      where.OR = [
-        { title: { contains: query.q, mode: 'insensitive' } },
-        { series: { name: { contains: query.q, mode: 'insensitive' } } },
-        { characters: { some: { character: { name: { contains: query.q, mode: 'insensitive' } } } } },
-      ];
-    }
-    if (query.seriesId) where.seriesId = query.seriesId;
-    if (query.publisherId) where.publisherId = query.publisherId;
-    if (query.tag) where.tags = { some: { tag: { slug: slugify(query.tag) } } };
-    if (query.status) where.file = { status: query.status as FileStatus };
+    const where = this.buildWhere(query);
 
     const orderBy: Prisma.ComicOrderByWithRelationInput[] =
       query.sort === 'title'
@@ -81,6 +72,156 @@ export class ComicsService {
       total,
       query,
     );
+  }
+
+  /**
+   * Catalogo agrupado por titulo. Uma serie com varias edicoes ocupa um unico
+   * card — a lista de edicoes fica em /serie/:slug. Uma HQ sem serie, ou uma
+   * serie com uma unica edicao (onde nao ha lista para abrir), aparece como a
+   * propria HQ.
+   *
+   * A agregacao pesada fica no banco: o groupBy devolve uma linha por serie,
+   * nao por edicao. O que roda em JS e a ordenacao/paginacao dessa lista de
+   * titulos, e as edicoes so sao carregadas para os titulos da pagina atual.
+   *
+   * Contagens (issueCount, readCount...) sao sempre da serie inteira, nunca do
+   * subconjunto que casou com a busca: um card que diz "6 edicoes" leva a uma
+   * pagina com 6 edicoes, independente do filtro que o trouxe ate aqui.
+   */
+  async catalog(query: CatalogQuery, userId: string): Promise<Paginated<CatalogEntry>> {
+    const where = this.buildWhere(query);
+
+    const grouped = await this.prisma.comic.groupBy({
+      by: ['seriesId'],
+      where,
+      _max: { createdAt: true },
+    });
+
+    const matchedSeriesIds = grouped
+      .map((row) => row.seriesId)
+      .filter((id): id is string => id !== null);
+
+    const [seriesRows, looseComics] = await Promise.all([
+      matchedSeriesIds.length
+        ? this.prisma.series.findMany({
+            where: { id: { in: matchedSeriesIds } },
+            include: { publisher: { select: { id: true, name: true, slug: true } } },
+          })
+        : Promise.resolve([]),
+      // HQs sem serie: cada uma e um titulo por si mesma.
+      grouped.some((row) => row.seriesId === null)
+        ? this.prisma.comic.findMany({
+            where: { ...where, seriesId: null },
+            select: { id: true, title: true, createdAt: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const seriesById = new Map(seriesRows.map((row) => [row.id, row]));
+
+    interface CatalogKey {
+      kind: 'series' | 'comic';
+      id: string;
+      /** Usado no sort=title. */
+      name: string;
+      /** Edicao mais recente do titulo — usado no sort=recent. */
+      recentAt: Date;
+    }
+
+    const keys: CatalogKey[] = [
+      ...grouped.flatMap((row): CatalogKey[] => {
+        const series = row.seriesId ? seriesById.get(row.seriesId) : undefined;
+        if (!series) return [];
+        return [
+          {
+            kind: 'series',
+            id: series.id,
+            name: series.name,
+            recentAt: row._max.createdAt ?? new Date(0),
+          },
+        ];
+      }),
+      ...looseComics.map((comic): CatalogKey => ({
+        kind: 'comic',
+        id: comic.id,
+        name: comic.title,
+        recentAt: comic.createdAt,
+      })),
+    ];
+
+    keys.sort((a, b) =>
+      query.sort === 'title'
+        ? a.name.localeCompare(b.name, 'pt-BR')
+        : b.recentAt.getTime() - a.recentAt.getTime(),
+    );
+
+    const { skip, take } = toSkipTake(query);
+    const pageKeys = keys.slice(skip, skip + take);
+    const pageSeriesIds = pageKeys.filter((key) => key.kind === 'series').map((key) => key.id);
+    const pageComicIds = pageKeys.filter((key) => key.kind === 'comic').map((key) => key.id);
+
+    const issueFilters: Prisma.ComicWhereInput[] = [];
+    if (pageSeriesIds.length) issueFilters.push({ seriesId: { in: pageSeriesIds } });
+    if (pageComicIds.length) issueFilters.push({ id: { in: pageComicIds } });
+
+    const issues = issueFilters.length
+      ? await this.prisma.comic.findMany({
+          where: { OR: issueFilters },
+          include: comicSummaryInclude,
+          orderBy: [{ issueNumber: 'asc' }, { title: 'asc' }],
+        })
+      : [];
+
+    const contexts = await this.userContexts(
+      userId,
+      issues.map((issue) => issue.id),
+    );
+
+    const issueById = new Map(issues.map((issue) => [issue.id, issue]));
+    const issuesBySeries = new Map<string, typeof issues>();
+    for (const issue of issues) {
+      if (!issue.seriesId) continue;
+      const list = issuesBySeries.get(issue.seriesId);
+      if (list) list.push(issue);
+      else issuesBySeries.set(issue.seriesId, [issue]);
+    }
+
+    const items: CatalogEntry[] = [];
+    for (const key of pageKeys) {
+      const issueList = key.kind === 'series' ? (issuesBySeries.get(key.id) ?? []) : [];
+
+      // Uma edicao so (ou HQ avulsa): mostramos a HQ, nao um card de serie.
+      if (key.kind === 'comic' || issueList.length <= 1) {
+        const comic = key.kind === 'comic' ? issueById.get(key.id) : issueList[0];
+        if (comic) {
+          items.push({ kind: 'comic', comic: toComicSummary(comic, contexts.get(comic.id) ?? {}) });
+        }
+        continue;
+      }
+
+      const series = seriesById.get(key.id);
+      if (!series) continue;
+
+      const withCover = issueList.find((issue) => issue.coverPath);
+
+      items.push({
+        kind: 'series',
+        series: {
+          id: series.id,
+          name: series.name,
+          slug: series.slug,
+          startYear: series.startYear,
+          publisher: series.publisher,
+          coverUrl: withCover ? coverUrl(withCover) : null,
+          issueCount: issueList.length,
+          readyCount: issueList.filter((issue) => issue.file?.status === FileStatus.READY).length,
+          readCount: issueList.filter((issue) => contexts.get(issue.id)?.progress?.completed).length,
+          inLibraryCount: issueList.filter((issue) => contexts.get(issue.id)?.library).length,
+        },
+      });
+    }
+
+    return paginate(items, keys.length, query);
   }
 
   async findOne(idOrSlug: string, userId: string): Promise<ComicDetail> {
@@ -255,6 +396,31 @@ export class ComicsService {
   }
 
   // ------------------------------------------------------------------ helpers
+
+  /** Filtros de catalogo compartilhados pela listagem plana e pela agrupada. */
+  private buildWhere(query: {
+    q?: string;
+    seriesId?: string;
+    publisherId?: string;
+    tag?: string;
+    status?: string;
+  }): Prisma.ComicWhereInput {
+    const where: Prisma.ComicWhereInput = {};
+
+    if (query.q) {
+      where.OR = [
+        { title: { contains: query.q, mode: 'insensitive' } },
+        { series: { name: { contains: query.q, mode: 'insensitive' } } },
+        { characters: { some: { character: { name: { contains: query.q, mode: 'insensitive' } } } } },
+      ];
+    }
+    if (query.seriesId) where.seriesId = query.seriesId;
+    if (query.publisherId) where.publisherId = query.publisherId;
+    if (query.tag) where.tags = { some: { tag: { slug: slugify(query.tag) } } };
+    if (query.status) where.file = { status: query.status as FileStatus };
+
+    return where;
+  }
 
   private byIdOrSlug(value: string): Prisma.ComicWhereInput {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);

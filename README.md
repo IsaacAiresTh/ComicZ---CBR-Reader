@@ -25,6 +25,7 @@ complexidade de produção que ainda não é necessária.
 | Leitor: página única, rolagem contínua, zoom, tela cheia, teclado | ✅ |
 | Progresso de leitura salvo e "continuar lendo" | ✅ |
 | Biblioteca: adicionar, favoritar, status, filtros | ✅ |
+| Catálogo agrupado por título: uma série = um card → página com as edições | ✅ |
 | Catálogo com busca (título, série, personagem) e paginação | ✅ |
 | Import em lote de uma pasta local via CLI | ✅ |
 | Swagger em `/api/v1/docs` | ✅ |
@@ -348,8 +349,8 @@ Na ordem em que eu faria:
 2. **CI** (GitHub Actions): lint, typecheck, testes, build.
 3. **Processamento sob demanda** (Estratégia B do RF0001 §9): liberar a leitura a
    partir da primeira página extraída.
-4. **Séries e personagens como entrada** — hoje o catálogo é a porta principal; a
-   jornada do RF0001 começa em "pesquisar Batman → ver por onde começar".
+4. **Personagens como entrada** — o catálogo já entra por título/série; falta a
+   jornada do RF0001 que começa em "pesquisar Batman → ver por onde começar".
 5. **Redis + cache** dos guias mais acessados, quando houver acesso real.
 6. **Deploy**: Nginx, HTTPS, storage S3/R2, backup do PostgreSQL.
 

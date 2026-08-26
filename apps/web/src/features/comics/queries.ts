@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  CatalogEntry,
   ComicDetail,
   ComicSummary,
   GuideDetail,
@@ -21,6 +22,15 @@ export interface CatalogFilters {
   page?: number;
 }
 
+/** O catálogo agrupa por título, então não filtra por série nem ordena por edição. */
+export interface CatalogEntryFilters {
+  q?: string;
+  publisherId?: string;
+  sort?: 'recent' | 'title';
+  page?: number;
+  perPage?: number;
+}
+
 function toQueryString(filters: object): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(filters)) {
@@ -34,6 +44,17 @@ export function useComics(filters: CatalogFilters) {
   return useQuery({
     queryKey: ['comics', filters],
     queryFn: () => api.get<Paginated<ComicSummary>>(`/comics${toQueryString(filters)}`),
+  });
+}
+
+/**
+ * Catálogo agrupado: uma série com várias edições vem como uma única entrada.
+ * Para a listagem plana (uma HQ por card) use `useComics`.
+ */
+export function useCatalog(filters: CatalogEntryFilters) {
+  return useQuery({
+    queryKey: ['catalog', filters],
+    queryFn: () => api.get<Paginated<CatalogEntry>>(`/comics/catalog${toQueryString(filters)}`),
   });
 }
 
@@ -106,7 +127,9 @@ function useInvalidateComicState() {
   const queryClient = useQueryClient();
   return () => {
     void queryClient.invalidateQueries({ queryKey: ['comics'] });
+    void queryClient.invalidateQueries({ queryKey: ['catalog'] });
     void queryClient.invalidateQueries({ queryKey: ['comic'] });
+    void queryClient.invalidateQueries({ queryKey: ['series-detail'] });
     void queryClient.invalidateQueries({ queryKey: ['library'] });
     void queryClient.invalidateQueries({ queryKey: ['guide'] });
     void queryClient.invalidateQueries({ queryKey: ['continue-reading'] });
