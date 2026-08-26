@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  BulkLibraryResult,
   CatalogEntry,
   ComicDetail,
   ComicSummary,
   GuideDetail,
   GuideSummary,
-  LibraryEntry,
+  LibraryGroup,
   Paginated,
   PublisherSummary,
   SeriesListItem,
@@ -106,7 +107,7 @@ export function useLibrary(filters: { status?: string; favorite?: boolean; page?
   return useQuery({
     queryKey: ['library', filters],
     queryFn: () =>
-      api.get<Paginated<LibraryEntry>>(
+      api.get<Paginated<LibraryGroup>>(
         `/library${toQueryString({
           status: filters.status,
           favorite: filters.favorite === undefined ? undefined : String(filters.favorite),
@@ -146,6 +147,28 @@ export function useRemoveFromLibrary() {
   const invalidate = useInvalidateComicState();
   return useMutation({
     mutationFn: (comicId: string) => api.delete(`/library/${comicId}`),
+    onSuccess: invalidate,
+  });
+}
+
+/**
+ * Adiciona a saga inteira de uma vez. Idempotente no servidor, então clicar
+ * duas vezes não duplica nem sobrescreve o que já estava marcado.
+ */
+export function useAddSeriesToLibrary() {
+  const invalidate = useInvalidateComicState();
+  return useMutation({
+    mutationFn: (seriesId: string) =>
+      api.post<BulkLibraryResult>(`/library/series/${seriesId}`),
+    onSuccess: invalidate,
+  });
+}
+
+export function useRemoveSeriesFromLibrary() {
+  const invalidate = useInvalidateComicState();
+  return useMutation({
+    mutationFn: (seriesId: string) =>
+      api.delete<BulkLibraryResult>(`/library/series/${seriesId}`),
     onSuccess: invalidate,
   });
 }

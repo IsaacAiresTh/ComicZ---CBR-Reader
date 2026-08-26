@@ -28,7 +28,7 @@ export function HomePage() {
         {stats.data && (
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: 'Na biblioteca', value: stats.data.inLibrary },
+              { label: 'HQs salvas', value: stats.data.inLibrary },
               { label: 'Lendo agora', value: stats.data.reading },
               { label: 'Concluídas', value: stats.data.finished },
               { label: 'Favoritas', value: stats.data.favorites },

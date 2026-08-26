@@ -1,10 +1,12 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import type { SeriesDetail } from '@comicz/shared';
-import { Badge, ErrorNote, Spinner } from '../../components/ui';
+import type { BulkLibraryResult, SeriesDetail } from '@comicz/shared';
+import { Badge, Button, ErrorNote, Spinner } from '../../components/ui';
 import { creditRoleLabel, groupCredits, seriesStatusLabel, seriesYears } from '../../lib/format';
-import { api } from '../../services/api';
+import { api, ApiError } from '../../services/api';
 import { ComicGrid } from '../comics/ComicCard';
+import { useAddSeriesToLibrary, useRemoveSeriesFromLibrary } from '../comics/queries';
 
 export function SeriesPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -78,9 +80,72 @@ export function SeriesPage() {
       </header>
 
       <section>
-        <h2 className="mb-4 text-lg font-semibold text-ink-100">Edições</h2>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold text-ink-100">Edições</h2>
+          <SagaLibraryButton series={data} />
+        </div>
         <ComicGrid comics={data.comics} showSeries={false} />
       </section>
+    </div>
+  );
+}
+
+/**
+ * Adiciona ou remove a saga inteira de uma vez. O rótulo muda conforme quanto
+ * da saga já está na biblioteca — adicionar uma a uma continua funcionando pelo
+ * card de cada edição.
+ */
+function SagaLibraryButton({ series }: { series: SeriesDetail }) {
+  const addSeries = useAddSeriesToLibrary();
+  const removeSeries = useRemoveSeriesFromLibrary();
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const total = series.comics.length;
+  const inLibrary = series.comics.filter((comic) => comic.inLibrary).length;
+  const missing = total - inLibrary;
+  const busy = addSeries.isPending || removeSeries.isPending;
+
+  if (total === 0) return null;
+
+  async function run(action: 'add' | 'remove') {
+    setError(null);
+    setFeedback(null);
+    try {
+      const result: BulkLibraryResult =
+        action === 'add'
+          ? await addSeries.mutateAsync(series.id)
+          : await removeSeries.mutateAsync(series.id);
+
+      if (action === 'remove') {
+        setFeedback(`${result.removed} ${result.removed === 1 ? 'edição removida' : 'edições removidas'}`);
+      } else if (result.alreadyInLibrary > 0) {
+        setFeedback(`${result.added} adicionadas · ${result.alreadyInLibrary} já estavam`);
+      } else {
+        setFeedback(`${result.added} ${result.added === 1 ? 'edição adicionada' : 'edições adicionadas'}`);
+      }
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.message : 'Não deu para salvar');
+    }
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      {feedback && <span className="text-sm text-emerald-400">{feedback}</span>}
+      {error && <span className="text-sm text-accent-400">{error}</span>}
+
+      {missing > 0 && (
+        <Button onClick={() => void run('add')} disabled={busy}>
+          {inLibrary === 0
+            ? `Adicionar saga à biblioteca (${total})`
+            : `Adicionar as ${missing} restantes`}
+        </Button>
+      )}
+      {inLibrary > 0 && (
+        <Button variant="secondary" onClick={() => void run('remove')} disabled={busy}>
+          {missing === 0 ? 'Remover saga da biblioteca' : `Remover as ${inLibrary} da biblioteca`}
+        </Button>
+      )}
     </div>
   );
 }

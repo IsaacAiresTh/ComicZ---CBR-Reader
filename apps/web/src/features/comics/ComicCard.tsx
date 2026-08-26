@@ -38,11 +38,20 @@ export function ComicCard({
           </div>
         )}
 
-        {comic.favorite && (
-          <span className="absolute right-2 top-2 rounded-full bg-ink-950/80 px-1.5 py-1 text-sm leading-none">
-            ★
-          </span>
-        )}
+        {/* Dentro de uma coleção é o que responde "quais eu já salvei?". */}
+        <span className="absolute right-2 top-2 flex items-center gap-1">
+          {comic.inLibrary && (
+            <span
+              title="Na biblioteca"
+              className="rounded-full bg-ink-950/80 px-1.5 py-1 text-xs leading-none text-emerald-400"
+            >
+              ✓
+            </span>
+          )}
+          {comic.favorite && (
+            <span className="rounded-full bg-ink-950/80 px-1.5 py-1 text-sm leading-none">★</span>
+          )}
+        </span>
 
         {!readable && (
           <span className="absolute left-2 top-2">

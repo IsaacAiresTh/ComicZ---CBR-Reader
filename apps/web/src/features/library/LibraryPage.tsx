@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { CARD_GRID_CLASS, ComicCard } from '../comics/ComicCard';
 import { EmptyState, LinkButton, Spinner } from '../../components/ui';
-import { ComicGrid } from '../comics/ComicCard';
 import { useLibrary } from '../comics/queries';
+import { LibrarySeriesCard } from './LibrarySeriesCard';
 
 const TABS = [
   { key: 'all', label: 'Tudo' },
@@ -23,14 +24,16 @@ export function LibraryPage() {
     page,
   });
 
-  const comics = (data?.items ?? []).map((entry) => entry.comic);
+  const items = data?.items ?? [];
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-ink-100">Minha biblioteca</h1>
         <p className="mt-1 text-sm text-ink-400">
-          {data ? `${data.total} HQs` : 'Carregando...'}
+          {data
+            ? `${data.total} ${data.total === 1 ? 'item' : 'itens'} — sagas contam como uma coleção`
+            : 'Carregando...'}
         </p>
       </div>
 
@@ -56,7 +59,7 @@ export function LibraryPage() {
 
       {isLoading ? (
         <Spinner />
-      ) : comics.length === 0 ? (
+      ) : items.length === 0 ? (
         <EmptyState
           title="Nada por aqui ainda"
           description="Adicione HQs pelo catálogo ou comece a ler — o que você lê entra automaticamente na biblioteca."
@@ -64,7 +67,15 @@ export function LibraryPage() {
         />
       ) : (
         <>
-          <ComicGrid comics={comics} showStatus />
+          <div className={CARD_GRID_CLASS}>
+            {items.map((item) =>
+              item.kind === 'series' ? (
+                <LibrarySeriesCard key={`s:${item.series.id}`} series={item.series} />
+              ) : (
+                <ComicCard key={`c:${item.entry.id}`} comic={item.entry.comic} showStatus />
+              ),
+            )}
+          </div>
           {(data?.totalPages ?? 1) > 1 && (
             <div className="flex items-center justify-center gap-3 pt-4">
               <button

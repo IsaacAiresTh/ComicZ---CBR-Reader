@@ -24,6 +24,29 @@ export class LibraryController {
     return this.library.list(user.id, query);
   }
 
+  /**
+   * Rotas de saga vem antes das de :comicId — sao mais especificas e assim o
+   * roteamento nao depende da ordem de match do Nest.
+   */
+  @Post('series/:seriesId')
+  @HttpCode(201)
+  @ApiOperation({ summary: 'Adiciona todas as edicoes de uma saga a biblioteca' })
+  addSeries(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('seriesId', ParseUUIDPipe) seriesId: string,
+  ) {
+    return this.library.addSeries(user.id, seriesId);
+  }
+
+  @Delete('series/:seriesId')
+  @ApiOperation({ summary: 'Remove todas as edicoes de uma saga da biblioteca' })
+  removeSeries(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('seriesId', ParseUUIDPipe) seriesId: string,
+  ) {
+    return this.library.removeSeries(user.id, seriesId);
+  }
+
   @Post(':comicId')
   @HttpCode(201)
   @ApiOperation({ summary: 'Adiciona uma HQ a biblioteca' })

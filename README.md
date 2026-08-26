@@ -24,12 +24,15 @@ complexidade de produção que ainda não é necessária.
 | Processamento CBR/CBZ → páginas WebP em worker separado | ✅ |
 | Leitor: página única, rolagem contínua, zoom, tela cheia, teclado | ✅ |
 | Progresso de leitura salvo e "continuar lendo" | ✅ |
-| Biblioteca: adicionar, favoritar, status, filtros | ✅ |
-| Catálogo agrupado por título: uma série = um card → página com as edições | ✅ |
+| Catálogo agrupado por título: uma saga = um card → página com as edições | ✅ |
+| Catálogo com busca (título, série, personagem), filtro e paginação | ✅ |
 | Página da saga: sinopse, créditos, período, status e total de edições | ✅ |
 | Admin de sagas: criar e editar os metadados que a página exibe | ✅ |
-| Catálogo com busca (título, série, personagem) e paginação | ✅ |
-| Import em lote de uma pasta local via CLI | ✅ |
+| Biblioteca: adicionar, favoritar, status, filtros | ✅ |
+| Biblioteca agrupada: a saga é uma coleção, não 52 cards soltos | ✅ |
+| Adicionar/remover uma saga inteira da biblioteca em um clique | ✅ |
+| Import em lote de uma pasta local via CLI, com trava contra import acidental | ✅ |
+| CI no GitHub Actions: typecheck, testes e build | ✅ |
 | Swagger em `/api/v1/docs` | ✅ |
 
 Fora do MVP (a arquitetura já prevê): Redis, storage S3/R2, CDN, Nginx,
@@ -129,10 +132,17 @@ npm run db:seed        # (re)cria o admin e as editoras
 npm run db:studio      # Prisma Studio
 npm run db:reset       # apaga e recria o banco
 
+npm run import -- --dry-run   # mostra o que seria importado, sem gravar
+npm run gen:secrets    # gera segredos para colar no .env
+
 npm run typecheck      # todos os workspaces
 npm test               # todos os workspaces
 npm run build          # build de produção
 ```
+
+> `npm run import` chama o `tsx` direto, sem `npm run -w` no meio. A indireção
+> engolia tudo depois do `--` — inclusive o `--dry-run` — e disparava um import
+> completo do acervo sem filtro.
 
 ---
 
@@ -220,8 +230,8 @@ sua pasta não é alterada.
 # Veja o que seria importado, sem gravar nada
 npm run import -- --dry-run
 
-# Importe uma série específica
-npm run import -- --only "Ultimate SpiderMan" --publisher "Marvel Comics"
+# Importe uma saga específica (recomendado)
+npm run import -- --only "Superman Absolute" --publisher "DC Comics"
 
 # Comece pequeno para testar
 npm run import -- --only Batman --limit 5
@@ -234,16 +244,45 @@ npm run import -- --only Batman --limit 5
 | `--publisher <nome>` | Editora aplicada a tudo que for importado |
 | `--limit <n>` | Para depois de `n` arquivos |
 | `--dry-run` | Mostra o plano, não grava |
+| `-y, --yes` | Confirma import de mais de 20 arquivos |
 | `--no-process` | Cadastra sem enfileirar a extração |
 
 O import é **idempotente**: rodar de novo não duplica o que já foi importado
 (a chave é o nome original do arquivo).
 
-**A pasta define a série; o nome do arquivo define a edição.** O parser lida com os
-padrões reais de scanlation — `#01`, `#012`, `Titulo#002`, `04 de 09`, `(2018)`,
-`V4`, `(DarkseidClub)`, `.cbr.cbr`, prefixos de ordenação de saga. Cobertura em
+#### Como as pastas viram sagas
+
+**A pasta que contém o arquivo nomeia a saga; a pasta de primeiro nível dentro da
+raiz lida vira a tag de coleção.** Lendo a raiz `HQ's`:
+
+```
+HQ's/Superman/Superman Absolute/Superman Absoluto #001 (2024).cbr
+     └─ coleção ─┘└──── saga ────┘└─────── edição #01 ────────┘
+```
+
+Como `--dir` **troca a raiz**, apontá-lo direto para a subpasta mantém a saga certa
+mas faz a coleção virar `Superman Absolute` — você perde a franquia. Para importar
+uma saga aninhada sem perder isso, use `--only` mantendo a raiz padrão.
+
+O nome do arquivo define a edição. O parser lida com os padrões reais de scanlation
+— `#01`, `#012`, `Titulo#002`, `014 - Darkseid Club`, `04 de 09`, `(2018)`, `V4`,
+`(DarkseidClub)`, `.cbr.cbr`, prefixos de ordenação de saga. Cobertura em
 [`packages/shared/src/comic-filename.test.ts`](./packages/shared/src/comic-filename.test.ts).
 O que ele errar, você corrige no admin.
+
+#### A trava dos 20 arquivos
+
+Sem filtro, a raiz padrão pega o acervo inteiro — copiar tudo para `storage/` e
+enfileirar a extração consome dezenas de GB e horas de CPU. Por isso um import real
+de **mais de 20 arquivos exige `--yes`**:
+
+```
+195 arquivos (8.6 GB) e mais do que 20. Confirme com --yes,
+ou reduza com --only / --dir / --limit. Use --dry-run para ver a lista antes.
+```
+
+Depois de importar, vale abrir `/admin/series` e preencher sinopse, créditos,
+status e total de edições da saga — é o que a página dela exibe.
 
 ### Arquivos grandes
 
@@ -270,6 +309,34 @@ Espaço em disco necessário por HQ, no pico: `original + extraído + WebP`. Par
 arquivo de 786 MB acima isso deu ~1,8 GB momentâneos, caindo para ~1 GB depois que
 o temporário é limpo. O worker também varre temporários órfãos com mais de 6 h ao
 iniciar, para o caso de uma extração ter morrido no meio.
+
+---
+
+## Catálogo, sagas e biblioteca
+
+A unidade que o leitor vê é o **título**, não a edição. Uma saga de 52 edições ocupa
+um card no catálogo e um card na biblioteca; abrir leva à página da saga, onde as
+edições aparecem em ordem.
+
+```
+/catalogo ──► card da saga ──► /serie/:slug ──► card da edição ──► /ler/:id
+              "7 edições"       sinopse,          #01 … #07          leitor
+                                créditos, status
+```
+
+Três regras que valem registrar, porque não são óbvias:
+
+- **O agrupamento acontece no servidor.** Se fosse no cliente, a paginação passaria a
+  mentir: "24 por página" contaria edições, e o total de títulos ficaria errado.
+- **As contagens descrevem a saga inteira; o filtro só decide se ela aparece.** Buscar
+  algo que casa com uma edição de sete ainda mostra "7 edições" — um card nunca
+  promete um número e abre outro. Vale para o catálogo e para as abas da biblioteca.
+- **Uma edição só não é coleção.** HQ avulsa, ou saga com uma única edição e nada a
+  dizer (sem sinopse, status, créditos ou total maior), aparece como a própria HQ —
+  coleção com um item dentro seria um clique a mais para nada.
+
+Dentro da saga, cada edição já salva na biblioteca leva um **✓**, para que agrupar não
+esconda quais delas você tem.
 
 ---
 
@@ -338,12 +405,13 @@ acessos, 2FA, política de senha vazada (k-anonymity do HaveIBeenPwned).
 Na ordem em que eu faria:
 
 1. **Testes** — o parser de nomes já tem cobertura; faltam testes e2e de auth,
-   autorização e do fluxo upload → processamento → leitura.
-2. **CI** (GitHub Actions): lint, typecheck, testes, build.
-3. **Processamento sob demanda** (Estratégia B do RF0001 §9): liberar a leitura a
+   autorização, do fluxo upload → processamento → leitura e do agrupamento por saga.
+2. **Processamento sob demanda** (Estratégia B do RF0001 §9): liberar a leitura a
    partir da primeira página extraída.
-4. **Personagens como entrada** — o catálogo já entra por título/série; falta a
+3. **Personagens como entrada** — o catálogo já entra por título/saga; falta a
    jornada do RF0001 que começa em "pesquisar Batman → ver por onde começar".
+4. **Adicionar um guia inteiro à biblioteca** — a saga já vai de uma vez; o guia,
+   que é a porta de entrada do produto, ainda vai edição por edição.
 5. **Redis + cache** dos guias mais acessados, quando houver acesso real.
 6. **Deploy**: Nginx, HTTPS, storage S3/R2, backup do PostgreSQL.
 

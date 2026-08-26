@@ -189,6 +189,47 @@ export interface LibraryEntry {
   progress: { currentPage: number; pageCount: number; completed: boolean } | null;
 }
 
+/** Resultado de adicionar/remover uma saga inteira da biblioteca de uma vez. */
+export interface BulkLibraryResult {
+  seriesId: string;
+  /** Edições da saga no acervo. */
+  total: number;
+  added: number;
+  removed: number;
+  /** Já estavam na biblioteca antes desta chamada. */
+  alreadyInLibrary: number;
+}
+
+/** Uma saga na biblioteca: a coleção, não as edições soltas. */
+export interface LibrarySeriesGroup {
+  id: string;
+  name: string;
+  slug: string;
+  coverUrl: string | null;
+  publisher: PublisherSummary | null;
+  status: SeriesStatus;
+  /** Edições da saga no acervo — nem todas estão necessariamente na biblioteca. */
+  seriesIssues: number;
+  /** Total planejado da saga, quando conhecido. */
+  totalIssues: number | null;
+  /** Quantas edições desta saga estão na biblioteca. */
+  inLibrary: number;
+  read: number;
+  reading: number;
+  wantToRead: number;
+  favorites: number;
+  lastActivityAt: string;
+}
+
+/**
+ * A biblioteca lista coleções, não edições: uma saga com 52 edições ocupa um
+ * card. Uma HQ sem saga — ou uma saga com uma única edição salva, onde não há
+ * coleção a abrir — vem como a própria edição.
+ */
+export type LibraryGroup =
+  | { kind: 'series'; series: LibrarySeriesGroup }
+  | { kind: 'comic'; entry: LibraryEntry };
+
 export interface AdminStats {
   users: number;
   comics: number;
