@@ -1,0 +1,42 @@
+{
+  "name": "comicz",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Plataforma de leitura de HQs e guias para novos leitores",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm run build:packages && npm-run-all --parallel dev:shared dev:database dev:api dev:worker dev:web",
+    "dev:shared": "npm run dev -w @comicz/shared",
+    "dev:database": "npm run dev -w @comicz/database",
+    "dev:api": "npm run dev -w @comicz/api",
+    "dev:worker": "npm run dev -w @comicz/worker",
+    "dev:web": "npm run dev -w @comicz/web",
+    "build": "npm run build:packages && npm run build -w @comicz/api && npm run build -w @comicz/worker && npm run build -w @comicz/web",
+    "build:packages": "npm run build -w @comicz/shared && npm run build -w @comicz/database",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run migrate -w @comicz/database",
+    "db:generate": "npm run generate -w @comicz/database",
+    "db:studio": "npm run studio -w @comicz/database",
+    "db:seed": "npm run seed -w @comicz/database",
+    "db:reset": "npm run reset -w @comicz/database",
+    "import": "npm run import -w @comicz/worker",
+    "setup": "npm install && npm run db:up && npm run db:generate && npm run db:migrate && npm run db:seed",
+    "test": "npm run test --workspaces --if-present",
+    "gen:secrets": "node scripts/gen-secrets.mjs"
+  },
+  "devDependencies": {
+    "npm-run-all": "^4.1.5",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.3"
+  }
+}

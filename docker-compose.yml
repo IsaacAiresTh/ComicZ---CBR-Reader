@@ -1,0 +1,27 @@
+# Sobe apenas o PostgreSQL. API, worker e web rodam com `npm run dev` para ter
+# hot-reload e usar o 7z/unrar já instalados na máquina.
+#
+# A porta padrão é 5433, e não 5432, para conviver com uma instalação local do
+# PostgreSQL sem conflito. Se a 5432 estiver livre na sua máquina, basta mudar
+# POSTGRES_PORT e a DATABASE_URL no .env.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: comicz-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-comicz}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-comicz}
+      POSTGRES_DB: ${POSTGRES_DB:-comicz}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-comicz} -d ${POSTGRES_DB:-comicz}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

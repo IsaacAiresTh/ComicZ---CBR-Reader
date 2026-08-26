@@ -1,0 +1,336 @@
+// ComicZ — schema do MVP.
+// O banco guarda apenas metadados: os arquivos .cbr e as paginas extraidas
+// vivem no storage (ver STORAGE_ROOT no .env).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- usuarios
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  username     String   @unique
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         Role     @default(USER)
+  avatarUrl    String?  @map("avatar_url")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  refreshTokens RefreshToken[]
+  libraryItems  LibraryItem[]
+  progress      ReadingProgress[]
+  guides        Guide[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  userAgent String?   @map("user_agent")
+  ip        String?
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// ---------------------------------------------------------------- catalogo
+
+model Publisher {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  series Series[]
+  comics Comic[]
+
+  @@map("publishers")
+}
+
+model Series {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  description String?
+  coverPath   String?  @map("cover_path")
+  startYear   Int?     @map("start_year")
+  publisherId String?  @map("publisher_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  publisher Publisher? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+  comics    Comic[]
+
+  @@index([publisherId])
+  @@map("series")
+}
+
+model Creator {
+  id   String @id @default(uuid()) @db.Uuid
+  name String @unique
+  slug String @unique
+
+  comics ComicCreator[]
+
+  @@map("creators")
+}
+
+model Character {
+  id   String @id @default(uuid()) @db.Uuid
+  name String @unique
+  slug String @unique
+
+  comics ComicCharacter[]
+
+  @@map("characters")
+}
+
+model Tag {
+  id   String @id @default(uuid()) @db.Uuid
+  name String @unique
+  slug String @unique
+
+  comics ComicTag[]
+
+  @@map("tags")
+}
+
+model Comic {
+  id              String    @id @default(uuid()) @db.Uuid
+  title           String
+  slug            String    @unique
+  description     String?
+  coverPath       String?   @map("cover_path")
+  issueNumber     Int?      @map("issue_number")
+  publicationDate DateTime? @map("publication_date")
+  seriesId        String?   @map("series_id") @db.Uuid
+  publisherId     String?   @map("publisher_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  series     Series?    @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  publisher  Publisher? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+  file       ComicFile?
+  creators   ComicCreator[]
+  characters ComicCharacter[]
+  tags       ComicTag[]
+
+  libraryItems LibraryItem[]
+  progress     ReadingProgress[]
+  guideItems   GuideItem[]
+
+  @@index([seriesId, issueNumber])
+  @@index([title])
+  @@map("comics")
+}
+
+model ComicCreator {
+  comicId   String @map("comic_id") @db.Uuid
+  creatorId String @map("creator_id") @db.Uuid
+  role      String @default("writer")
+
+  comic   Comic   @relation(fields: [comicId], references: [id], onDelete: Cascade)
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@id([comicId, creatorId, role])
+  @@map("comic_creators")
+}
+
+model ComicCharacter {
+  comicId     String @map("comic_id") @db.Uuid
+  characterId String @map("character_id") @db.Uuid
+
+  comic     Comic     @relation(fields: [comicId], references: [id], onDelete: Cascade)
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@id([comicId, characterId])
+  @@map("comic_characters")
+}
+
+model ComicTag {
+  comicId String @map("comic_id") @db.Uuid
+  tagId   String @map("tag_id") @db.Uuid
+
+  comic Comic @relation(fields: [comicId], references: [id], onDelete: Cascade)
+  tag   Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([comicId, tagId])
+  @@map("comic_tags")
+}
+
+// ---------------------------------------------------------------- arquivos
+
+enum ComicFormat {
+  CBR
+  CBZ
+}
+
+enum FileStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+model ComicFile {
+  id               String      @id @default(uuid()) @db.Uuid
+  comicId          String      @unique @map("comic_id") @db.Uuid
+  originalFilename String      @map("original_filename")
+  format           ComicFormat
+  sizeBytes        BigInt      @map("size_bytes")
+  pageCount        Int?        @map("page_count")
+  status           FileStatus  @default(PENDING)
+  storageKey       String      @map("storage_key")
+  checksum         String?
+  errorMessage     String?     @map("error_message")
+  processedAt      DateTime?   @map("processed_at")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  comic Comic       @relation(fields: [comicId], references: [id], onDelete: Cascade)
+  pages ComicPage[]
+
+  @@index([status])
+  @@map("comic_files")
+}
+
+model ComicPage {
+  id          String @id @default(uuid()) @db.Uuid
+  comicFileId String @map("comic_file_id") @db.Uuid
+  index       Int
+  storageKey  String @map("storage_key")
+  width       Int?
+  height      Int?
+  sizeBytes   Int?   @map("size_bytes")
+
+  file ComicFile @relation(fields: [comicFileId], references: [id], onDelete: Cascade)
+
+  @@unique([comicFileId, index])
+  @@map("comic_pages")
+}
+
+// ---------------------------------------------------------------- fila
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+/// Fila simples em PostgreSQL (SELECT ... FOR UPDATE SKIP LOCKED).
+/// Trocavel por Redis/BullMQ depois sem mexer no dominio.
+model Job {
+  id          String    @id @default(uuid()) @db.Uuid
+  type        String
+  payload     Json
+  status      JobStatus @default(QUEUED)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3) @map("max_attempts")
+  lastError   String?   @map("last_error")
+  runAt       DateTime  @default(now()) @map("run_at")
+  startedAt   DateTime? @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  @@index([status, runAt])
+  @@map("jobs")
+}
+
+// ---------------------------------------------------------------- biblioteca
+
+enum LibraryStatus {
+  WANT_TO_READ
+  READING
+  READ
+}
+
+model LibraryItem {
+  id        String        @id @default(uuid()) @db.Uuid
+  userId    String        @map("user_id") @db.Uuid
+  comicId   String        @map("comic_id") @db.Uuid
+  status    LibraryStatus @default(WANT_TO_READ)
+  favorite  Boolean       @default(false)
+  addedAt   DateTime      @default(now()) @map("added_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comic Comic @relation(fields: [comicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, comicId])
+  @@index([userId, status])
+  @@map("library_items")
+}
+
+model ReadingProgress {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  comicId     String   @map("comic_id") @db.Uuid
+  currentPage Int      @default(1) @map("current_page")
+  pageCount   Int      @default(0) @map("page_count")
+  completed   Boolean  @default(false)
+  lastReadAt  DateTime @default(now()) @map("last_read_at")
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comic Comic @relation(fields: [comicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, comicId])
+  @@index([userId, lastReadAt])
+  @@map("reading_progress")
+}
+
+// ---------------------------------------------------------------- guias
+
+model Guide {
+  id          String   @id @default(uuid()) @db.Uuid
+  title       String
+  slug        String   @unique
+  summary     String?
+  description String?
+  coverPath   String?  @map("cover_path")
+  published   Boolean  @default(false)
+  createdById String?  @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  createdBy User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  items     GuideItem[]
+
+  @@map("guides")
+}
+
+model GuideItem {
+  id       String  @id @default(uuid()) @db.Uuid
+  guideId  String  @map("guide_id") @db.Uuid
+  comicId  String  @map("comic_id") @db.Uuid
+  position Int
+  note     String?
+  optional Boolean @default(false)
+
+  guide Guide @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  comic Comic @relation(fields: [comicId], references: [id], onDelete: Cascade)
+
+  @@unique([guideId, comicId])
+  @@index([guideId, position])
+  @@map("guide_items")
+}

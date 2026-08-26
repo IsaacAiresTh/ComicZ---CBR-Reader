@@ -1,0 +1,23 @@
+{
+  "name": "@comicz/worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch --clear-screen=false --include \"../../packages/*/dist/**/*.js\" src/index.ts",
+    "start": "node dist/index.js",
+    "import": "tsx src/cli/import-local.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@comicz/database": "*",
+    "@comicz/shared": "*",
+    "dotenv": "^16.4.7",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}
