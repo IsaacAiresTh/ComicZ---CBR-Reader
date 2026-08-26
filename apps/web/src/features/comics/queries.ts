@@ -8,7 +8,7 @@ import type {
   LibraryEntry,
   Paginated,
   PublisherSummary,
-  SeriesSummary,
+  SeriesListItem,
 } from '@comicz/shared';
 import { api } from '../../services/api';
 
@@ -76,10 +76,7 @@ export function useContinueReading() {
 export function useSeriesList(search?: string) {
   return useQuery({
     queryKey: ['series', search ?? ''],
-    queryFn: () =>
-      api.get<(SeriesSummary & { description: string | null; publisher: PublisherSummary | null })[]>(
-        `/series${toQueryString({ q: search })}`,
-      ),
+    queryFn: () => api.get<SeriesListItem[]>(`/series${toQueryString({ q: search })}`),
   });
 }
 

@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 const TABS = [
   { to: '/admin', label: 'Painel', end: true },
   { to: '/admin/hqs', label: 'HQs' },
+  { to: '/admin/series', label: 'Sagas' },
   { to: '/admin/guias', label: 'Guias' },
   { to: '/admin/fila', label: 'Fila' },
   { to: '/admin/usuarios', label: 'Usuários' },
@@ -14,7 +15,7 @@ export function AdminLayout() {
       <div>
         <h1 className="text-2xl font-semibold text-ink-100">Administração</h1>
         <p className="mt-1 text-sm text-ink-400">
-          Cadastro de HQs, upload de arquivos e montagem dos guias de leitura.
+          Cadastro de HQs, sagas, upload de arquivos e montagem dos guias de leitura.
         </p>
       </div>
 

@@ -67,22 +67,51 @@ model Publisher {
   @@map("publishers")
 }
 
-model Series {
-  id          String   @id @default(uuid()) @db.Uuid
-  name        String
-  slug        String   @unique
-  description String?
-  coverPath   String?  @map("cover_path")
-  startYear   Int?     @map("start_year")
-  publisherId String?  @map("publisher_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+/// UNKNOWN e o default de proposito: nao queremos afirmar "em lancamento" sobre
+/// uma saga so porque ninguem preencheu o campo ainda.
+enum SeriesStatus {
+  UNKNOWN
+  ONGOING
+  COMPLETED
+  HIATUS
+}
 
-  publisher Publisher? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+model Series {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String       @unique
+  description String?
+  coverPath   String?      @map("cover_path")
+  startYear   Int?         @map("start_year")
+  endYear     Int?         @map("end_year")
+  status      SeriesStatus @default(UNKNOWN)
+  /// Total planejado de edicoes da saga; null quando nao se sabe. Comparado
+  /// com quantas estao no acervo para mostrar "6 de 12 edicoes".
+  totalIssues Int?         @map("total_issues")
+  publisherId String?      @map("publisher_id") @db.Uuid
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  publisher Publisher?      @relation(fields: [publisherId], references: [id], onDelete: SetNull)
   comics    Comic[]
+  creators  SeriesCreator[]
 
   @@index([publisherId])
   @@map("series")
+}
+
+/// Creditos da saga inteira (roteirista, arte). Separado de ComicCreator porque
+/// uma edicao pode ter um artista convidado sem que ele assine a serie.
+model SeriesCreator {
+  seriesId  String @map("series_id") @db.Uuid
+  creatorId String @map("creator_id") @db.Uuid
+  role      String @default("writer")
+
+  series  Series  @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  creator Creator @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@id([seriesId, creatorId, role])
+  @@map("series_creators")
 }
 
 model Creator {
@@ -91,6 +120,7 @@ model Creator {
   slug String @unique
 
   comics ComicCreator[]
+  series SeriesCreator[]
 
   @@map("creators")
 }

@@ -26,6 +26,8 @@ complexidade de produção que ainda não é necessária.
 | Progresso de leitura salvo e "continuar lendo" | ✅ |
 | Biblioteca: adicionar, favoritar, status, filtros | ✅ |
 | Catálogo agrupado por título: uma série = um card → página com as edições | ✅ |
+| Página da saga: sinopse, créditos, período, status e total de edições | ✅ |
+| Admin de sagas: criar e editar os metadados que a página exibe | ✅ |
 | Catálogo com busca (título, série, personagem) e paginação | ✅ |
 | Import em lote de uma pasta local via CLI | ✅ |
 | Swagger em `/api/v1/docs` | ✅ |

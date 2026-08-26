@@ -2,6 +2,7 @@ export type Role = 'USER' | 'ADMIN';
 export type FileStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'FAILED';
 export type ComicFormat = 'CBR' | 'CBZ';
 export type LibraryStatus = 'WANT_TO_READ' | 'READING' | 'READ';
+export type SeriesStatus = 'UNKNOWN' | 'ONGOING' | 'COMPLETED' | 'HIATUS';
 
 export interface PublicUser {
   id: string;
@@ -32,6 +33,42 @@ export interface SeriesSummary {
   slug: string;
   startYear: number | null;
   comicCount?: number;
+}
+
+/** Linha da listagem de séries — o que GET /series devolve. */
+export interface SeriesListItem extends SeriesSummary {
+  description: string | null;
+  endYear: number | null;
+  status: SeriesStatus;
+  totalIssues: number | null;
+  publisher: PublisherSummary | null;
+  comicCount: number;
+}
+
+export interface CreatorCredit {
+  name: string;
+  role: string;
+}
+
+/** A saga em si: sinopse, créditos, período e situação de publicação. */
+export interface SeriesDetail {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  startYear: number | null;
+  endYear: number | null;
+  status: SeriesStatus;
+  /** Total planejado de edições; null quando não se sabe. */
+  totalIssues: number | null;
+  publisher: PublisherSummary | null;
+  creators: CreatorCredit[];
+  /**
+   * true quando os créditos vieram das edições por falta de créditos próprios
+   * da saga — a UI avisa em vez de fingir que alguém preencheu.
+   */
+  creatorsFromIssues: boolean;
+  comics: ComicSummary[];
 }
 
 export interface PublisherSummary {
@@ -79,7 +116,10 @@ export interface CatalogSeriesEntry {
   publisher: PublisherSummary | null;
   /** Capa da primeira edicao que tiver uma. */
   coverUrl: string | null;
+  status: SeriesStatus;
   issueCount: number;
+  /** Total planejado da saga, quando conhecido. */
+  totalIssues: number | null;
   /** Quantas edicoes ja terminaram de processar e podem ser lidas. */
   readyCount: number;
   readCount: number;

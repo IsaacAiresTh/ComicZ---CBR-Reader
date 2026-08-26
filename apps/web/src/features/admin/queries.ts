@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AdminStats, ComicDetail, GuideDetail, UpsertComicPayload } from '@comicz/shared';
+import type {
+  AdminStats,
+  ComicDetail,
+  GuideDetail,
+  SeriesDetail,
+  UpsertComicPayload,
+  UpsertSeriesPayload,
+} from '@comicz/shared';
 import { api } from '../../services/api';
 
 export interface AdminJob {
@@ -101,6 +108,47 @@ export function useReprocessComic() {
       invalidateCatalog(queryClient);
       void queryClient.invalidateQueries({ queryKey: ['admin-jobs'] });
     },
+  });
+}
+
+function invalidateSeries(queryClient: ReturnType<typeof useQueryClient>) {
+  void queryClient.invalidateQueries({ queryKey: ['series'] });
+  void queryClient.invalidateQueries({ queryKey: ['series-detail'] });
+  // O card do catálogo mostra status e nº de edições da saga.
+  void queryClient.invalidateQueries({ queryKey: ['catalog'] });
+  void queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+}
+
+export function useSeriesDetail(idOrSlug: string | undefined) {
+  return useQuery({
+    queryKey: ['series-detail', idOrSlug],
+    queryFn: () => api.get<SeriesDetail>(`/series/${idOrSlug}`),
+    enabled: Boolean(idOrSlug),
+  });
+}
+
+export function useCreateSeries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: UpsertSeriesPayload) => api.post<{ id: string }>('/series', input),
+    onSuccess: () => invalidateSeries(queryClient),
+  });
+}
+
+export function useUpdateSeries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; data: UpsertSeriesPayload }) =>
+      api.patch(`/series/${input.id}`, input.data),
+    onSuccess: () => invalidateSeries(queryClient),
+  });
+}
+
+export function useDeleteSeries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/series/${id}`),
+    onSuccess: () => invalidateSeries(queryClient),
   });
 }
 

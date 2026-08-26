@@ -9,6 +9,7 @@ import { AdminDashboard } from '../features/admin/AdminDashboard';
 import { AdminGuidesPage } from '../features/admin/AdminGuidesPage';
 import { AdminJobsPage } from '../features/admin/AdminJobsPage';
 import { AdminLayout } from '../features/admin/AdminLayout';
+import { AdminSeriesPage } from '../features/admin/AdminSeriesPage';
 import { AdminUsersPage } from '../features/admin/AdminUsersPage';
 import { CatalogPage } from '../features/comics/CatalogPage';
 import { ComicDetailPage } from '../features/comics/ComicDetailPage';
@@ -46,6 +47,7 @@ export function AppRouter() {
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<AdminDashboard />} />
             <Route path="hqs" element={<AdminComicsPage />} />
+            <Route path="series" element={<AdminSeriesPage />} />
             <Route path="guias" element={<AdminGuidesPage />} />
             <Route path="fila" element={<AdminJobsPage />} />
             <Route path="usuarios" element={<AdminUsersPage />} />

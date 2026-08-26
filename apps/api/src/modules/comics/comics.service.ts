@@ -3,6 +3,7 @@ import {
   ComicFormat,
   FileStatus,
   Prisma,
+  SeriesStatus,
   enqueueJob,
 } from '@comicz/database';
 import {
@@ -105,7 +106,10 @@ export class ComicsService {
       matchedSeriesIds.length
         ? this.prisma.series.findMany({
             where: { id: { in: matchedSeriesIds } },
-            include: { publisher: { select: { id: true, name: true, slug: true } } },
+            include: {
+              publisher: { select: { id: true, name: true, slug: true } },
+              _count: { select: { creators: true } },
+            },
           })
         : Promise.resolve([]),
       // HQs sem serie: cada uma e um titulo por si mesma.
@@ -190,8 +194,23 @@ export class ComicsService {
     for (const key of pageKeys) {
       const issueList = key.kind === 'series' ? (issuesBySeries.get(key.id) ?? []) : [];
 
-      // Uma edicao so (ou HQ avulsa): mostramos a HQ, nao um card de serie.
-      if (key.kind === 'comic' || issueList.length <= 1) {
+      const series = key.kind === 'series' ? seriesById.get(key.id) : undefined;
+
+      /**
+       * Uma saga com sinopse, status, creditos proprios ou mais edicoes do que
+       * temos no acervo tem uma pagina que vale abrir mesmo com uma unica
+       * edicao aqui — colapsar esconderia tudo isso.
+       */
+      const hasSagaInfo = Boolean(
+        series &&
+          (series.description ||
+            series.status !== SeriesStatus.UNKNOWN ||
+            series._count.creators > 0 ||
+            (series.totalIssues !== null && series.totalIssues > issueList.length)),
+      );
+
+      // Sem nada a dizer alem da propria edicao, mostramos a HQ direto.
+      if (key.kind === 'comic' || (issueList.length <= 1 && !hasSagaInfo)) {
         const comic = key.kind === 'comic' ? issueById.get(key.id) : issueList[0];
         if (comic) {
           items.push({ kind: 'comic', comic: toComicSummary(comic, contexts.get(comic.id) ?? {}) });
@@ -199,7 +218,6 @@ export class ComicsService {
         continue;
       }
 
-      const series = seriesById.get(key.id);
       if (!series) continue;
 
       const withCover = issueList.find((issue) => issue.coverPath);
@@ -213,6 +231,8 @@ export class ComicsService {
           startYear: series.startYear,
           publisher: series.publisher,
           coverUrl: withCover ? coverUrl(withCover) : null,
+          status: series.status,
+          totalIssues: series.totalIssues,
           issueCount: issueList.length,
           readyCount: issueList.filter((issue) => issue.file?.status === FileStatus.READY).length,
           readCount: issueList.filter((issue) => contexts.get(issue.id)?.progress?.completed).length,

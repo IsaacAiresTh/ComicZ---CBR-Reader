@@ -32,6 +32,16 @@ export const updateProfileSchema = z.object({
   avatarUrl: z.string().url('URL invalida').max(500).nullable().optional(),
 });
 
+/** Aceita "Tom King, Clay Mann" ou ["Tom King", "Clay Mann"]. */
+const nameList = z
+  .union([z.string(), z.array(z.string())])
+  .transform((value) =>
+    (Array.isArray(value) ? value : value.split(','))
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0),
+  )
+  .optional();
+
 // ------------------------------------------------------------------ catalogo
 
 export const comicSortSchema = z.enum(['recent', 'title', 'issue']);
@@ -61,15 +71,6 @@ export const catalogQuerySchema = z.object({
   perPage: z.coerce.number().int().min(1).max(60).default(24),
 });
 
-const nameList = z
-  .union([z.string(), z.array(z.string())])
-  .transform((value) =>
-    (Array.isArray(value) ? value : value.split(','))
-      .map((item) => item.trim())
-      .filter((item) => item.length > 0),
-  )
-  .optional();
-
 export const upsertComicSchema = z.object({
   title: z.string().trim().min(1, 'Informe o titulo').max(200),
   description: z.string().trim().max(4000).nullish(),
@@ -84,11 +85,25 @@ export const upsertComicSchema = z.object({
   tags: nameList,
 });
 
+export const seriesStatusSchema = z.enum(['UNKNOWN', 'ONGOING', 'COMPLETED', 'HIATUS']);
+
+/**
+ * PATCH de verdade: campo ausente e MANTIDO, `null` (ou string vazia nas listas
+ * de nomes) limpa. Sem isso um update parcial apagaria em silencio tudo que nao
+ * fosse enviado.
+ */
 export const upsertSeriesSchema = z.object({
   name: z.string().trim().min(1, 'Informe o nome').max(200),
   description: z.string().trim().max(4000).nullish(),
   startYear: z.coerce.number().int().min(1900).max(2200).nullish(),
+  endYear: z.coerce.number().int().min(1900).max(2200).nullish(),
+  status: seriesStatusSchema.optional(),
+  /** Total planejado de edicoes da saga — null quando nao se sabe. */
+  totalIssues: z.coerce.number().int().min(1).max(10000).nullish(),
   publisherId: z.string().uuid().nullish(),
+  publisherName: z.string().trim().max(200).optional(),
+  writers: nameList,
+  artists: nameList,
 });
 
 // ------------------------------------------------------------------ biblioteca
@@ -160,6 +175,8 @@ export type UpsertComicInput = z.infer<typeof upsertComicSchema>;
  */
 export type UpsertComicPayload = z.input<typeof upsertComicSchema>;
 export type UpsertSeriesInput = z.infer<typeof upsertSeriesSchema>;
+/** Lado de ENTRADA: `writers`/`artists` aceitam string separada por virgula. */
+export type UpsertSeriesPayload = z.input<typeof upsertSeriesSchema>;
 export type ListLibraryQuery = z.infer<typeof listLibraryQuerySchema>;
 export type UpdateLibraryItemInput = z.infer<typeof updateLibraryItemSchema>;
 export type UpdateProgressInput = z.infer<typeof updateProgressSchema>;

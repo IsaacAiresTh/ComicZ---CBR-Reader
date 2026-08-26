@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { CatalogEntry, CatalogSeriesEntry } from '@comicz/shared';
 import { Badge } from '../../components/ui';
-import { percent } from '../../lib/format';
+import { percent, seriesStatusLabel } from '../../lib/format';
 import { mediaUrl } from '../../services/api';
 import { CARD_GRID_CLASS, ComicCard } from './ComicCard';
 
@@ -13,7 +13,12 @@ export function SeriesCard({ series }: { series: CatalogSeriesEntry }) {
   const cover = mediaUrl(series.coverUrl);
   const read = series.readCount;
   const total = series.issueCount;
-  const started = read > 0 || series.inLibraryCount > 0;
+  const status = seriesStatusLabel(series.status);
+  // "6 de 12 edições" só quando a saga é maior do que o que temos no acervo.
+  const issues =
+    series.totalIssues && series.totalIssues > total
+      ? `${total} de ${series.totalIssues} edições`
+      : `${total} edições`;
 
   return (
     <Link
@@ -46,8 +51,10 @@ export function SeriesCard({ series }: { series: CatalogSeriesEntry }) {
             </div>
           )}
 
+          {/* Só o selo neutro fica sobre a capa: os tons coloridos usam fundo
+              translúcido e somem sobre a arte. O status vai abaixo, no sólido. */}
           <span className="absolute left-2 top-2">
-            <Badge>{total} edições</Badge>
+            <Badge>{issues}</Badge>
           </span>
 
           {read > 0 && read < total && (
@@ -69,7 +76,12 @@ export function SeriesCard({ series }: { series: CatalogSeriesEntry }) {
             {series.publisher?.name ?? 'Sem editora'}
             {series.startYear ? ` · ${series.startYear}` : ''}
           </p>
-          {started && (
+          {status && (
+            <span className="mt-0.5">
+              <Badge tone={series.status === 'COMPLETED' ? 'success' : 'brand'}>{status}</Badge>
+            </span>
+          )}
+          {read > 0 && (
             <p className="mt-auto pt-1 text-xs text-ink-400">
               {read} de {total} lidas
             </p>
