@@ -329,15 +329,6 @@ acessos, 2FA, política de senha vazada (k-anonymity do HaveIBeenPwned).
 
 ---
 
-## Direitos autorais
-
-O RF0001 §12 já levanta isso e vale repetir: esta aplicação foi construída para
-**uso privado, com arquivos que você tem direito de armazenar**. A arquitetura
-suporta um catálogo grande, mas hospedar e distribuir material comercial sem
-autorização é problema jurídico, não técnico — e mudaria bastante as decisões de
-storage e infraestrutura.
-
----
 
 ## Próximos passos sugeridos
 
