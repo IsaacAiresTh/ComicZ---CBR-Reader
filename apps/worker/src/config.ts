@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { storageSettingsFromEnv } from '@comicz/storage';
 import { config as loadEnv } from 'dotenv';
 import { fromRepoRoot, REPO_ROOT } from './lib/paths';
 
@@ -13,6 +14,12 @@ function int(name: string, fallback: number): number {
 const storageRoot = fromRepoRoot(process.env.STORAGE_ROOT ?? './storage');
 
 export const workerConfig = {
+  /**
+   * Lido pelo mesmo codigo que a API usa. O worker grava as paginas onde a API
+   * vai procura-las porque os dois derivam o destino da mesma funcao, e nao
+   * porque duas configuracoes coincidem.
+   */
+  storage: storageSettingsFromEnv(process.env, { root: storageRoot }),
   storageRoot,
   /**
    * Area de extracao. Fica no storage, e nao em /tmp, porque /tmp costuma ser

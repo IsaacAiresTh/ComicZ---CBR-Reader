@@ -1,9 +1,10 @@
-import { rm } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
+import { join } from 'node:path';
 import { FileStatus, type PrismaClient } from '@comicz/database';
 import { collectImages, extractArchive } from '../lib/archive';
 import { convertPage, generateCover } from '../lib/images';
 import { createLogger } from '../lib/logger';
-import { absolute, coverKey, ensureDirFor, pageKey, removeKey } from '../lib/storage';
+import { coverKey, pageKey, pagesPrefix, storage } from '../lib/storage';
 import { createWorkDir } from '../lib/tmp';
 
 const log = createLogger('process');
@@ -16,8 +17,14 @@ export interface ProcessComicFilePayload {
  * CBR/CBZ -> paginas WebP no storage (RF0001 §2, §10, §11).
  *
  * Estrategia A do RF0001: processa o arquivo todo antes de liberar a leitura.
- * O status so vira READY quando todas as paginas existem em disco, de modo que
- * o leitor nunca abre uma HQ pela metade.
+ * O status so vira READY quando todas as paginas existem no storage, de modo
+ * que o leitor nunca abre uma HQ pela metade.
+ *
+ * Tudo acontece dentro de um diretorio de trabalho temporario, e nao no
+ * storage: 7z e sharp precisam de caminhos em disco, e quando o storage e
+ * remoto ele nao tem caminho nenhum. Cada pagina pronta e movida para o
+ * storage e desaparece do disco — com o driver local isso e um rename, sem
+ * copia.
  */
 export async function processComicFile(
   prisma: PrismaClient,
@@ -35,11 +42,18 @@ export async function processComicFile(
   });
 
   const workDir = await createWorkDir(file.id);
+  const extractDir = join(workDir, 'extract');
+  const pagesDir = join(workDir, 'pages');
+  await mkdir(extractDir, { recursive: true });
+  await mkdir(pagesDir, { recursive: true });
 
   try {
-    const archivePath = absolute(file.storageKey);
-    const extractor = await extractArchive(archivePath, workDir);
-    const images = await collectImages(workDir);
+    // Com o driver local isto nao copia nada: devolve o proprio arquivo do
+    // storage. Com o S3, baixa o original para o diretorio de trabalho.
+    const original = await storage.localCopy(file.storageKey, workDir);
+    const extractor = await extractArchive(original.path, extractDir);
+    await original.discard();
+    const images = await collectImages(extractDir);
 
     if (images.length === 0) {
       throw new Error('O arquivo nao contem imagens reconheciveis');
@@ -49,7 +63,7 @@ export async function processComicFile(
 
     // Reprocessamento: limpa paginas antigas antes de gravar as novas.
     await prisma.comicPage.deleteMany({ where: { comicFileId: file.id } });
-    await removeKey(`pages/${file.id}`);
+    await storage.removePrefix(pagesPrefix(file.id));
 
     const pageRows: {
       comicFileId: string;
@@ -60,16 +74,27 @@ export async function processComicFile(
       sizeBytes: number;
     }[] = [];
 
+    // A capa sai da primeira pagina que converter, e e gerada enquanto o
+    // arquivo dela ainda esta em disco. Le-la de volta do storage custaria um
+    // download so para produzir um thumbnail de 500px.
+    const coverPath = join(workDir, 'cover.webp');
+    let coverReady = false;
+
     // O indice avanca somente em conversao bem-sucedida, para nao abrir
     // buracos na numeracao caso alguma imagem esteja corrompida.
     let index = 0;
     for (const source of images) {
       const candidate = index + 1;
       const key = pageKey(file.id, candidate);
-      await ensureDirFor(key);
+      const scratch = join(pagesDir, `${candidate}.webp`);
 
       try {
-        const converted = await convertPage(source, absolute(key));
+        const converted = await convertPage(source, scratch);
+        if (!coverReady) {
+          await generateCover(scratch, coverPath);
+          coverReady = true;
+        }
+        await storage.moveInto(key, scratch);
         pageRows.push({
           comicFileId: file.id,
           index: candidate,
@@ -80,9 +105,9 @@ export async function processComicFile(
         });
         index = candidate;
       } catch (error) {
-        // Uma pagina corrompida nao deve invalidar a HQ inteira.
+        // Uma pagina corrompida nao deve invalidar a HQ inteira. O arquivo
+        // parcial fica no diretorio de trabalho e some com ele no finally.
         log.warn(`pagina ${candidate} de "${file.comic.title}" ignorada`, (error as Error).message);
-        await removeKey(key);
       }
     }
 
@@ -92,11 +117,9 @@ export async function processComicFile(
 
     await prisma.comicPage.createMany({ data: pageRows });
 
-    const firstPage = pageRows[0];
-    if (firstPage) {
+    if (coverReady) {
       const cover = coverKey(file.comic.id);
-      await ensureDirFor(cover);
-      await generateCover(absolute(firstPage.storageKey), absolute(cover));
+      await storage.moveInto(cover, coverPath);
       await prisma.comic.update({
         where: { id: file.comic.id },
         data: { coverPath: cover },

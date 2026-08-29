@@ -12,6 +12,7 @@
   "dependencies": {
     "@comicz/database": "*",
     "@comicz/shared": "*",
+    "@comicz/storage": "*",
     "dotenv": "^16.4.7",
     "sharp": "^0.33.5"
   },

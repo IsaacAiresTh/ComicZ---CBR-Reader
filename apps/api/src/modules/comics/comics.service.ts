@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import {
   ComicFormat,
   FileStatus,
@@ -19,9 +19,10 @@ import {
   type Paginated,
   type UpsertComicInput,
 } from '@comicz/shared';
+import { originalKey, pagesPrefix, type StorageAdapter } from '@comicz/storage';
 import { paginate, toSkipTake } from '../../common/utils/pagination';
 import { PrismaService } from '../../prisma/prisma.service';
-import { StorageService } from '../files/storage.service';
+import { STORAGE } from '../files/storage.provider';
 import {
   comicDetailInclude,
   comicSummaryInclude,
@@ -44,7 +45,7 @@ export class ComicsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly taxonomy: TaxonomyService,
-    private readonly storage: StorageService,
+    @Inject(STORAGE) private readonly storage: StorageAdapter,
   ) {}
 
   // ------------------------------------------------------------------ leitura
@@ -332,7 +333,7 @@ export class ComicsService {
 
     if (comic.file) {
       await this.storage.remove(comic.file.storageKey);
-      await this.storage.remove(`pages/${comic.file.id}`);
+      await this.storage.removePrefix(pagesPrefix(comic.file.id));
     }
     if (comic.coverPath) await this.storage.remove(comic.coverPath);
 
@@ -366,7 +367,7 @@ export class ComicsService {
             status: FileStatus.PENDING,
             pageCount: null,
             errorMessage: null,
-            storageKey: this.storage.originalKey(previous.id, format),
+            storageKey: originalKey(previous.id, format),
           },
         })
       : await this.prisma.comicFile.create({
@@ -380,13 +381,13 @@ export class ComicsService {
           },
         });
 
-    const storageKey = this.storage.originalKey(comicFile.id, format);
-    await this.storage.moveInto(upload.path, storageKey);
+    const storageKey = originalKey(comicFile.id, format);
+    await this.storage.moveInto(storageKey, upload.path);
 
     if (previous) {
       // Substituicao: descarta as paginas antigas antes de reprocessar.
       await this.prisma.comicPage.deleteMany({ where: { comicFileId: comicFile.id } });
-      await this.storage.remove(`pages/${comicFile.id}`);
+      await this.storage.removePrefix(pagesPrefix(comicFile.id));
     }
 
     await this.prisma.comicFile.update({ where: { id: comicFile.id }, data: { storageKey } });

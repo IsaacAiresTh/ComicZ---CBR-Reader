@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { storageSettingsFromEnv, type StorageSettings } from '@comicz/storage';
 import { z } from 'zod';
 import { fromRepoRoot } from './paths';
 
@@ -60,6 +61,7 @@ export interface AppConfig {
   prefix: string;
   webOrigin: string;
   trustProxy: number;
+  storage: StorageSettings;
   storageRoot: string;
   tmpRoot: string;
   uploadTmpDir: string;
@@ -93,6 +95,9 @@ export function loadConfig(): AppConfig {
   return {
     env: env.NODE_ENV,
     isProduction: env.NODE_ENV === 'production',
+    // As variaveis de S3 nao passam pelo schema acima de proposito: quem sabe
+    // quais sao obrigatorias e o proprio pacote, e so quando o driver e s3.
+    storage: storageSettingsFromEnv(process.env, { root: storageRoot }),
     port: env.PORT ?? env.API_PORT,
     prefix: env.API_PREFIX,
     webOrigin: env.WEB_ORIGIN,

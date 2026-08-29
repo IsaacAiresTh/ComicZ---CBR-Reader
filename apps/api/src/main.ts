@@ -12,8 +12,10 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import type { StorageAdapter } from '@comicz/storage';
 import { AppModule } from './app.module';
 import { APP_CONFIG, type AppConfig } from './config/configuration';
+import { STORAGE } from './modules/files/storage.provider';
 
 // Prisma devolve BigInt (size_bytes) e JSON.stringify nao sabe serializa-lo.
 (BigInt.prototype as unknown as { toJSON(): string }).toJSON = function toJSON(this: bigint) {
@@ -75,7 +77,7 @@ async function bootstrap(): Promise<void> {
   logger.log(`API na porta ${config.port} sob /${config.prefix}`);
   logger.log(`Swagger em /${config.prefix}/docs`);
   logger.log(`Origens permitidas: ${config.webOrigin}`);
-  logger.log(`Storage em ${config.storageRoot}`);
+  logger.log(`Storage: ${app.get<StorageAdapter>(STORAGE).describe()}`);
   logger.log(`Upload maximo: ${config.maxUploadMb} MB (staging em ${config.uploadTmpDir})`);
 }
 

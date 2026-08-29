@@ -1,9 +1,15 @@
-import { Controller, Get, Param, Req, Res } from '@nestjs/common';
+import { Controller, Get, Inject, NotFoundException, Param, Req, Res } from '@nestjs/common';
 import { ApiExcludeController } from '@nestjs/swagger';
+import {
+  coverKey,
+  pageKey,
+  StorageObjectNotFound,
+  type StorageAdapter,
+} from '@comicz/storage';
 import type { Request, Response } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import { MEDIA_COOKIE, MediaTokenService } from './media-token.service';
-import { StorageService } from './storage.service';
+import { STORAGE } from './storage.provider';
 
 /**
  * Servidor de imagens (capas e paginas).
@@ -29,7 +35,7 @@ const IMMUTABLE_CACHE = 'public, max-age=31536000, immutable';
 @Controller('media')
 export class MediaController {
   constructor(
-    private readonly storage: StorageService,
+    @Inject(STORAGE) private readonly storage: StorageAdapter,
     private readonly mediaToken: MediaTokenService,
   ) {}
 
@@ -41,7 +47,7 @@ export class MediaController {
     @Res() res: Response,
   ): Promise<void> {
     this.authorize(req);
-    const key = this.storage.coverKey(comicId.replace(/\.webp$/i, ''));
+    const key = coverKey(comicId.replace(/\.webp$/i, ''));
     await this.send(key, res);
   }
 
@@ -55,7 +61,7 @@ export class MediaController {
   ): Promise<void> {
     this.authorize(req);
     const pageIndex = Number(index.replace(/\.webp$/i, ''));
-    const key = this.storage.pageKey(comicFileId, Number.isFinite(pageIndex) ? pageIndex : 0);
+    const key = pageKey(comicFileId, Number.isFinite(pageIndex) ? pageIndex : 0);
     await this.send(key, res);
   }
 
@@ -72,11 +78,25 @@ export class MediaController {
     );
   }
 
+  /**
+   * Tamanho e stream vem da mesma chamada: no R2 pedi-los separadamente
+   * custaria duas operacoes Classe B por imagem exibida.
+   */
   private async send(key: string, res: Response): Promise<void> {
-    const info = await this.storage.statOrFail(key);
+    let object;
+    try {
+      object = await this.storage.open(key);
+    } catch (error) {
+      // Pagina ainda nao processada, ou HQ removida: 404, nao 500.
+      if (error instanceof StorageObjectNotFound) {
+        throw new NotFoundException('Arquivo nao encontrado no storage');
+      }
+      throw error;
+    }
+
     res.setHeader('Content-Type', 'image/webp');
-    res.setHeader('Content-Length', info.size);
+    res.setHeader('Content-Length', object.size);
     res.setHeader('Cache-Control', IMMUTABLE_CACHE);
-    this.storage.createStream(key).pipe(res);
+    object.stream.pipe(res);
   }
 }

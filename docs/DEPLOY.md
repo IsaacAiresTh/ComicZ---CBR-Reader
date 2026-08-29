@@ -1,4 +1,6 @@
-# Deploy — passo 1: aplicação no ar, sem imagens
+# Deploy
+
+# Passo 1: aplicação no ar, sem imagens
 
 Este passo coloca **banco + API + frontend** em produção para provar que login,
 sessão e catálogo funcionam ponta a ponta. Imagens e upload ficam para o passo 2
@@ -101,6 +103,99 @@ login, F5 (a sessão tem que sobreviver), e o catálogo carregando.
 Ambos são resolvidos no passo 2, movendo o storage para o Cloudflare R2 e
 rodando `apps/worker` na sua máquina contra o Neon + R2.
 
+# Passo 2: storage no R2 e worker local
+
+O passo 1 deixou a aplicação de pé sem imagens. Elas faltavam por um motivo
+estrutural, não por configuração: no Render a API e o worker seriam serviços
+distintos, com discos distintos, e o disco do free instance é efêmero. O worker
+grava as páginas; a API precisa lê-las. Sem um storage que os dois enxerguem,
+não existe combinação de variáveis que faça isso funcionar.
+
+```
+                    ┌──────────────┐
+   admin ──upload──►│  API/Render  │──original──┐
+                    └──────┬───────┘            │
+                           │ job PENDING        ▼
+                           ▼                  ┌────┐
+                      ┌─────────┐             │ R2 │
+                      │  Neon   │             └────┘
+                      └────┬────┘              ▲  │
+                           │ claim             │  │
+                           ▼                   │  │
+                  ┌─────────────────┐          │  │
+                  │ worker (seu PC) │──páginas─┘  │
+                  └─────────────────┘             │
+                                                  ▼
+                    leitor ◄──── API/Render ◄── WebP
+```
+
+O worker roda na sua máquina de propósito: background worker não existe no free
+do Render, e 0,15 CPU com 512 MB não converteria centenas de páginas com sharp
+em tempo aceitável. A fila vive no Postgres, então o worker só precisa alcançar
+o Neon e o R2 — não precisa ser alcançável de fora.
+
+## 1. Bucket e credenciais no R2
+
+No painel da Cloudflare, **R2 → Create bucket**, nome `comicz`, localização
+automática. Depois **Manage API Tokens → Create API Token**, tipo *Object Read &
+Write*, escopado nesse bucket.
+
+Quatro valores saem daí:
+
+| Variável | Onde achar |
+| --- | --- |
+| `S3_BUCKET` | o nome do bucket (`comicz`) |
+| `S3_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
+| `S3_ACCESS_KEY_ID` | do token |
+| `S3_SECRET_ACCESS_KEY` | do token, exibido uma única vez |
+
+O free do R2 dá 10 GB e **egress zero**. O egress é o que importa aqui: a banda
+desta aplicação é quase toda imagem saindo.
+
+## 2. Ligar o R2 na API
+
+No dashboard do Render, preencha as quatro variáveis `sync: false` do
+`render.yaml` e troque `STORAGE_DRIVER` de `local` para `s3`.
+
+Enquanto `STORAGE_DRIVER` for `local`, a API sobe normalmente e devolve 404 em
+toda imagem — é um estado válido, não uma falha.
+
+## 3. Rodar o worker contra produção
+
+O worker lê o mesmo `.env` da raiz. Para apontá-lo ao Neon e ao R2 sem alterar o
+seu ambiente de desenvolvimento, passe as variáveis só naquele processo:
+
+```sh
+DATABASE_URL='<url do neon>' \
+STORAGE_DRIVER=s3 \
+S3_BUCKET=comicz \
+S3_ENDPOINT='https://<account-id>.r2.cloudflarestorage.com' \
+S3_ACCESS_KEY_ID='<...>' \
+S3_SECRET_ACCESS_KEY='<...>' \
+npm run dev:worker
+```
+
+Ele imprime o driver no start (`storage: S3 (comicz em ...)`). Se aparecer
+`disco local`, alguma variável não chegou — e o job vai gravar as páginas no
+seu disco, onde a API nunca vai encontrá-las.
+
+Com o worker desligado, uploads ficam `PENDING` até você ligá-lo. Para um
+acervo curado por uma pessoa só, isso é aceitável.
+
+## 4. Levar HQs para produção
+
+O banco de produção nasce vazio. O caminho é o importador, apontado para o Neon
+e o R2 com as mesmas variáveis acima:
+
+```sh
+DATABASE_URL='<url do neon>' STORAGE_DRIVER=s3 ... npm run import -- --dry-run
+DATABASE_URL='<url do neon>' STORAGE_DRIVER=s3 ... npm run import -- --only "Superman Absoluto"
+```
+
+Comece pelo `--dry-run`, e importe por série com `--only`. São 10 GB de cota, e
+um acervo inteiro passa disso sem esforço — o `storage/` local deste repositório
+já ocupa 3,2 GB só com o que foi processado até aqui.
+
 ## Notas de operação
 
 - **Cold start**: o free do Render dorme após 15 min ocioso. A primeira
@@ -120,3 +215,7 @@ rodando `apps/worker` na sua máquina contra o Neon + R2.
   req/min seria compartilhado por todos os usuários.
 - **Migrations** rodam no `buildCommand` do Render, não no start: assim não
   custam nada a cada spin-down.
+- **Driver de storage**: API e worker precisam concordar. Ambos derivam o
+  destino das mesmas funções em `@comicz/storage`, então divergir exige
+  divergir de variável de ambiente — e o sintoma seria uma HQ processada com
+  sucesso cujas páginas dão 404.

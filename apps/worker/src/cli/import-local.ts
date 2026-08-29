@@ -1,7 +1,6 @@
 import { readdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve } from 'node:path';
-import { copyFile } from 'node:fs/promises';
 import {
   ComicFormat,
   FileStatus,
@@ -20,7 +19,7 @@ import { workerConfig } from '../config';
 import { REPO_ROOT } from '../lib/paths';
 import { naturalCompare } from '../lib/archive';
 import { createLogger } from '../lib/logger';
-import { absolute, ensureDirFor, originalKey } from '../lib/storage';
+import { originalKey, storage } from '../lib/storage';
 
 const log = createLogger('import');
 const prisma = new PrismaClient();
@@ -349,10 +348,9 @@ async function main(): Promise<void> {
       },
     });
 
-    // Copia (nao move) para o storage: a pasta original do usuario fica intacta.
+    // putFile copia: a pasta de HQs do usuario permanece intacta.
     const key = originalKey(comicFile.id, format);
-    await ensureDirFor(key);
-    await copyFile(archive.absolutePath, absolute(key));
+    await storage.putFile(key, archive.absolutePath);
     await prisma.comicFile.update({ where: { id: comicFile.id }, data: { storageKey: key } });
 
     if (options.enqueue) {

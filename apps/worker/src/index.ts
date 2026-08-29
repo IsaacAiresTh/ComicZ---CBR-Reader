@@ -8,6 +8,7 @@ import {
 } from '@comicz/database';
 import { workerConfig } from './config';
 import { createLogger } from './lib/logger';
+import { storage } from './lib/storage';
 import { sweepStaleTmp } from './lib/tmp';
 import { processComicFile, type ProcessComicFilePayload } from './processors/process-comic-file';
 
@@ -60,6 +61,7 @@ async function loop(): Promise<void> {
 
   await sweepStaleTmp();
 
+  log.info(`storage: ${storage.describe()}`);
   log.info(
     `aguardando jobs (poll ${workerConfig.pollIntervalMs}ms, concorrencia ${workerConfig.concurrency})`,
   );

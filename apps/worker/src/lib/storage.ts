@@ -1,27 +1,14 @@
-import { mkdir, rm } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { createStorage } from '@comicz/storage';
 import { workerConfig } from '../config';
 
-export function absolute(key: string): string {
-  return resolve(workerConfig.storageRoot, key);
-}
+/**
+ * Instancia unica de storage do worker.
+ *
+ * As funcoes de chave nao moram mais aqui: elas vem de @comicz/storage, o mesmo
+ * modulo que a API importa. Enquanto eram duas copias, o worker podia gravar
+ * `pages/<id>/1.webp` e a API procurar `pages/<id>/0001.webp` sem que nada
+ * acusasse o desencontro ate a HQ abrir vazia.
+ */
+export const storage = createStorage(workerConfig.storage);
 
-export function originalKey(comicFileId: string, format: string): string {
-  return join('originals', 'comics', `${comicFileId}.${format.toLowerCase()}`);
-}
-
-export function pageKey(comicFileId: string, index: number): string {
-  return join('pages', comicFileId, `${String(index).padStart(4, '0')}.webp`);
-}
-
-export function coverKey(comicId: string): string {
-  return join('covers', `${comicId}.webp`);
-}
-
-export async function ensureDirFor(key: string): Promise<void> {
-  await mkdir(dirname(absolute(key)), { recursive: true });
-}
-
-export async function removeKey(key: string): Promise<void> {
-  await rm(absolute(key), { recursive: true, force: true });
-}
+export { coverKey, originalKey, pageKey, pagesPrefix } from '@comicz/storage';

@@ -31,11 +31,24 @@ services:
       # navegador -> Vercel -> Render -> Node. Ver TRUST_PROXY em configuration.ts.
       - key: TRUST_PROXY
         value: '2'
-      # O free instance nao aceita disco persistente: o que for gravado some no
-      # proximo deploy ou spin-down. O limite baixo evita encher o disco efemero
-      # com um upload que seria perdido de qualquer forma.
+      # O disco do free instance e efemero: some no proximo deploy ou
+      # spin-down. O upload aterrissa nele antes de subir para o R2, entao o
+      # limite existe para o arquivo em transito caber.
       - key: MAX_UPLOAD_MB
         value: '200'
+      # Vira 's3' quando as credenciais do R2 abaixo estiverem preenchidas.
+      # Enquanto for 'local', a API sobe normalmente mas serve 404 em toda
+      # imagem: os arquivos estao no disco da maquina do admin.
+      - key: STORAGE_DRIVER
+        value: local
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
       # Nao e segredo: e o dominio publico do front. Fica aqui, e nao no
       # dashboard, para haver uma fonte de verdade so. Serve o CORS das
       # chamadas que nao passam pelo rewrite da Vercel.
