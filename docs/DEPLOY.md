@@ -232,6 +232,15 @@ já ocupa 3,2 GB só com o que foi processado até aqui.
   req/min seria compartilhado por todos os usuários.
 - **Migrations** rodam no `buildCommand` do Render, não no start: assim não
   custam nada a cada spin-down.
+- **Imagens em cache no edge da Vercel**: as respostas de `/media` saem como
+  `public, max-age=31536000, immutable`, então a Vercel as guarda e passa a
+  servi-las sem consultar a origem. Medido em produção: uma página nunca
+  buscada responde 401 sem o cookie de mídia, mas a mesma página, depois de
+  buscada uma vez por alguém autenticado, responde 200 para qualquer um que
+  tenha a URL (`x-vercel-cache: HIT`). A URL não é adivinhável — dois UUIDs —
+  mas deslogar não invalida o que já está em cache. É a troca que o comentário
+  em `media.controller.ts` descreve, e que só virou real quando um CDN entrou
+  na frente da API. Fechar isso sem perder o cache exige validar na borda.
 - **Driver de storage**: API e worker precisam concordar. Ambos derivam o
   destino das mesmas funções em `@comicz/storage`, então divergir exige
   divergir de variável de ambiente — e o sintoma seria uma HQ processada com
