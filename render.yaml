@@ -1,0 +1,43 @@
+# Blueprint da API. O worker NAO esta aqui de proposito: o free instance do
+# Render cobre apenas web services, e o processamento de CBR roda na maquina do
+# admin ate existir orcamento (ver docs/DEPLOY.md).
+services:
+  - type: web
+    name: comicz-api
+    runtime: node
+    plan: free
+    region: virginia
+    branch: main
+    # O rewrite da Vercel aponta para <name>.onrender.com: se voce renomear o
+    # servico, atualize o destination em vercel.json.
+    buildCommand: npm ci && npm run build:api && npm run db:deploy
+    startCommand: npm run start:api
+    # Rota @Public() e barata, sem banco: serve de health check sem furar o guard.
+    healthCheckPath: /api/v1/config
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: '22'
+      - key: API_PREFIX
+        value: api/v1
+      # navegador -> Vercel -> Render -> Node. Ver TRUST_PROXY em configuration.ts.
+      - key: TRUST_PROXY
+        value: '2'
+      # O free instance nao aceita disco persistente: o que for gravado some no
+      # proximo deploy ou spin-down. O limite baixo evita encher o disco efemero
+      # com um upload que seria perdido de qualquer forma.
+      - key: MAX_UPLOAD_MB
+        value: '200'
+      # Preenchidos no dashboard: a URL da Vercel so existe depois do primeiro
+      # deploy do front, e a do Neon nao pode entrar no repositorio.
+      - key: WEB_ORIGIN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: PAGE_TOKEN_SECRET
+        generateValue: true

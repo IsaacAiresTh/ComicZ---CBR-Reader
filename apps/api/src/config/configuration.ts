@@ -5,8 +5,22 @@ import { fromRepoRoot } from './paths';
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   API_PORT: z.coerce.number().int().min(1).max(65535).default(3333),
+  /**
+   * PaaS (Render, Fly, Railway) injetam a porta em PORT e esperam que o
+   * processo escute exatamente nela — se ninguem escutar, o deploy e dado como
+   * falho. Tem precedencia sobre API_PORT, que continua valendo em dev.
+   */
+  PORT: z.coerce.number().int().min(1).max(65535).optional(),
   API_PREFIX: z.string().default('api/v1'),
   WEB_ORIGIN: z.string().default('http://localhost:5173'),
+  /**
+   * Quantos proxies existem na frente da API. Em producao o caminho e
+   * navegador -> rewrite da Vercel -> proxy do Render -> Node, entao o socket
+   * enxerga sempre o mesmo IP. Sem confiar no X-Forwarded-For, o
+   * ThrottlerGuard trataria todos os usuarios como um unico cliente e o rate
+   * limit derrubaria o app inteiro. 0 (padrao) = sem proxy, que e o certo em dev.
+   */
+  TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
 
   DATABASE_URL: z.string().min(1, 'DATABASE_URL e obrigatoria'),
 
@@ -45,6 +59,7 @@ export interface AppConfig {
   port: number;
   prefix: string;
   webOrigin: string;
+  trustProxy: number;
   storageRoot: string;
   tmpRoot: string;
   uploadTmpDir: string;
@@ -78,9 +93,10 @@ export function loadConfig(): AppConfig {
   return {
     env: env.NODE_ENV,
     isProduction: env.NODE_ENV === 'production',
-    port: env.API_PORT,
+    port: env.PORT ?? env.API_PORT,
     prefix: env.API_PREFIX,
     webOrigin: env.WEB_ORIGIN,
+    trustProxy: env.TRUST_PROXY,
     storageRoot,
     tmpRoot,
     // Uploads pousam no mesmo dispositivo do storage, para que a promocao ao
