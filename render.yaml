@@ -13,7 +13,11 @@ services:
     branch: main
     # O rewrite da Vercel aponta para <name>.onrender.com: se voce renomear o
     # servico, atualize o destination em vercel.json.
-    buildCommand: npm ci && npm run build:api && npm run db:deploy
+    # --include=dev e obrigatorio: o Render define NODE_ENV=production, e com
+    # isso o npm pula as dependencias marcadas como dev no lockfile — entre elas
+    # o @nestjs/cli, sem o qual o `nest build` nao existe. So o runtime dispensa
+    # as devDependencies; o build precisa delas.
+    buildCommand: npm ci --include=dev && npm run build:api && npm run db:deploy
     startCommand: npm run start:api
     # Rota @Public() e barata, sem banco: serve de health check sem furar o guard.
     healthCheckPath: /api/v1/config
