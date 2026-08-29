@@ -400,10 +400,25 @@ export class ComicsService {
     return { comicFileId: comicFile.id, jobId: job.id };
   }
 
-  /** Recoloca na fila um arquivo que falhou ou precisa ser reprocessado. */
+  /**
+   * Recoloca na fila um arquivo que falhou ou precisa ser reprocessado.
+   *
+   * Reprocessar significa reler o CBR/CBZ original. Com KEEP_ORIGINALS=false o
+   * worker descarta esse arquivo depois de extrair as paginas, entao a
+   * checagem abaixo transforma o que seria um job condenado a falhar — e uma
+   * HQ que ficaria marcada como FAILED, sem paginas — em um erro imediato e
+   * explicavel.
+   */
   async reprocess(comicId: string): Promise<{ jobId: string }> {
     const file = await this.prisma.comicFile.findUnique({ where: { comicId } });
     if (!file) throw new NotFoundException('Esta HQ nao tem arquivo anexado');
+
+    if (!(await this.storage.exists(file.storageKey))) {
+      throw new BadRequestException(
+        'O arquivo original desta HQ nao esta mais no storage e nao pode ser reprocessado. ' +
+          'Envie o arquivo novamente para substituir a HQ.',
+      );
+    }
 
     await this.prisma.comicFile.update({
       where: { id: file.id },

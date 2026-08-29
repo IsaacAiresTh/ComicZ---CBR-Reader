@@ -34,6 +34,15 @@ export interface StorageAdapter {
    */
   localCopy(key: string, workDir: string): Promise<LocalCopy>;
 
+  /**
+   * O objeto existe?
+   *
+   * Barato de proposito: no S3 e um HEAD, sem trazer bytes. Serve para
+   * perguntar se o original de uma HQ ainda esta la antes de prometer um
+   * reprocessamento que dependeria dele.
+   */
+  exists(key: string): Promise<boolean>;
+
   /** Remove um objeto. Nao falha se ele ja nao existir. */
   remove(key: string): Promise<void>;
 

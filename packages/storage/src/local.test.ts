@@ -70,6 +70,24 @@ test('localCopy nao copia no driver local, e discard nao apaga o storage', async
   await rm(base, { recursive: true, force: true });
 });
 
+test('exists distingue objeto presente de ausente sem ler o conteudo', async () => {
+  const { base, root, source } = await arrange();
+  const storage = new LocalStorage(root);
+  await storage.putFile('originals/comics/x.cbz', source);
+
+  assert.equal(await storage.exists('originals/comics/x.cbz'), true);
+  assert.equal(await storage.exists('originals/comics/nao-existe.cbz'), false);
+
+  // Chave que escapa da raiz responde false em vez de estourar: quem pergunta
+  // quer saber se pode seguir, nao tratar excecao.
+  assert.equal(await storage.exists('../../etc/passwd'), false);
+
+  await storage.remove('originals/comics/x.cbz');
+  assert.equal(await storage.exists('originals/comics/x.cbz'), false);
+
+  await rm(base, { recursive: true, force: true });
+});
+
 test('remove apaga um objeto; removePrefix apaga a arvore', async () => {
   const { base, root, source } = await arrange();
   const storage = new LocalStorage(root);

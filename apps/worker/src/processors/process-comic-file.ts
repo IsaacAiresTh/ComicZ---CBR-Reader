@@ -2,6 +2,7 @@ import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { FileStatus, type PrismaClient } from '@comicz/database';
 import { collectImages, extractArchive } from '../lib/archive';
+import { workerConfig } from '../config';
 import { convertPage, generateCover } from '../lib/images';
 import { createLogger } from '../lib/logger';
 import { coverKey, pageKey, pagesPrefix, storage } from '../lib/storage';
@@ -135,6 +136,19 @@ export async function processComicFile(
         errorMessage: null,
       },
     });
+
+    /**
+     * Descarta o original so depois do READY.
+     *
+     * A ordem importa: se apagassemos antes, uma falha entre a extracao e a
+     * gravacao das paginas deixaria a HQ sem paginas E sem arquivo de origem.
+     * Depois do READY, tudo que o original permitiria fazer e reprocessar — e
+     * quem desligou KEEP_ORIGINALS aceitou reenviar o arquivo nesse caso.
+     */
+    if (!workerConfig.keepOriginals) {
+      await storage.remove(file.storageKey);
+      log.info(`original de "${file.comic.title}" descartado (KEEP_ORIGINALS=false)`);
+    }
 
     return { pageCount: pageRows.length };
   } catch (error) {

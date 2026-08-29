@@ -27,6 +27,18 @@ export const workerConfig = {
    * de memoria.
    */
   tmpRoot: process.env.TMP_ROOT ? fromRepoRoot(process.env.TMP_ROOT) : join(storageRoot, 'tmp'),
+  /**
+   * Manter o CBR/CBZ no storage depois de extrair as paginas.
+   *
+   * O original nao e servido para ninguem: existe so para permitir
+   * reprocessar sem reenviar o arquivo. Ele custa caro por isso — costuma ser
+   * varias vezes o tamanho das paginas WebP que gera. Em um storage com cota,
+   * desligar isto multiplica quantas HQs cabem.
+   *
+   * O padrao e manter, porque descartar e irreversivel. Quem desliga precisa
+   * ter os arquivos em outro lugar (no ComicZ, a pasta de origem do import).
+   */
+  keepOriginals: (process.env.KEEP_ORIGINALS ?? 'true').trim().toLowerCase() !== 'false',
   pollIntervalMs: int('WORKER_POLL_INTERVAL_MS', 2000),
   concurrency: Math.max(1, int('WORKER_CONCURRENCY', 1)),
   pageMaxWidth: int('PAGE_IMAGE_MAX_WIDTH', 1600),

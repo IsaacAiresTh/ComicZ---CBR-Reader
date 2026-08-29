@@ -168,6 +168,7 @@ seu ambiente de desenvolvimento, passe as variáveis só naquele processo:
 ```sh
 DATABASE_URL='<url do neon>' \
 STORAGE_DRIVER=s3 \
+KEEP_ORIGINALS=false \
 S3_BUCKET=comicz \
 S3_ENDPOINT='https://<account-id>.r2.cloudflarestorage.com' \
 S3_ACCESS_KEY_ID='<...>' \
@@ -182,14 +183,30 @@ seu disco, onde a API nunca vai encontrá-las.
 Com o worker desligado, uploads ficam `PENDING` até você ligá-lo. Para um
 acervo curado por uma pessoa só, isso é aceitável.
 
+### Por que `KEEP_ORIGINALS=false` em produção
+
+O CBR/CBZ original não é servido a ninguém: depois de extraídas as páginas, ele
+só serve para reprocessar sem reenviar o arquivo. E é caro — na primeira HQ
+medida neste bucket, o original respondia por **79% do espaço** (39 MB de
+original para 10,4 MB de páginas). Descartá-lo multiplica por ~5 quantas HQs
+cabem nos 10 GB do free.
+
+Só é seguro porque a fonte da verdade é a sua pasta local: o importador **copia**
+o arquivo, nunca o move. O padrão do flag é `true` justamente porque descartar
+é irreversível para quem não tem essa cópia.
+
+O que se perde é o botão de reprocessar. A API detecta o caso e responde com
+uma mensagem explícita em vez de enfileirar um job condenado a falhar, que
+deixaria a HQ marcada como `FAILED` e sem páginas.
+
 ## 4. Levar HQs para produção
 
 O banco de produção nasce vazio. O caminho é o importador, apontado para o Neon
 e o R2 com as mesmas variáveis acima:
 
 ```sh
-DATABASE_URL='<url do neon>' STORAGE_DRIVER=s3 ... npm run import -- --dry-run
-DATABASE_URL='<url do neon>' STORAGE_DRIVER=s3 ... npm run import -- --only "Superman Absoluto"
+DATABASE_URL='<url do neon>' STORAGE_DRIVER=s3 KEEP_ORIGINALS=false ... npm run import -- --dry-run
+DATABASE_URL='<url do neon>' STORAGE_DRIVER=s3 KEEP_ORIGINALS=false ... npm run import -- --only "Superman Absoluto"
 ```
 
 Comece pelo `--dry-run`, e importe por série com `--only`. São 10 GB de cota, e

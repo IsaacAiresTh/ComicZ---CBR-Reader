@@ -36,11 +36,13 @@ services:
       # limite existe para o arquivo em transito caber.
       - key: MAX_UPLOAD_MB
         value: '200'
-      # Vira 's3' quando as credenciais do R2 abaixo estiverem preenchidas.
-      # Enquanto for 'local', a API sobe normalmente mas serve 404 em toda
-      # imagem: os arquivos estao no disco da maquina do admin.
+      # Com 'local' a API sobe mas serve 404 em toda imagem, porque o disco do
+      # free instance nao e o mesmo do worker. As quatro variaveis abaixo
+      # precisam estar preenchidas no dashboard antes desta virar 's3': sem
+      # elas a API se recusa a subir, de proposito, em vez de servir 404 em
+      # silencio.
       - key: STORAGE_DRIVER
-        value: local
+        value: s3
       - key: S3_BUCKET
         sync: false
       - key: S3_ENDPOINT

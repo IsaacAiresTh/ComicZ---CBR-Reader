@@ -7,6 +7,7 @@ import {
   DeleteObjectCommand,
   DeleteObjectsCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   S3Client,
 } from '@aws-sdk/client-s3';
@@ -98,6 +99,17 @@ export class S3Storage implements StorageAdapter {
         await unlink(path).catch(() => {});
       },
     };
+  }
+
+  async exists(key: string): Promise<boolean> {
+    try {
+      // HEAD: devolve so os metadados, entao nao paga o download do objeto.
+      await this.client.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+      return true;
+    } catch (error) {
+      if (isNotFound(error)) return false;
+      throw error;
+    }
   }
 
   async remove(key: string): Promise<void> {

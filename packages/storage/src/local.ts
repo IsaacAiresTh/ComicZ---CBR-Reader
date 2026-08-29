@@ -81,6 +81,15 @@ export class LocalStorage implements StorageAdapter {
     return { path: target, discard: async () => {} };
   }
 
+  async exists(key: string): Promise<boolean> {
+    try {
+      await stat(this.resolveKey(key));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async remove(key: string): Promise<void> {
     await rm(this.resolveKey(key), { force: true });
   }
