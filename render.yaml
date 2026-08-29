@@ -6,7 +6,10 @@ services:
     name: comicz-api
     runtime: node
     plan: free
-    region: virginia
+    # Mesma regiao do Neon (AWS us-east-2): a API conversa com o banco varias
+    # vezes por requisicao, entao colocar os dois juntos vale mais do que os
+    # ~20ms a menos que Virginia daria ao navegador brasileiro.
+    region: ohio
     branch: main
     # O rewrite da Vercel aponta para <name>.onrender.com: se voce renomear o
     # servico, atualize o destination em vercel.json.
