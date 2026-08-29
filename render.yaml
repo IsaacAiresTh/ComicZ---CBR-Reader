@@ -36,10 +36,12 @@ services:
       # com um upload que seria perdido de qualquer forma.
       - key: MAX_UPLOAD_MB
         value: '200'
-      # Preenchidos no dashboard: a URL da Vercel so existe depois do primeiro
-      # deploy do front, e a do Neon nao pode entrar no repositorio.
+      # Nao e segredo: e o dominio publico do front. Fica aqui, e nao no
+      # dashboard, para haver uma fonte de verdade so. Serve o CORS das
+      # chamadas que nao passam pelo rewrite da Vercel.
       - key: WEB_ORIGIN
-        sync: false
+        value: https://comicz-zeta.vercel.app
+      # Esta sim e segredo: preenchida no dashboard.
       - key: DATABASE_URL
         sync: false
       - key: JWT_ACCESS_SECRET

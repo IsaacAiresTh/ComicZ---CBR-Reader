@@ -8,7 +8,7 @@ sessão e catálogo funcionam ponta a ponta. Imagens e upload ficam para o passo
 navegador
     │
     ▼
-comicz.vercel.app ──── /api/* (rewrite) ────► comicz-api.onrender.com
+comicz-zeta.vercel.app ─ /api/* (rewrite) ─► comicz-api.onrender.com
     │                                                  │
   React estático                                       ▼
                                                      Neon
@@ -57,14 +57,11 @@ desenvolvimento e a instância fica exposta na internet.
 O `render.yaml` na raiz é um blueprint: em **New → Blueprint**, aponte para o
 repositório e o Render cria o web service `comicz-api` já configurado.
 
-Depois preencha no dashboard as duas variáveis marcadas como `sync: false`:
+Depois preencha no dashboard a única variável marcada como `sync: false`:
+`DATABASE_URL`, com a connection string do Neon.
 
-| Variável | Valor |
-| --- | --- |
-| `DATABASE_URL` | a connection string do Neon |
-| `WEB_ORIGIN` | só depois do passo 3 — a URL da Vercel |
-
-Os três segredos JWT são gerados pelo próprio Render (`generateValue`).
+Os três segredos JWT são gerados pelo próprio Render (`generateValue`), e a
+`WEB_ORIGIN` já está no `render.yaml` — é domínio público, não segredo.
 
 Se você renomear o serviço, o subdomínio muda: atualize o `destination` em
 `vercel.json`.
@@ -80,14 +77,14 @@ Nenhuma variável de ambiente é necessária: a URL da API está no rewrite.
 
 ## 4. Fechar o círculo
 
-Volte ao Render e preencha `WEB_ORIGIN` com a URL da Vercel
-(`https://comicz.vercel.app`, sem barra no final). Isso libera o CORS para as
-chamadas que não passarem pelo proxy.
+A `WEB_ORIGIN` do `render.yaml` precisa bater com o domínio que a Vercel
+gerou (`https://comicz-zeta.vercel.app`, sem barra no final). Se o domínio
+mudar, é aqui que se ajusta — e o push já redeploya sozinho.
 
 ## Verificação
 
 ```sh
-curl -s https://comicz.vercel.app/api/v1/config
+curl -s https://comicz-zeta.vercel.app/api/v1/config
 ```
 
 Deve responder o JSON de limites vindo do Render, servido pelo domínio da
@@ -108,6 +105,16 @@ rodando `apps/worker` na sua máquina contra o Neon + R2.
 
 - **Cold start**: o free do Render dorme após 15 min ocioso. A primeira
   requisição depois disso leva ~50 s.
+- **`x-render-routing: no-server`**: enquanto a instância volta do spin-down, o
+  Render responde 404 instantâneo com esse header em parte das requisições, em
+  vez de segurar todas até ela subir. Parece serviço morto e não é — as Events
+  continuam em `Deploy live` e o log não registra nada. Antes de investigar,
+  faça uma dezena de requisições seguidas: com a instância quente, o
+  comportamento é estável.
+- **Build ≠ runtime**: o `buildCommand` usa `npm ci --include=dev` porque o
+  Render define `NODE_ENV=production`, e com isso o npm omite tudo que o
+  lockfile marca como dev — inclusive o `@nestjs/cli`. O runtime não precisa
+  delas; o build precisa.
 - **`TRUST_PROXY=2`**: são dois hops (Vercel + Render). Sem isso, o
   `ThrottlerGuard` veria o IP do proxy em toda requisição e o limite de 300
   req/min seria compartilhado por todos os usuários.
