@@ -213,6 +213,30 @@ Comece pelo `--dry-run`, e importe por série com `--only`. São 10 GB de cota, 
 um acervo inteiro passa disso sem esforço — o `storage/` local deste repositório
 já ocupa 3,2 GB só com o que foi processado até aqui.
 
+### `--process-now`: quando o worker está na mesma máquina dos arquivos
+
+No fluxo com fila, o original sobe para o R2 e o worker o baixa de volta para
+extrair. Com `KEEP_ORIGINALS=false` ele ainda é apagado logo depois — ou seja,
+duas transferências de um arquivo que já estava do lado de quem processa, para
+descartá-lo no fim. Numa HQ de 785 MB isso é 1,5 GB de tráfego jogado fora.
+
+`--process-now` extrai as páginas no próprio import, lendo o arquivo do disco.
+O original não sobe, e só as páginas viajam:
+
+```sh
+DATABASE_URL='<url do neon>' STORAGE_DRIVER=s3 KEEP_ORIGINALS=false ... \
+  npm run import -- --only Crise --process-now
+```
+
+O preço é que o import passa a demorar o tempo do processamento — minutos por
+HQ — e perde o retry da fila. Uma HQ que falhar fica `FAILED` no banco com a
+mensagem, e o import segue para a próxima; no fim o comando sai com código 1 se
+alguma falhou.
+
+Com `KEEP_ORIGINALS=true` a flag continua valendo a pena: o original sobe (ele
+precisa existir para um reprocessamento futuro), mas a extração lê o arquivo
+local em vez de baixá-lo de volta.
+
 ## Notas de operação
 
 - **Cold start**: o free do Render dorme após 15 min ocioso. A primeira

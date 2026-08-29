@@ -20,6 +20,7 @@ import { REPO_ROOT } from '../lib/paths';
 import { naturalCompare } from '../lib/archive';
 import { createLogger } from '../lib/logger';
 import { originalKey, storage } from '../lib/storage';
+import { processComicFile } from '../processors/process-comic-file';
 
 const log = createLogger('import');
 const prisma = new PrismaClient();
@@ -32,6 +33,7 @@ interface CliOptions {
   dryRun: boolean;
   yes: boolean;
   enqueue: boolean;
+  processNow: boolean;
   limit: number;
   only: string | null;
   publisher: string | null;
@@ -43,6 +45,7 @@ function parseArgs(argv: string[]): CliOptions {
     dryRun: false,
     yes: false,
     enqueue: true,
+    processNow: false,
     limit: Number.POSITIVE_INFINITY,
     only: null,
     publisher: null,
@@ -87,6 +90,9 @@ function parseArgs(argv: string[]): CliOptions {
       case '--no-process':
         options.enqueue = false;
         break;
+      case '--process-now':
+        options.processNow = true;
+        break;
       case '--help':
       case '-h':
         printHelp();
@@ -123,7 +129,18 @@ Opcoes:
       --dry-run           Mostra o que faria, sem gravar nada
   -y, --yes               Confirma import grande (mais de ${CONFIRM_THRESHOLD} arquivos)
       --no-process        Cadastra sem enfileirar a extracao das paginas
+      --process-now       Extrai as paginas aqui mesmo, sem passar pela fila
   -h, --help              Esta ajuda
+
+--process-now existe para quando o worker roda na mesma maquina dos arquivos.
+No fluxo com fila, o original sobe para o storage e o worker o baixa de volta
+para extrair — com KEEP_ORIGINALS=false ele ainda e apagado logo depois, entao
+sao duas transferencias de um arquivo que ja estava do lado de quem processa.
+Com --process-now o original nao sobe, e so as paginas viajam.
+
+O preco e que o import passa a demorar o tempo do processamento (minutos por
+HQ) e perde o retry da fila: um erro no meio para aquele arquivo, e os
+seguintes continuam.
 
 A pasta que contem o arquivo nomeia a SERIE; a pasta de primeiro nivel dentro
 da raiz lida vira a TAG de colecao.
@@ -139,6 +156,7 @@ Exemplos:
   npm run import -- --only "Superman Absolute" --publisher "DC Comics"
   npm run import -- --dir "HQ's/Superman/Superman Absolute" --dry-run
   npm run import -- --only Batman --limit 5
+  npm run import -- --only Crise --process-now
 `);
 }
 
@@ -255,6 +273,12 @@ async function ensureTag(name: string): Promise<string> {
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
 
+  if (options.processNow && !options.enqueue) {
+    log.error('--process-now e --no-process se contradizem: um processa, o outro nem enfileira.');
+    process.exitCode = 1;
+    return;
+  }
+
   log.info(`lendo ${options.root}`);
   let archives: FoundArchive[];
   try {
@@ -293,6 +317,8 @@ async function main(): Promise<void> {
   let created = 0;
   let skipped = 0;
   let queued = 0;
+  let processed = 0;
+  let failed = 0;
 
   for (const archive of archives) {
     const filename = basename(archive.relativePath);
@@ -348,27 +374,56 @@ async function main(): Promise<void> {
       },
     });
 
-    // putFile copia: a pasta de HQs do usuario permanece intacta.
     const key = originalKey(comicFile.id, format);
-    await storage.putFile(key, archive.absolutePath);
+
+    /**
+     * O original so precisa ir para o storage se alguem for busca-lo de la:
+     * um worker em outra maquina (fila) ou um reprocessamento futuro
+     * (KEEP_ORIGINALS). Processando aqui e descartando depois, subir o arquivo
+     * seria transferi-lo duas vezes para joga-lo fora no fim.
+     *
+     * putFile copia: a pasta de HQs do usuario permanece intacta.
+     */
+    const guardaOriginal = workerConfig.keepOriginals || !options.processNow;
+    if (guardaOriginal) await storage.putFile(key, archive.absolutePath);
     await prisma.comicFile.update({ where: { id: comicFile.id }, data: { storageKey: key } });
 
-    if (options.enqueue) {
+    created += 1;
+    log.info(`+ ${label} (${archive.seriesName})`);
+
+    if (options.processNow) {
+      try {
+        const resultado = await processComicFile(
+          prisma,
+          { comicFileId: comicFile.id },
+          { sourcePath: archive.absolutePath },
+        );
+        processed += 1;
+        log.info(`  ${resultado.pageCount} paginas extraidas`);
+      } catch (error) {
+        // Uma HQ que falha nao derruba o lote: ela fica FAILED no banco, com a
+        // mensagem, e o import segue para a proxima.
+        failed += 1;
+        log.error(`  falhou: ${(error as Error).message}`);
+      }
+    } else if (options.enqueue) {
       await enqueueJob(prisma, {
         type: JOB_TYPES.PROCESS_COMIC_FILE,
         payload: { comicFileId: comicFile.id },
       });
       queued += 1;
     }
-
-    created += 1;
-    log.info(`+ ${label} (${archive.seriesName})`);
   }
 
-  log.info(
-    `${options.dryRun ? '[dry-run] ' : ''}importadas: ${created} | ja existentes: ${skipped} | na fila: ${queued}`,
-  );
+  const resumo = [
+    `importadas: ${created}`,
+    `ja existentes: ${skipped}`,
+    options.processNow ? `processadas: ${processed}` : `na fila: ${queued}`,
+  ];
+  if (failed > 0) resumo.push(`falharam: ${failed}`);
+  log.info(`${options.dryRun ? '[dry-run] ' : ''}${resumo.join(' | ')}`);
   if (queued > 0) log.info('rode "npm run dev:worker" para processar a fila');
+  if (failed > 0) process.exitCode = 1;
 }
 
 main()

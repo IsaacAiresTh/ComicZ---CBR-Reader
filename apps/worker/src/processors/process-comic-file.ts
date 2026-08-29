@@ -14,6 +14,18 @@ export interface ProcessComicFilePayload {
   comicFileId: string;
 }
 
+export interface ProcessComicFileOptions {
+  /**
+   * Caminho do arquivo original ja presente nesta maquina.
+   *
+   * Deliberadamente fora do payload do job: um caminho local gravado na fila
+   * seria uma armadilha para qualquer worker que rodasse em outro lugar. Ele
+   * so existe para quem chama o processamento em processo, sabendo onde o
+   * arquivo esta — hoje, o importador.
+   */
+  sourcePath?: string;
+}
+
 /**
  * CBR/CBZ -> paginas WebP no storage (RF0001 §2, §10, §11).
  *
@@ -30,6 +42,7 @@ export interface ProcessComicFilePayload {
 export async function processComicFile(
   prisma: PrismaClient,
   payload: ProcessComicFilePayload,
+  options: ProcessComicFileOptions = {},
 ): Promise<{ pageCount: number }> {
   const file = await prisma.comicFile.findUnique({
     where: { id: payload.comicFileId },
@@ -49,9 +62,18 @@ export async function processComicFile(
   await mkdir(pagesDir, { recursive: true });
 
   try {
-    // Com o driver local isto nao copia nada: devolve o proprio arquivo do
-    // storage. Com o S3, baixa o original para o diretorio de trabalho.
-    const original = await storage.localCopy(file.storageKey, workDir);
+    /**
+     * De onde sai o arquivo a extrair.
+     *
+     * `sourcePath` e o caminho curto: quem chamou ja tem o original em disco,
+     * entao nao ha o que buscar. Sem ele, `localCopy` resolve — com o driver
+     * local devolvendo o proprio arquivo do storage, e com o S3 baixando para
+     * o diretorio de trabalho.
+     */
+    const original = options.sourcePath
+      ? { path: options.sourcePath, discard: async () => {} }
+      : await storage.localCopy(file.storageKey, workDir);
+
     const extractor = await extractArchive(original.path, extractDir);
     await original.discard();
     const images = await collectImages(extractDir);
@@ -145,7 +167,7 @@ export async function processComicFile(
      * Depois do READY, tudo que o original permitiria fazer e reprocessar — e
      * quem desligou KEEP_ORIGINALS aceitou reenviar o arquivo nesse caso.
      */
-    if (!workerConfig.keepOriginals) {
+    if (!workerConfig.keepOriginals && !options.sourcePath) {
       await storage.remove(file.storageKey);
       log.info(`original de "${file.comic.title}" descartado (KEEP_ORIGINALS=false)`);
     }
