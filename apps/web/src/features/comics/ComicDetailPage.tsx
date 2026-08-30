@@ -1,6 +1,7 @@
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { Badge, Button, ErrorNote, LinkButton, Spinner } from '../../components/ui';
 import { comicLabel, fileStatusLabel, formatBytes, percent } from '../../lib/format';
+import { keepFrom, readFrom } from '../../lib/navigation';
 import { mediaUrl } from '../../services/api';
 import {
   useAddToLibrary,
@@ -11,7 +12,7 @@ import {
 
 export function ComicDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const location = useLocation();
   const { data: comic, isLoading, error } = useComic(id);
 
   const addToLibrary = useAddToLibrary();
@@ -23,6 +24,14 @@ export function ComicDetailPage() {
 
   const cover = mediaUrl(comic.coverUrl);
   const readable = comic.file?.status === 'READY';
+
+  /**
+   * Destino do "Voltar", em ordem de preferencia: a tela de onde o usuario
+   * veio, a serie a que a edicao pertence, e o catalogo. Nunca o historico —
+   * depois de ler a HQ, a entrada anterior e o proprio leitor.
+   */
+  const backTo =
+    readFrom(location) ?? (comic.series ? `/serie/${comic.series.slug}` : '/catalogo');
   const progress = comic.progress;
   const hasStarted = Boolean(progress && progress.currentPage > 1 && !progress.completed);
 
@@ -101,7 +110,7 @@ export function ComicDetailPage() {
 
           <div className="flex flex-wrap gap-3">
             {readable ? (
-              <LinkButton to={`/ler/${comic.id}`}>
+              <LinkButton to={`/ler/${comic.id}`} state={keepFrom(location)}>
                 {hasStarted ? 'Continuar leitura' : progress?.completed ? 'Ler de novo' : 'Ler agora'}
               </LinkButton>
             ) : (
@@ -172,13 +181,9 @@ export function ComicDetailPage() {
         </div>
       </div>
 
-      <button
-        type="button"
-        onClick={() => navigate(-1)}
-        className="text-sm text-ink-400 hover:text-ink-200"
-      >
+      <Link to={backTo} className="text-sm text-ink-400 hover:text-ink-200">
         ← Voltar
-      </button>
+      </Link>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { keepFrom } from '../../lib/navigation';
 import { Button, ErrorNote, Spinner } from '../../components/ui';
 import { comicLabel } from '../../lib/format';
 import { API_BASE } from '../../services/api';
@@ -10,7 +11,17 @@ type FitMode = 'height' | 'width';
 
 export function ReaderPage() {
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
+  /**
+   * Sair do leitor empilha uma entrada nova em vez de voltar no historico, de
+   * modo que abrir a HQ direto por URL tambem funcione. Por isso a origem
+   * recebida e devolvida: sem ela, o "Voltar" da pagina da HQ perderia o
+   * caminho de onde o usuario veio ao passar pelo leitor.
+   */
+  // useMemo porque isto entra na lista de dependencias do listener de teclado:
+  // um objeto novo a cada render reregistraria o handler sem parar.
+  const backState = useMemo(() => keepFrom(location), [location]);
   const { data, isLoading, error } = useReaderPayload(id);
   const { save, savedPage } = useProgressSaver(id);
 
@@ -91,14 +102,14 @@ export function ReaderPage() {
           setChromeVisible((visible) => !visible);
           break;
         case 'Escape':
-          if (!document.fullscreenElement) navigate(`/hq/${id}`);
+          if (!document.fullscreenElement) navigate(`/hq/${id}`, { state: backState });
           break;
       }
     }
 
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [goTo, page, pageCount, viewMode, navigate, id]);
+  }, [goTo, page, pageCount, viewMode, navigate, id, backState]);
 
   async function toggleFullscreen() {
     if (document.fullscreenElement) await document.exitFullscreen();
@@ -144,7 +155,11 @@ export function ReaderPage() {
         <ErrorNote>
           {error instanceof Error ? error.message : 'Não foi possível abrir esta HQ.'}
         </ErrorNote>
-        <Link to={`/hq/${id}`} className="mt-6 inline-block text-sm text-brand-400 hover:underline">
+        <Link
+          to={`/hq/${id}`}
+          state={backState}
+          className="mt-6 inline-block text-sm text-brand-400 hover:underline"
+        >
           ← Voltar para a HQ
         </Link>
       </div>
@@ -160,6 +175,7 @@ export function ReaderPage() {
         <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-ink-800 bg-ink-900/95 px-3 py-2 backdrop-blur">
           <Link
             to={`/hq/${id}`}
+            state={backState}
             className="rounded-lg px-2 py-1.5 text-sm text-ink-300 hover:bg-ink-800"
             title="Voltar"
           >

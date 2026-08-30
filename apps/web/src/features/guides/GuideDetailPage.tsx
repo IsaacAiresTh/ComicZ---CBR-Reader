@@ -1,10 +1,12 @@
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import { Badge, ErrorNote, Spinner } from '../../components/ui';
 import { comicLabel, fileStatusLabel, percent } from '../../lib/format';
+import { fromHere } from '../../lib/navigation';
 import { mediaUrl } from '../../services/api';
 import { useGuide } from '../comics/queries';
 
 export function GuideDetailPage() {
+  const location = useLocation();
   const { slug } = useParams<{ slug: string }>();
   const { data: guide, isLoading, error } = useGuide(slug);
 
@@ -68,7 +70,11 @@ export function GuideDetailPage() {
                 {done ? '✓' : item.position}
               </div>
 
-              <Link to={`/hq/${item.comic.id}`} className="h-24 w-16 shrink-0 overflow-hidden rounded-lg bg-ink-850">
+              <Link
+                to={`/hq/${item.comic.id}`}
+                state={fromHere(location)}
+                className="h-24 w-16 shrink-0 overflow-hidden rounded-lg bg-ink-850"
+              >
                 {cover ? (
                   <img src={cover} alt="" className="h-full w-full object-cover" />
                 ) : (
@@ -82,6 +88,7 @@ export function GuideDetailPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Link
                     to={`/hq/${item.comic.id}`}
+                    state={fromHere(location)}
                     className="font-medium text-ink-100 hover:text-brand-400"
                   >
                     {comicLabel(item.comic.title, item.comic.issueNumber)}
@@ -99,6 +106,7 @@ export function GuideDetailPage() {
                 {readable ? (
                   <Link
                     to={`/ler/${item.comic.id}`}
+                    state={fromHere(location)}
                     className="rounded-lg bg-brand-500 px-3 py-1.5 text-sm font-semibold text-ink-950 hover:bg-brand-400"
                   >
                     {item.comic.progress && item.comic.progress.currentPage > 1 && !done

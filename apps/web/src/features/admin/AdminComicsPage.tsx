@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ComicSummary } from '@comicz/shared';
 import {
@@ -13,6 +13,7 @@ import {
   Textarea,
 } from '../../components/ui';
 import { comicLabel, fileStatusLabel, formatBytes } from '../../lib/format';
+import { fromHere } from '../../lib/navigation';
 import { ApiError, uploadComicFile } from '../../services/api';
 import {
   useComics,
@@ -24,6 +25,7 @@ import {
 import { useCreateComic, useDeleteComic, useReprocessComic, useUpdateComic } from './queries';
 
 export function AdminComicsPage() {
+  const location = useLocation();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [editing, setEditing] = useState<ComicSummary | null>(null);
@@ -91,7 +93,11 @@ export function AdminComicsPage() {
               {items.map((comic) => (
                 <tr key={comic.id} className="hover:bg-ink-900">
                   <td className="px-4 py-3">
-                    <Link to={`/hq/${comic.id}`} className="text-ink-100 hover:text-brand-400">
+                    <Link
+                      to={`/hq/${comic.id}`}
+                      state={fromHere(location)}
+                      className="text-ink-100 hover:text-brand-400"
+                    >
                       {comicLabel(comic.title, comic.issueNumber)}
                     </Link>
                   </td>
