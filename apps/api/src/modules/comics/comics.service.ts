@@ -21,6 +21,7 @@ import {
 } from '@comicz/shared';
 import { originalKey, pagesPrefix, type StorageAdapter } from '@comicz/storage';
 import { paginate, toSkipTake } from '../../common/utils/pagination';
+import { searchTerms } from '../../common/utils/search';
 import { PrismaService } from '../../prisma/prisma.service';
 import { STORAGE } from '../files/storage.provider';
 import {
@@ -444,12 +445,27 @@ export class ComicsService {
   }): Prisma.ComicWhereInput {
     const where: Prisma.ComicWhereInput = {};
 
-    if (query.q) {
-      where.OR = [
-        { title: { contains: query.q, mode: 'insensitive' } },
-        { series: { name: { contains: query.q, mode: 'insensitive' } } },
-        { characters: { some: { character: { name: { contains: query.q, mode: 'insensitive' } } } } },
-      ];
+    /**
+     * Cada termo precisa aparecer em algum dos campos, e nao o texto inteiro em
+     * um deles. Assim "homem aranha" encontra "Homem-Aranha", e a busca deixa
+     * de depender de o leitor acertar a pontuacao do titulo.
+     *
+     * Termos diferentes podem casar em campos diferentes: "aranha renovando"
+     * acha a saga pelo nome e o personagem pelo elenco.
+     */
+    const termos = query.q ? searchTerms(query.q) : [];
+    if (termos.length > 0) {
+      where.AND = termos.map((termo) => ({
+        OR: [
+          { title: { contains: termo, mode: 'insensitive' as const } },
+          { series: { name: { contains: termo, mode: 'insensitive' as const } } },
+          {
+            characters: {
+              some: { character: { name: { contains: termo, mode: 'insensitive' as const } } },
+            },
+          },
+        ],
+      }));
     }
     if (query.seriesId) where.seriesId = query.seriesId;
     if (query.publisherId) where.publisherId = query.publisherId;
