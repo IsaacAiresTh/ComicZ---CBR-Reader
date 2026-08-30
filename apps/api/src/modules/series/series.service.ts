@@ -88,7 +88,7 @@ export class SeriesService {
 
     // Mesma regra do catalogo: a capa escolhida ganha da derivada.
     const comComCapa = comics.find((comic) => comic.coverPath);
-    const derivada = comComCapa ? coverUrl(comComCapa, mediaVersion(comComCapa.file)) : null;
+    const derivada = comComCapa ? coverUrl(comComCapa) : null;
 
     return {
       id: series.id,

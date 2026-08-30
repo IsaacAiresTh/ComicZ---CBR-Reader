@@ -38,6 +38,8 @@ export class GuidesService {
               select: {
                 id: true,
                 coverPath: true,
+                // Versao da URL da capa: muda quando a capa e trocada.
+                updatedAt: true,
                 file: { select: { processedAt: true, updatedAt: true } },
               },
             },
@@ -56,7 +58,7 @@ export class GuidesService {
         published: row.published,
         itemCount: row._count.items,
         // A capa do guia e, por padrao, a capa da primeira HQ da ordem.
-        coverUrl: first ? coverUrl(first, mediaVersion(first.file)) : null,
+        coverUrl: first ? coverUrl(first) : null,
       };
     });
   }
@@ -101,7 +103,7 @@ export class GuidesService {
       description: guide.description,
       published: guide.published,
       itemCount: guide._count.items,
-      coverUrl: firstCover ? coverUrl(firstCover, mediaVersion(firstCover.file)) : null,
+      coverUrl: firstCover ? coverUrl(firstCover) : null,
       items,
       readCount,
     };

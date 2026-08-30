@@ -154,6 +154,9 @@ export class LibraryService {
           id: true,
           seriesId: true,
           coverPath: true,
+          // A versao da URL da capa sai daqui: e o updatedAt da HQ que muda
+          // quando a capa e trocada pelo painel.
+          updatedAt: true,
           file: { select: { processedAt: true, updatedAt: true } },
         },
         orderBy: [{ issueNumber: 'asc' }, { title: 'asc' }],
@@ -173,7 +176,7 @@ export class LibraryService {
     for (const issue of issues) {
       if (!issue.seriesId || coverBySeries.get(issue.seriesId)) continue;
       if (issue.coverPath) {
-        coverBySeries.set(issue.seriesId, coverUrl(issue, mediaVersion(issue.file)));
+        coverBySeries.set(issue.seriesId, coverUrl(issue));
       }
     }
 

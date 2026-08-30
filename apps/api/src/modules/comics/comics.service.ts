@@ -227,7 +227,7 @@ export class ComicsService {
       // A capa escolhida pelo admin ganha da derivada; sem ela, cai na
       // primeira edicao que tiver capa, que e o comportamento de sempre.
       const withCover = issueList.find((issue) => issue.coverPath);
-      const derivada = withCover ? coverUrl(withCover, mediaVersion(withCover.file)) : null;
+      const derivada = withCover ? coverUrl(withCover) : null;
 
       items.push({
         kind: 'series',

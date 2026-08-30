@@ -22,11 +22,20 @@ export function mediaVersion(file: MediaVersionSource | null | undefined): strin
   return stamp ? stamp.getTime().toString(36) : '0';
 }
 
-export function coverUrl(
-  comic: { id: string; coverPath: string | null },
-  version: string,
-): string | null {
-  return comic.coverPath ? `/media/covers/${comic.id}/${version}` : null;
+/**
+ * Capa de uma edicao.
+ *
+ * A versao vem do `updatedAt` da HQ, e nao do arquivo: a capa pode ser trocada
+ * pelo painel sem que o arquivo seja reprocessado. Usando a versao do arquivo,
+ * a URL ficava identica depois da troca — e como a resposta e `immutable` por
+ * um ano, o navegador nunca voltava a pedir a imagem nova.
+ */
+export function coverUrl(comic: {
+  id: string;
+  coverPath: string | null;
+  updatedAt: Date;
+}): string | null {
+  return comic.coverPath ? `/media/covers/${comic.id}/${comic.updatedAt.getTime().toString(36)}` : null;
 }
 
 /**
