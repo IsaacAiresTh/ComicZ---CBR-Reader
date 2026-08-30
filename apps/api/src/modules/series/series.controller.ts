@@ -21,15 +21,9 @@ import { upsertSeriesSchema, type UpsertSeriesInput } from '@comicz/shared';
 import { CurrentUser, type AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { CoverService, type UploadedCover } from '../files/cover.service';
+import { CoverService, OPCOES_CAPA, type UploadedCover } from '../files/cover.service';
 import { SeriesService } from './series.service';
 
-/**
- * Uma capa de 500px cabe folgada em 2 MB. O limite do multer para arquivo de
- * HQ e de centenas de MB, e reaproveita-lo aqui deixaria a rota aberta a um
- * upload gigante que o servico so recusaria depois de gravado em disco.
- */
-const LIMITE_CAPA = { limits: { fileSize: 2 * 1024 * 1024, files: 1 } };
 
 @ApiTags('series')
 @Controller('series')
@@ -92,7 +86,7 @@ export class SeriesController {
   @Put(':id/cover')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: '[admin] Define a capa da saga (imagem ja redimensionada)' })
-  @UseInterceptors(FileInterceptor('file', LIMITE_CAPA))
+  @UseInterceptors(FileInterceptor('file', OPCOES_CAPA))
   setCover(
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: UploadedCover | undefined,

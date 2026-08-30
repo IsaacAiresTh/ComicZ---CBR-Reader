@@ -1,7 +1,28 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { memoryStorage } from 'multer';
 import { coverKey, type StorageAdapter } from '@comicz/storage';
 import { PrismaService } from '../../prisma/prisma.service';
 import { STORAGE } from './storage.provider';
+
+/** Uma capa de 500px cabe folgada nisso; acima disso e engano ou abuso. */
+export const MAX_CAPA_BYTES = 2 * 1024 * 1024;
+
+/**
+ * Opcoes do upload de capa, explicitas de proposito.
+ *
+ * `storage` precisa estar aqui: sem ele, cada rota herda o que o modulo dela
+ * configurou — o ComicsModule registra o multer em disco para o arquivo da HQ,
+ * enquanto o SeriesModule nao registra nada e cai em memoria. As duas rotas de
+ * capa fazem a mesma coisa e nao podem depender de onde moram.
+ *
+ * Memoria, e nao disco, porque a capa tem no maximo 2 MB: um arquivo
+ * temporario aqui so acrescentaria um caminho de limpeza para dar errado. O
+ * limite tambem e proprio — o do arquivo de HQ e de centenas de MB.
+ */
+export const OPCOES_CAPA = {
+  storage: memoryStorage(),
+  limits: { fileSize: MAX_CAPA_BYTES, files: 1 },
+};
 
 /**
  * O que o multer entrega. Sem `dest` configurado, ele guarda em memoria — e e
@@ -28,9 +49,6 @@ export interface UploadedCover {
  */
 @Injectable()
 export class CoverService {
-  /** Uma capa de 500px cabe folgada nisso; acima disso e engano ou abuso. */
-  private static readonly MAX_BYTES = 2 * 1024 * 1024;
-
   constructor(
     private readonly prisma: PrismaService,
     @Inject(STORAGE) private readonly storage: StorageAdapter,
@@ -78,7 +96,7 @@ export class CoverService {
     if (upload.mimetype !== 'image/webp') {
       throw new BadRequestException('A capa precisa ser uma imagem WebP');
     }
-    if (upload.size > CoverService.MAX_BYTES) {
+    if (upload.size > MAX_CAPA_BYTES) {
       throw new BadRequestException('A capa passa de 2 MB — envie uma imagem menor');
     }
 

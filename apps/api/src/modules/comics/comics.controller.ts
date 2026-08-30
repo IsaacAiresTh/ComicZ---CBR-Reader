@@ -31,7 +31,7 @@ import { CurrentUser, type AuthenticatedUser } from '../../common/decorators/cur
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { APP_CONFIG, type AppConfig } from '../../config/configuration';
-import { CoverService, type UploadedCover } from '../files/cover.service';
+import { CoverService, OPCOES_CAPA, type UploadedCover } from '../files/cover.service';
 import { ComicsService, type UploadedComicFile } from './comics.service';
 
 @ApiTags('comics')
@@ -129,7 +129,7 @@ export class ComicsController {
   @Put(':id/cover')
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: '[admin] Define a capa da edicao (imagem ja redimensionada)' })
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024, files: 1 } }))
+  @UseInterceptors(FileInterceptor('file', OPCOES_CAPA))
   setCover(
     @Param('id', ParseUUIDPipe) id: string,
     @UploadedFile() file: UploadedCover | undefined,
