@@ -30,14 +30,32 @@ export function AdminComicsPage() {
   const location = useLocation();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [seriesFilter, setSeriesFilter] = useState('');
+  const [sort, setSort] = useState<NonNullable<CatalogFilters['sort']>>('recent');
+  const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<ComicSummary | null>(null);
   const [creating, setCreating] = useState(false);
+
+  const sagas = useSeriesList();
+
+  /**
+   * Qualquer filtro que mude o conjunto tem de voltar para a primeira pagina.
+   * Sem isso, filtrar estando na pagina 5 mostra uma lista vazia e parece que
+   * o filtro nao achou nada.
+   */
+  function filtrar<T>(set: (valor: T) => void) {
+    return (valor: T) => {
+      set(valor);
+      setPage(1);
+    };
+  }
 
   const comics = useComics({
     q: search || undefined,
     status: (statusFilter || undefined) as CatalogFilters['status'],
-    sort: 'recent',
-    page: 1,
+    seriesId: seriesFilter || undefined,
+    sort,
+    page,
   });
   const deleteComic = useDeleteComic();
   const reprocess = useReprocessComic();
@@ -50,13 +68,13 @@ export function AdminComicsPage() {
         <Input
           className="max-w-xs"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) => filtrar(setSearch)(event.target.value)}
           placeholder="Buscar HQ"
         />
         <Select
           className="w-auto"
           value={statusFilter}
-          onChange={(event) => setStatusFilter(event.target.value)}
+          onChange={(event) => filtrar(setStatusFilter)(event.target.value)}
         >
           <option value="">Todos os status</option>
           <option value="READY">Prontas</option>
@@ -64,10 +82,40 @@ export function AdminComicsPage() {
           <option value="PROCESSING">Processando</option>
           <option value="FAILED">Falharam</option>
         </Select>
+        <Select
+          className="w-auto"
+          value={seriesFilter}
+          onChange={(event) => filtrar(setSeriesFilter)(event.target.value)}
+        >
+          <option value="">Todas as sagas</option>
+          {(sagas.data ?? []).map((saga) => (
+            <option key={saga.id} value={saga.id}>
+              {saga.name}
+            </option>
+          ))}
+        </Select>
+        <Select
+          className="w-auto"
+          value={sort}
+          onChange={(event) =>
+            filtrar(setSort)(event.target.value as NonNullable<CatalogFilters['sort']>)
+          }
+        >
+          <option value="recent">Mais recentes</option>
+          <option value="issue">Por edição</option>
+          <option value="title">Por título</option>
+        </Select>
         <Button className="ml-auto" onClick={() => setCreating(true)}>
           + Nova HQ
         </Button>
       </div>
+
+      {comics.data && (
+        <p className="text-xs text-ink-500">
+          {comics.data.total} {comics.data.total === 1 ? 'HQ' : 'HQs'}
+          {comics.data.totalPages > 1 && ` — página ${comics.data.page} de ${comics.data.totalPages}`}
+        </p>
+      )}
 
       {creating && <ComicForm onClose={() => setCreating(false)} />}
       {editing && <ComicForm comic={editing} onClose={() => setEditing(null)} />}
@@ -165,6 +213,24 @@ export function AdminComicsPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {(comics.data?.totalPages ?? 1) > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <Button variant="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            Anterior
+          </Button>
+          <span className="text-sm text-ink-400">
+            página {comics.data?.page} de {comics.data?.totalPages}
+          </span>
+          <Button
+            variant="secondary"
+            disabled={page >= (comics.data?.totalPages ?? 1)}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            Próxima
+          </Button>
         </div>
       )}
     </div>
