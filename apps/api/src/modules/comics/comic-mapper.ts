@@ -48,7 +48,7 @@ export function toComicSummary(
     title: comic.title,
     slug: comic.slug,
     issueNumber: comic.issueNumber,
-    coverUrl: coverUrl(comic, mediaVersion(comic.file)),
+    coverUrl: coverUrl(comic),
     series: comic.series
       ? {
           id: comic.series.id,

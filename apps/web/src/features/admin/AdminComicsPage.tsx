@@ -14,7 +14,8 @@ import {
 } from '../../components/ui';
 import { comicLabel, fileStatusLabel, formatBytes } from '../../lib/format';
 import { fromHere } from '../../lib/navigation';
-import { ApiError, uploadComicFile } from '../../services/api';
+import { ApiError, mediaUrl, uploadComicFile } from '../../services/api';
+import { CoverPicker } from './CoverPicker';
 import {
   useComic,
   useComics,
@@ -441,6 +442,16 @@ function ComicForm({ comic, onClose }: { comic?: ComicSummary; onClose: () => vo
       <Field label="Descrição">
         <Textarea rows={3} value={form.description} onChange={update('description')} />
       </Field>
+
+      {/* So na edicao: uma HQ que ainda nao existe nao tem paginas nem id. */}
+      {comic && detail.data && (
+        <CoverPicker
+          alvo="comics"
+          id={comic.id}
+          capaAtual={mediaUrl(detail.data.coverUrl)}
+          edicoes={[detail.data]}
+        />
+      )}
 
       <div className="flex gap-3">
         <Button type="submit" disabled={createComic.isPending || updateComic.isPending}>

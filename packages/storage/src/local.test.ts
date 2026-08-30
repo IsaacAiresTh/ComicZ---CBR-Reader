@@ -70,6 +70,28 @@ test('localCopy nao copia no driver local, e discard nao apaga o storage', async
   await rm(base, { recursive: true, force: true });
 });
 
+test('putBuffer grava bytes que nunca passaram por disco', async () => {
+  const { base, root } = await arrange();
+  const storage = new LocalStorage(root);
+
+  await storage.putBuffer('covers/abc.webp', Buffer.from('bytes-da-capa'));
+  const objeto = await storage.open('covers/abc.webp');
+  assert.equal(await lido(objeto.stream), 'bytes-da-capa');
+
+  // Sobrescreve no lugar: a capa mora sempre na mesma chave, e quem troca a
+  // versao na URL e o updatedAt do registro.
+  await storage.putBuffer('covers/abc.webp', Buffer.from('capa-nova'));
+  assert.equal(await lido((await storage.open('covers/abc.webp')).stream), 'capa-nova');
+
+  await assert.rejects(
+    () => storage.putBuffer('/etc/passwd', Buffer.from('x')),
+    (error: unknown) => error instanceof StorageObjectNotFound,
+    'caminho absoluto tem de ser recusado tambem na escrita',
+  );
+
+  await rm(base, { recursive: true, force: true });
+});
+
 test('exists distingue objeto presente de ausente sem ler o conteudo', async () => {
   const { base, root, source } = await arrange();
   const storage = new LocalStorage(root);
@@ -112,14 +134,21 @@ test('remove apaga um objeto; removePrefix apaga a arvore', async () => {
 });
 
 /**
- * As chaves nascem de nomes de arquivo enviados por upload. Sem esta barreira,
- * um `../` na chave leria ou escreveria fora do storage.
+ * As chaves nascem de nomes de arquivo enviados por upload, entao precisam ser
+ * contidas na raiz. A barreira tem dois comportamentos distintos, e vale fixar
+ * os dois: `../` no comeco e REMOVIDO — a chave passa a apontar para dentro da
+ * raiz —, enquanto caminho absoluto e recusado.
  */
-test('chaves que escapam da raiz sao recusadas', async () => {
-  const { base, root } = await arrange();
+test('chaves relativas sao contidas na raiz; caminho absoluto e recusado', async () => {
+  const { base, root, source } = await arrange();
   const storage = new LocalStorage(root);
 
-  for (const key of ['../fora.webp', '../../etc/passwd', 'pages/../../fora.webp']) {
+  // `../` some e o objeto vai parar na raiz, e nao fora dela.
+  await storage.putFile('../fora.webp', source);
+  assert.ok(await storage.exists('fora.webp'), '../fora.webp deveria virar fora.webp na raiz');
+  assert.equal(await stat(join(root, 'fora.webp')).then(() => true), true);
+
+  for (const key of ['/etc/passwd', '/tmp/fora.webp']) {
     await assert.rejects(
       () => storage.open(key),
       (error: unknown) => error instanceof StorageObjectNotFound,

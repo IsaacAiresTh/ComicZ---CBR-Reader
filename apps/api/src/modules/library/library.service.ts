@@ -11,6 +11,7 @@ import type {
 import { paginate, toSkipTake } from '../../common/utils/pagination';
 import { PrismaService } from '../../prisma/prisma.service';
 import { comicSummaryInclude, coverUrl, mediaVersion, toComicSummary } from '../comics/comic-mapper';
+import { seriesCoverUrl } from '../files/media-urls';
 
 type LibrarySeriesCard = Extract<LibraryGroup, { kind: 'series' }>['series'];
 
@@ -153,6 +154,9 @@ export class LibraryService {
           id: true,
           seriesId: true,
           coverPath: true,
+          // A versao da URL da capa sai daqui: e o updatedAt da HQ que muda
+          // quando a capa e trocada pelo painel.
+          updatedAt: true,
           file: { select: { processedAt: true, updatedAt: true } },
         },
         orderBy: [{ issueNumber: 'asc' }, { title: 'asc' }],
@@ -172,7 +176,7 @@ export class LibraryService {
     for (const issue of issues) {
       if (!issue.seriesId || coverBySeries.get(issue.seriesId)) continue;
       if (issue.coverPath) {
-        coverBySeries.set(issue.seriesId, coverUrl(issue, mediaVersion(issue.file)));
+        coverBySeries.set(issue.seriesId, coverUrl(issue));
       }
     }
 
@@ -183,7 +187,7 @@ export class LibraryService {
         id: series.id,
         name: series.name,
         slug: series.slug,
-        coverUrl: coverBySeries.get(series.id) ?? null,
+        coverUrl: seriesCoverUrl(series, coverBySeries.get(series.id) ?? null),
         publisher: series.publisher,
         status: series.status,
         seriesIssues: acervoBySeries.get(series.id) ?? group.comicIds.length,

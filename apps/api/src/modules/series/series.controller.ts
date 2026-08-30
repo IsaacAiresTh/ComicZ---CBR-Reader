@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,20 +9,29 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@comicz/database';
 import { upsertSeriesSchema, type UpsertSeriesInput } from '@comicz/shared';
 import { CurrentUser, type AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { CoverService, OPCOES_CAPA, type UploadedCover } from '../files/cover.service';
 import { SeriesService } from './series.service';
+
 
 @ApiTags('series')
 @Controller('series')
 export class SeriesController {
-  constructor(private readonly series: SeriesService) {}
+  constructor(
+    private readonly series: SeriesService,
+    private readonly covers: CoverService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Lista as series' })
@@ -70,6 +80,27 @@ export class SeriesController {
     @Param('comicId', ParseUUIDPipe) comicId: string,
   ) {
     return this.series.detachComic(id, comicId);
+  }
+
+  @Roles(Role.ADMIN)
+  @Put(':id/cover')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: '[admin] Define a capa da saga (imagem ja redimensionada)' })
+  @UseInterceptors(FileInterceptor('file', OPCOES_CAPA))
+  setCover(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: UploadedCover | undefined,
+  ) {
+    if (!file) throw new BadRequestException('Envie a imagem no campo "file"');
+    return this.covers.setSeriesCover(id, file);
+  }
+
+  @Roles(Role.ADMIN)
+  @Delete(':id/cover')
+  @HttpCode(204)
+  @ApiOperation({ summary: '[admin] Volta a saga para a capa derivada das edicoes' })
+  clearCover(@Param('id', ParseUUIDPipe) id: string) {
+    return this.covers.clearSeriesCover(id);
   }
 
   @Roles(Role.ADMIN)

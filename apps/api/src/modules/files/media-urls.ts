@@ -22,11 +22,36 @@ export function mediaVersion(file: MediaVersionSource | null | undefined): strin
   return stamp ? stamp.getTime().toString(36) : '0';
 }
 
-export function coverUrl(
-  comic: { id: string; coverPath: string | null },
-  version: string,
+/**
+ * Capa de uma edicao.
+ *
+ * A versao vem do `updatedAt` da HQ, e nao do arquivo: a capa pode ser trocada
+ * pelo painel sem que o arquivo seja reprocessado. Usando a versao do arquivo,
+ * a URL ficava identica depois da troca — e como a resposta e `immutable` por
+ * um ano, o navegador nunca voltava a pedir a imagem nova.
+ */
+export function coverUrl(comic: {
+  id: string;
+  coverPath: string | null;
+  updatedAt: Date;
+}): string | null {
+  return comic.coverPath ? `/media/covers/${comic.id}/${comic.updatedAt.getTime().toString(36)}` : null;
+}
+
+/**
+ * Capa da saga.
+ *
+ * Mesma rota das capas de edicao: o servidor monta a chave a partir do id, e
+ * id de saga e de HQ sao ambos UUID. A versao vem do updatedAt da saga, que
+ * muda quando a capa e trocada — e e isso que tira a antiga do cache.
+ */
+export function seriesCoverUrl(
+  series: { id: string; coverPath: string | null; updatedAt?: Date | null },
+  fallback: string | null,
 ): string | null {
-  return comic.coverPath ? `/media/covers/${comic.id}/${version}` : null;
+  if (!series.coverPath) return fallback;
+  const version = series.updatedAt ? series.updatedAt.getTime().toString(36) : '0';
+  return `/media/covers/${series.id}/${version}`;
 }
 
 export function pageUrl(comicFileId: string, index: number, version: string): string {

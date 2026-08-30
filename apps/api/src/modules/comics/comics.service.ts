@@ -20,6 +20,7 @@ import {
   type UpsertComicInput,
 } from '@comicz/shared';
 import { originalKey, pagesPrefix, type StorageAdapter } from '@comicz/storage';
+import { seriesCoverUrl } from '../files/media-urls';
 import { paginate, toSkipTake } from '../../common/utils/pagination';
 import { searchTerms } from '../../common/utils/search';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -223,7 +224,10 @@ export class ComicsService {
 
       if (!series) continue;
 
+      // A capa escolhida pelo admin ganha da derivada; sem ela, cai na
+      // primeira edicao que tiver capa, que e o comportamento de sempre.
       const withCover = issueList.find((issue) => issue.coverPath);
+      const derivada = withCover ? coverUrl(withCover) : null;
 
       items.push({
         kind: 'series',
@@ -233,7 +237,7 @@ export class ComicsService {
           slug: series.slug,
           startYear: series.startYear,
           publisher: series.publisher,
-          coverUrl: withCover ? coverUrl(withCover, mediaVersion(withCover.file)) : null,
+          coverUrl: seriesCoverUrl(series, derivada),
           status: series.status,
           totalIssues: series.totalIssues,
           issueCount: issueList.length,

@@ -11,7 +11,8 @@ import {
   Textarea,
 } from '../../components/ui';
 import { creditRoleLabel, groupCredits, seriesStatusLabel, seriesYears } from '../../lib/format';
-import { ApiError } from '../../services/api';
+import { ApiError, mediaUrl } from '../../services/api';
+import { CoverPicker } from './CoverPicker';
 import { useComics, useSeriesList } from '../comics/queries';
 import {
   useAttachComicToSeries,
@@ -331,6 +332,14 @@ function SeriesEditor({ seriesId, onBack }: { seriesId: string; onBack: () => vo
           {saved && <span className="text-sm text-emerald-400">Salvo</span>}
         </div>
       </form>
+
+      <CoverPicker
+        alvo="series"
+        id={seriesId}
+        capaAtual={mediaUrl(data.coverUrl)}
+        temCapaPropria={data.hasOwnCover}
+        edicoes={data.comics}
+      />
 
       <SeriesComics seriesId={seriesId} comics={data.comics} years={seriesYears(data.startYear, data.endYear, data.status)} />
     </div>

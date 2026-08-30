@@ -39,10 +39,15 @@ export class MediaController {
     private readonly mediaToken: MediaTokenService,
   ) {}
 
+  /**
+   * Serve capa de HQ e de saga: a chave sai do id, e os dois sao UUID. O
+   * parametro se chama `id` por isso — chamar de comicId aqui seria mentir
+   * sobre metade dos casos.
+   */
   @Public()
-  @Get('covers/:comicId/:version')
+  @Get('covers/:id/:version')
   async cover(
-    @Param('comicId') comicId: string,
+    @Param('id') comicId: string,
     @Req() req: Request,
     @Res() res: Response,
   ): Promise<void> {
