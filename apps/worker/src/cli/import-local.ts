@@ -238,15 +238,28 @@ async function ensureSeries(
   publisherId: string | null,
   startYear: number | null,
 ): Promise<string> {
+  /**
+   * Procura por nome OU por slug.
+   *
+   * O nome de uma serie e editavel pelo admin; o slug, nao. Entao depois de
+   * "18BatmanSuperman (2019) (#1-6)" virar "BatmanSuperman (2019)" na
+   * interface, so o slug ainda testemunha de qual pasta a serie nasceu.
+   * Procurando apenas pelo nome, o proximo import da mesma pasta nao a
+   * encontraria e criaria uma segunda serie, com slug sufixado — e a colecao
+   * apareceria partida em duas, sem nenhum erro no caminho.
+   */
+  const slugFromName = slugify(name) || 'serie';
   const existing = await prisma.series.findFirst({
-    where: { name: { equals: name, mode: 'insensitive' } },
+    where: {
+      OR: [{ name: { equals: name, mode: 'insensitive' } }, { slug: slugFromName }],
+    },
     select: { id: true },
   });
   if (existing) return existing.id;
 
-  let slug = slugify(name) || 'serie';
+  let slug = slugFromName;
   for (let attempt = 1; attempt < 200; attempt += 1) {
-    const candidate = suffixSlug(slugify(name) || 'serie', attempt);
+    const candidate = suffixSlug(slugFromName, attempt);
     const taken = await prisma.series.findUnique({ where: { slug: candidate }, select: { id: true } });
     if (!taken) {
       slug = candidate;
