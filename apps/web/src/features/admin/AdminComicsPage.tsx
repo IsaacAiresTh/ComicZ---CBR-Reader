@@ -56,6 +56,7 @@ export function AdminComicsPage() {
     seriesId: seriesFilter || undefined,
     sort,
     page,
+    includeSupporting: true,
   });
   const deleteComic = useDeleteComic();
   const reprocess = useReprocessComic();

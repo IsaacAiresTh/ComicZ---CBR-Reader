@@ -63,6 +63,8 @@ export interface SeriesDetail {
    */
   coverUrl: string | null;
   hasOwnCover: boolean;
+  /** Saga de apoio: sai da home e do catalogo, continua na busca e nos guias. */
+  supporting: boolean;
   startYear: number | null;
   endYear: number | null;
   status: SeriesStatus;
