@@ -11,6 +11,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
   UploadedFile,
   UseInterceptors,
@@ -30,6 +31,7 @@ import { CurrentUser, type AuthenticatedUser } from '../../common/decorators/cur
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { APP_CONFIG, type AppConfig } from '../../config/configuration';
+import { CoverService, type UploadedCover } from '../files/cover.service';
 import { ComicsService, type UploadedComicFile } from './comics.service';
 
 @ApiTags('comics')
@@ -38,6 +40,7 @@ export class ComicsController {
   constructor(
     private readonly comics: ComicsService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly covers: CoverService,
   ) {}
 
   @Get()
@@ -120,6 +123,19 @@ export class ComicsController {
       await rm(file.path, { force: true }).catch(() => undefined);
       throw error;
     }
+  }
+
+  @Roles(Role.ADMIN)
+  @Put(':id/cover')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: '[admin] Define a capa da edicao (imagem ja redimensionada)' })
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 2 * 1024 * 1024, files: 1 } }))
+  setCover(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: UploadedCover | undefined,
+  ) {
+    if (!file) throw new BadRequestException('Envie a imagem no campo "file"');
+    return this.covers.setComicCover(id, file);
   }
 
   @Roles(Role.ADMIN)

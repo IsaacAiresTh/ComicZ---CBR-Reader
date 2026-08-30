@@ -11,6 +11,7 @@ import type {
 import { paginate, toSkipTake } from '../../common/utils/pagination';
 import { PrismaService } from '../../prisma/prisma.service';
 import { comicSummaryInclude, coverUrl, mediaVersion, toComicSummary } from '../comics/comic-mapper';
+import { seriesCoverUrl } from '../files/media-urls';
 
 type LibrarySeriesCard = Extract<LibraryGroup, { kind: 'series' }>['series'];
 
@@ -183,7 +184,7 @@ export class LibraryService {
         id: series.id,
         name: series.name,
         slug: series.slug,
-        coverUrl: coverBySeries.get(series.id) ?? null,
+        coverUrl: seriesCoverUrl(series, coverBySeries.get(series.id) ?? null),
         publisher: series.publisher,
         status: series.status,
         seriesIssues: acervoBySeries.get(series.id) ?? group.comicIds.length,

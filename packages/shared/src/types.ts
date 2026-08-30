@@ -56,6 +56,13 @@ export interface SeriesDetail {
   name: string;
   slug: string;
   description: string | null;
+  /**
+   * Capa da saga: a escolhida pelo admin, ou — na falta dela — a da primeira
+   * edicao que tiver uma. `hasOwnCover` distingue os dois casos, que a UI
+   * precisa separar para oferecer "voltar para a capa derivada".
+   */
+  coverUrl: string | null;
+  hasOwnCover: boolean;
   startYear: number | null;
   endYear: number | null;
   status: SeriesStatus;

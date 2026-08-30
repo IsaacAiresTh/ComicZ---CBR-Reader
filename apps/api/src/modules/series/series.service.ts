@@ -3,7 +3,8 @@ import type { SeriesStatus } from '@comicz/database';
 import type { CreatorCredit, SeriesDetail, UpsertSeriesInput } from '@comicz/shared';
 import { searchTerms } from '../../common/utils/search';
 import { PrismaService } from '../../prisma/prisma.service';
-import { comicSummaryInclude, toComicSummary } from '../comics/comic-mapper';
+import { comicSummaryInclude, coverUrl, mediaVersion, toComicSummary } from '../comics/comic-mapper';
+import { seriesCoverUrl } from '../files/media-urls';
 import { ComicsService } from '../comics/comics.service';
 import { TaxonomyService } from '../comics/taxonomy.service';
 
@@ -85,10 +86,16 @@ export class SeriesService {
     // Sem creditos proprios, mostramos os das edicoes em vez de uma secao vazia.
     const derived = own.length === 0 ? this.creditsFromIssues(comics) : [];
 
+    // Mesma regra do catalogo: a capa escolhida ganha da derivada.
+    const comComCapa = comics.find((comic) => comic.coverPath);
+    const derivada = comComCapa ? coverUrl(comComCapa, mediaVersion(comComCapa.file)) : null;
+
     return {
       id: series.id,
       name: series.name,
       slug: series.slug,
+      coverUrl: seriesCoverUrl(series, derivada),
+      hasOwnCover: Boolean(series.coverPath),
       description: series.description,
       startYear: series.startYear,
       endYear: series.endYear,

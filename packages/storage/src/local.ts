@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { copyFile, mkdir, rename, rm, stat, unlink } from 'node:fs/promises';
+import { copyFile, mkdir, rename, rm, stat, unlink, writeFile } from 'node:fs/promises';
 import { dirname, normalize, resolve, sep } from 'node:path';
 import {
   StorageObjectNotFound,
@@ -53,6 +53,12 @@ export class LocalStorage implements StorageAdapter {
       await copyFile(sourcePath, target);
       await unlink(sourcePath);
     }
+  }
+
+  async putBuffer(key: string, data: Buffer): Promise<void> {
+    const target = this.resolveKey(key);
+    await this.ensureDirFor(target);
+    await writeFile(target, data);
   }
 
   async open(key: string): Promise<OpenedObject> {

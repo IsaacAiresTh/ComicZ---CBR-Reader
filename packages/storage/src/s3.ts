@@ -9,6 +9,7 @@ import {
   GetObjectCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
@@ -79,6 +80,18 @@ export class S3Storage implements StorageAdapter {
   async moveInto(key: string, sourcePath: string): Promise<void> {
     await this.putFile(key, sourcePath);
     await unlink(sourcePath);
+  }
+
+  /** PutObject direto: o buffer e pequeno e nao justifica multipart. */
+  async putBuffer(key: string, data: Buffer, contentType?: string): Promise<void> {
+    await this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: data,
+        ContentType: contentType ?? contentTypeFor(key),
+      }),
+    );
   }
 
   async open(key: string): Promise<OpenedObject> {

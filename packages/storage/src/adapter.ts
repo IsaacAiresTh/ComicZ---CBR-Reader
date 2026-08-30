@@ -17,6 +17,15 @@ export interface StorageAdapter {
   moveInto(key: string, sourcePath: string): Promise<void>;
 
   /**
+   * Grava bytes que ja estao em memoria.
+   *
+   * Existe para o que nunca passa por disco: a capa escolhida no painel chega
+   * pequena, pelo corpo da requisicao, e um arquivo temporario ali so criaria
+   * um caminho de limpeza para dar errado.
+   */
+  putBuffer(key: string, data: Buffer, contentType?: string): Promise<void>;
+
+  /**
    * Abre o objeto para leitura.
    *
    * Devolve tamanho e stream juntos porque quem serve uma imagem precisa dos

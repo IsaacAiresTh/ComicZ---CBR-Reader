@@ -141,6 +141,27 @@ export const api = {
  * Upload com progresso — usa XMLHttpRequest porque `fetch` ainda nao expoe
  * progresso de envio, e um CBR pode ter centenas de MB.
  */
+/**
+ * Envia a imagem da capa. Vai por fetch simples, e nao pelo XHR do arquivo de
+ * HQ: a capa tem no maximo 2 MB e nao precisa de barra de progresso.
+ */
+export async function uploadCover(
+  alvo: 'comics' | 'series',
+  id: string,
+  imagem: Blob,
+): Promise<{ coverPath: string }> {
+  const form = new FormData();
+  form.append('file', imagem, 'capa.webp');
+  const res = await fetch(`${API_BASE}/${alvo}/${id}/cover`, {
+    method: 'PUT',
+    body: form,
+    credentials: 'include',
+    headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
+  });
+  if (!res.ok) throw await parseError(res);
+  return res.json() as Promise<{ coverPath: string }>;
+}
+
 export function uploadComicFile(
   comicId: string,
   file: File,

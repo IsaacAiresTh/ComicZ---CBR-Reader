@@ -7,7 +7,7 @@ import type {
   UpsertComicPayload,
   UpsertSeriesPayload,
 } from '@comicz/shared';
-import { api } from '../../services/api';
+import { api, uploadCover } from '../../services/api';
 
 export interface AdminJob {
   id: string;
@@ -182,6 +182,36 @@ export function useDetachComicFromSeries() {
     onSuccess: () => {
       invalidateSeries(queryClient);
       invalidateCatalog(queryClient);
+    },
+  });
+}
+
+/**
+ * Trocar a capa muda o card em toda parte: catalogo, biblioteca, pagina da
+ * saga. Por isso invalida os dois grupos.
+ */
+export function useSetCover() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { alvo: 'comics' | 'series'; id: string; imagem: Blob }) =>
+      uploadCover(input.alvo, input.id, input.imagem),
+    onSuccess: () => {
+      invalidateSeries(queryClient);
+      invalidateCatalog(queryClient);
+      void queryClient.invalidateQueries({ queryKey: ['library'] });
+    },
+  });
+}
+
+/** Devolve a saga a capa derivada da primeira edicao que tiver uma. */
+export function useClearSeriesCover() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (seriesId: string) => api.delete(`/series/${seriesId}/cover`),
+    onSuccess: () => {
+      invalidateSeries(queryClient);
+      invalidateCatalog(queryClient);
+      void queryClient.invalidateQueries({ queryKey: ['library'] });
     },
   });
 }
