@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { FileStatus, JobStatus, Role } from '@comicz/database';
 import type { AdminStats } from '@comicz/shared';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -83,6 +83,35 @@ export class AdminService {
       data: { role },
       select: { id: true, username: true, role: true },
     });
+  }
+
+  /**
+   * Remove um usuario e tudo que so existia por causa dele.
+   *
+   * O schema ja descreve o que acontece com cada relacao, e o banco executa:
+   * sessoes, biblioteca e progresso de leitura sao `onDelete: Cascade`;
+   * `Guide.createdBy` e `SetNull`, entao um guia publicado sobrevive ao autor —
+   * o que importa, porque ele e conteudo do acervo, nao do usuario.
+   *
+   * `actorId` existe para recusar a auto-remocao. Alem de ser um pe no proprio
+   * chao, ela e o unico caminho para a instalacao ficar sem nenhum admin:
+   * enquanto o admin que executa a acao nao pode se apagar, sempre sobra ele.
+   */
+  async removeUser(userId: string, actorId: string): Promise<{ id: string; username: string }> {
+    if (userId === actorId) {
+      throw new BadRequestException(
+        'Voce nao pode remover a propria conta. Peca a outro admin, se precisar.',
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, username: true },
+    });
+    if (!user) throw new NotFoundException('Usuario nao encontrado');
+
+    await this.prisma.user.delete({ where: { id: userId } });
+    return user;
   }
 
   /** Ultimos jobs, para acompanhar o processamento no painel. */
