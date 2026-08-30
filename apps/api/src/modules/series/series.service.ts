@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { SeriesStatus } from '@comicz/database';
 import type { CreatorCredit, SeriesDetail, UpsertSeriesInput } from '@comicz/shared';
+import { searchTerms } from '../../common/utils/search';
 import { PrismaService } from '../../prisma/prisma.service';
 import { comicSummaryInclude, toComicSummary } from '../comics/comic-mapper';
 import { ComicsService } from '../comics/comics.service';
@@ -26,8 +27,12 @@ export class SeriesService {
   ) {}
 
   async list(search?: string) {
+    const termos = search ? searchTerms(search) : [];
     const rows = await this.prisma.series.findMany({
-      where: search ? { name: { contains: search, mode: 'insensitive' } } : undefined,
+      // Mesma regra do catalogo: cada palavra digitada precisa aparecer no nome.
+      where: termos.length > 0
+        ? { AND: termos.map((termo) => ({ name: { contains: termo, mode: 'insensitive' as const } })) }
+        : undefined,
       orderBy: { name: 'asc' },
       include: {
         publisher: { select: { id: true, name: true, slug: true } },
