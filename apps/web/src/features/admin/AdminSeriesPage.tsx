@@ -182,6 +182,7 @@ function SeriesEditor({ seriesId, onBack }: { seriesId: string; onBack: () => vo
       status: data.status,
       totalIssues: data.totalIssues ?? undefined,
       publisherName: data.publisher?.name ?? '',
+      supporting: data.supporting,
       // Créditos herdados das edições ficam de fora: salvar aqui os tornaria
       // créditos da saga sem que ninguém tenha decidido isso.
       writers: data.creatorsFromIssues ? '' : namesFor('writer'),
@@ -324,6 +325,23 @@ function SeriesEditor({ seriesId, onBack }: { seriesId: string; onBack: () => vo
             placeholder="DC Comics"
           />
         </Field>
+
+        <label className="flex items-start gap-3 rounded-lg border border-ink-800 bg-ink-850 p-4">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={Boolean(form.supporting)}
+            onChange={(e) => set('supporting', e.target.checked)}
+          />
+          <span className="text-sm">
+            <span className="font-medium text-ink-100">Material de apoio</span>
+            <span className="mt-1 block text-xs text-ink-500">
+              Sai da home e do catálogo, e continua na busca por texto, no filtro por saga ou
+              tag, na página da saga, nos guias e na sua biblioteca. Use em sagas que entraram
+              para compor um guia e que você não pretende completar.
+            </span>
+          </span>
+        </label>
 
         <div className="flex items-center gap-3">
           <Button type="submit" disabled={updateSeries.isPending}>

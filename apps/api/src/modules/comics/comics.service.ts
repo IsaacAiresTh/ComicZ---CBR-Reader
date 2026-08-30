@@ -446,8 +446,10 @@ export class ComicsService {
     publisherId?: string;
     tag?: string;
     status?: string;
+    includeSupporting?: boolean;
   }): Prisma.ComicWhereInput {
     const where: Prisma.ComicWhereInput = {};
+    const and: Prisma.ComicWhereInput[] = [];
 
     /**
      * Cada termo precisa aparecer em algum dos campos, e nao o texto inteiro em
@@ -459,7 +461,8 @@ export class ComicsService {
      */
     const termos = query.q ? searchTerms(query.q) : [];
     if (termos.length > 0) {
-      where.AND = termos.map((termo) => ({
+      and.push(
+        ...termos.map((termo) => ({
         OR: [
           { title: { contains: termo, mode: 'insensitive' as const } },
           { series: { name: { contains: termo, mode: 'insensitive' as const } } },
@@ -469,12 +472,30 @@ export class ComicsService {
             },
           },
         ],
-      }));
+      })),
+      );
+    }
+
+    /**
+     * Material de apoio some da navegacao, mas nao do acervo.
+     *
+     * A regra e "estou navegando": sem busca e sem filtro explicito, a home e
+     * o catalogo mostram so o que se pretende colecionar. Assim que alguem
+     * digita um termo ou escolhe uma saga, tag ou editora, o pedido e
+     * especifico e a saga de apoio volta a aparecer.
+     *
+     * HQ sem saga nunca e escondida: a flag mora na saga, e quem nao tem uma
+     * nao pode ter sido marcada.
+     */
+    const navegando = !query.q && !query.seriesId && !query.tag && !query.publisherId;
+    if (navegando && !query.includeSupporting) {
+      and.push({ OR: [{ seriesId: null }, { series: { supporting: false } }] });
     }
     if (query.seriesId) where.seriesId = query.seriesId;
     if (query.publisherId) where.publisherId = query.publisherId;
     if (query.tag) where.tags = { some: { tag: { slug: slugify(query.tag) } } };
     if (query.status) where.file = { status: query.status as FileStatus };
+    if (and.length > 0) where.AND = and;
 
     return where;
   }

@@ -46,6 +46,18 @@ const nameList = z
 
 export const comicSortSchema = z.enum(['recent', 'title', 'issue']);
 
+/**
+ * Flag booleana vinda da query string.
+ *
+ * Escrita a mao, e nao com z.coerce.boolean(): aquele considera qualquer
+ * string nao vazia como true, entao "?flag=false" viraria true — um jeito
+ * silencioso de o filtro fazer o oposto do pedido.
+ */
+const boolFlag = z
+  .union([z.boolean(), z.enum(['true', '1', 'false', '0'])])
+  .optional()
+  .transform((valor) => valor === true || valor === 'true' || valor === '1');
+
 export const listComicsQuerySchema = z.object({
   q: z.string().trim().max(120).optional(),
   seriesId: z.string().uuid().optional(),
@@ -55,6 +67,8 @@ export const listComicsQuerySchema = z.object({
   sort: comicSortSchema.default('recent'),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(60).default(24),
+  /** O painel precisa enxergar tudo; a navegacao publica, nao. */
+  includeSupporting: boolFlag,
 });
 
 /**
@@ -69,6 +83,8 @@ export const catalogQuerySchema = z.object({
   sort: z.enum(['recent', 'title']).default('recent'),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(60).default(24),
+  /** O painel precisa enxergar tudo; a navegacao publica, nao. */
+  includeSupporting: boolFlag,
 });
 
 export const upsertComicSchema = z.object({
@@ -104,6 +120,8 @@ export const upsertSeriesSchema = z.object({
   publisherName: z.string().trim().max(200).optional(),
   writers: nameList,
   artists: nameList,
+  /** Saga de apoio: fora da home e do catalogo, presente na busca. */
+  supporting: z.boolean().optional(),
 });
 
 // ------------------------------------------------------------------ biblioteca

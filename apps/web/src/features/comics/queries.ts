@@ -15,6 +15,11 @@ import { api } from '../../services/api';
 
 export interface CatalogFilters {
   q?: string;
+  /**
+   * O painel manda `true`: quem administra precisa enxergar tambem as sagas de
+   * apoio, que a navegacao publica esconde.
+   */
+  includeSupporting?: boolean;
   seriesId?: string;
   publisherId?: string;
   /** Estado do arquivo — usado pelo admin para achar o que falhou. */

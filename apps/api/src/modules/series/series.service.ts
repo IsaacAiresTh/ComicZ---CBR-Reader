@@ -17,6 +17,7 @@ interface SeriesWritable {
   status?: SeriesStatus;
   totalIssues?: number | null;
   publisherId?: string | null;
+  supporting?: boolean;
 }
 
 @Injectable()
@@ -96,6 +97,7 @@ export class SeriesService {
       slug: series.slug,
       coverUrl: seriesCoverUrl(series, derivada),
       hasOwnCover: Boolean(series.coverPath),
+      supporting: series.supporting,
       description: series.description,
       startYear: series.startYear,
       endYear: series.endYear,
@@ -158,6 +160,7 @@ export class SeriesService {
     if (input.endYear !== undefined) data.endYear = input.endYear;
     if (input.status !== undefined) data.status = input.status;
     if (input.totalIssues !== undefined) data.totalIssues = input.totalIssues;
+    if (input.supporting !== undefined) data.supporting = input.supporting;
 
     if (input.publisherName !== undefined) {
       data.publisherId = input.publisherName

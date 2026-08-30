@@ -88,6 +88,12 @@ model Series {
   /// Total planejado de edicoes da saga; null quando nao se sabe. Comparado
   /// com quantas estao no acervo para mostrar "6 de 12 edicoes".
   totalIssues Int?         @map("total_issues")
+  /// Saga que existe para dar suporte a um guia, e nao para ser navegada.
+  /// Some da home e do catalogo quando nao ha busca nem filtro; continua na
+  /// busca por texto, no filtro por saga ou tag, na pagina da saga, nos guias,
+  /// na biblioteca e por link direto. Ex.: os tie-ins de Guerras Secretas, que
+  /// entraram para o guia e nao formam uma colecao que se pretenda completar.
+  supporting  Boolean      @default(false)
   publisherId String?      @map("publisher_id") @db.Uuid
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
