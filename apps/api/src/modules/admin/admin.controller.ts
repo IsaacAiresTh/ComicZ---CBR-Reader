@@ -1,7 +1,20 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Query,
+} from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
 import { Role } from '@comicz/database';
+import {
+  CurrentUser,
+  type AuthenticatedUser,
+} from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { AdminService } from './admin.service';
@@ -37,6 +50,12 @@ export class AdminController {
     @Body(new ZodValidationPipe(setRoleSchema)) body: { role: 'USER' | 'ADMIN' },
   ) {
     return this.admin.setRole(id, body.role as Role);
+  }
+
+  @Delete('users/:id')
+  @ApiOperation({ summary: '[admin] Remove um usuario, sua biblioteca e seu progresso' })
+  removeUser(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.admin.removeUser(id, actor.id);
   }
 
   @Get('jobs')

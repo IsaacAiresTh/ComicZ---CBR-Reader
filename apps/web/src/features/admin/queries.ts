@@ -68,6 +68,18 @@ export function useSetUserRole() {
   });
 }
 
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) => api.delete(`/admin/users/${userId}`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+      // A contagem de usuarios do painel fica errada sem isto.
+      void queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+    },
+  });
+}
+
 function invalidateCatalog(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.invalidateQueries({ queryKey: ['comics'] });
   void queryClient.invalidateQueries({ queryKey: ['comic'] });

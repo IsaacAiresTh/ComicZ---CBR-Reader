@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Badge, Button, Select, Spinner } from '../../components/ui';
 import { useAuth } from '../auth/AuthContext';
-import { useAdminUsers, useSetUserRole } from './queries';
+import { useAdminUsers, useDeleteUser, useSetUserRole } from './queries';
 
 export function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const { data, isLoading } = useAdminUsers(page);
   const setRole = useSetUserRole();
+  const deleteUser = useDeleteUser();
   const { user: currentUser } = useAuth();
 
   if (isLoading) return <Spinner />;
@@ -22,6 +23,7 @@ export function AdminUsersPage() {
               <th className="px-4 py-3 font-medium">Biblioteca</th>
               <th className="px-4 py-3 font-medium">Desde</th>
               <th className="px-4 py-3 font-medium">Papel</th>
+              <th className="px-4 py-3 font-medium text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-ink-800">
@@ -56,6 +58,34 @@ export function AdminUsersPage() {
                     <option value="USER">Usuário</option>
                     <option value="ADMIN">Admin</option>
                   </Select>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <Button
+                    variant="ghost"
+                    title={
+                      user.id === currentUser?.id
+                        ? 'Você não pode remover a própria conta'
+                        : `Remover ${user.username}`
+                    }
+                    // A API recusa a auto-remoção de qualquer forma; aqui o
+                    // botão fica desabilitado para não oferecer o que não vai
+                    // acontecer.
+                    disabled={user.id === currentUser?.id || deleteUser.isPending}
+                    onClick={() => {
+                      const perdas = user.libraryCount
+                        ? `${user.libraryCount} item(ns) na biblioteca e todo o progresso de leitura`
+                        : 'todo o progresso de leitura';
+                      if (
+                        window.confirm(
+                          `Remover "${user.username}"? Serão apagados ${perdas}. As HQs e os guias do acervo não são afetados.`,
+                        )
+                      ) {
+                        deleteUser.mutate(user.id);
+                      }
+                    }}
+                  >
+                    🗑
+                  </Button>
                 </td>
               </tr>
             ))}
