@@ -23,17 +23,20 @@ export function Button({
 
 export function LinkButton({
   to,
+  state,
   variant = 'primary',
   className = '',
   children,
 }: {
   to: string;
+  /** Repassado ao Link: e assim que a origem viaja ate o leitor. */
+  state?: unknown;
   variant?: Variant;
   className?: string;
   children: ReactNode;
 }) {
   return (
-    <Link to={to} className={`${BASE} ${VARIANTS[variant]} ${className}`}>
+    <Link to={to} state={state} className={`${BASE} ${VARIANTS[variant]} ${className}`}>
       {children}
     </Link>
   );

@@ -1,7 +1,8 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { ComicSummary } from '@comicz/shared';
 import { Badge } from '../../components/ui';
 import { comicLabel, fileStatusLabel, percent } from '../../lib/format';
+import { fromHere } from '../../lib/navigation';
 import { mediaUrl } from '../../services/api';
 
 /** Card de HQ usado no catálogo, na biblioteca e nos guias. */
@@ -15,6 +16,7 @@ export function ComicCard({
   /** Desligado na página da série, onde o nome dela já é o título da página. */
   showSeries?: boolean;
 }) {
+  const location = useLocation();
   const cover = mediaUrl(comic.coverUrl);
   const progress = comic.progress;
   const readable = comic.file?.status === 'READY';
@@ -22,6 +24,10 @@ export function ComicCard({
   return (
     <Link
       to={`/hq/${comic.id}`}
+      // O card e o mesmo no catalogo, na biblioteca e na pagina da serie: a
+      // origem sai daqui, e nao de uma prop, para nenhuma das telas precisar
+      // lembrar de informa-la.
+      state={fromHere(location)}
       className="group flex flex-col overflow-hidden rounded-xl border border-ink-800 bg-ink-900 transition-colors hover:border-ink-600"
     >
       <div className="relative aspect-2/3 overflow-hidden bg-ink-850">
