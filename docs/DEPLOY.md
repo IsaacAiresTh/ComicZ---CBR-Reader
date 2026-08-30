@@ -1,5 +1,7 @@
 # Deploy
 
+> Como uma mudança sai da sua máquina e chega aqui: [FLUXO.md](FLUXO.md).
+
 # Passo 1: aplicação no ar, sem imagens
 
 Este passo coloca **banco + API + frontend** em produção para provar que login,
