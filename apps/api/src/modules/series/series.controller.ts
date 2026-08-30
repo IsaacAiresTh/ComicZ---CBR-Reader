@@ -53,6 +53,26 @@ export class SeriesController {
   }
 
   @Roles(Role.ADMIN)
+  @Post(':id/comics/:comicId')
+  @ApiOperation({ summary: '[admin] Move uma edicao para dentro desta saga' })
+  attachComic(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('comicId', ParseUUIDPipe) comicId: string,
+  ) {
+    return this.series.attachComic(id, comicId);
+  }
+
+  @Roles(Role.ADMIN)
+  @Delete(':id/comics/:comicId')
+  @ApiOperation({ summary: '[admin] Tira uma edicao desta saga (a HQ continua existindo)' })
+  detachComic(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('comicId', ParseUUIDPipe) comicId: string,
+  ) {
+    return this.series.detachComic(id, comicId);
+  }
+
+  @Roles(Role.ADMIN)
   @Delete(':id')
   @HttpCode(204)
   @ApiOperation({ summary: '[admin] Remove uma serie (as HQs ficam sem serie)' })

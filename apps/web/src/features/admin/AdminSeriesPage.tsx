@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { SeriesStatus, UpsertSeriesPayload } from '@comicz/shared';
+import type { ComicSummary, SeriesStatus, UpsertSeriesPayload } from '@comicz/shared';
 import {
   Badge,
   Button,
@@ -12,8 +12,15 @@ import {
 } from '../../components/ui';
 import { creditRoleLabel, groupCredits, seriesStatusLabel, seriesYears } from '../../lib/format';
 import { ApiError } from '../../services/api';
-import { useSeriesList } from '../comics/queries';
-import { useCreateSeries, useDeleteSeries, useSeriesDetail, useUpdateSeries } from './queries';
+import { useComics, useSeriesList } from '../comics/queries';
+import {
+  useAttachComicToSeries,
+  useCreateSeries,
+  useDeleteSeries,
+  useDetachComicFromSeries,
+  useSeriesDetail,
+  useUpdateSeries,
+} from './queries';
 
 const STATUS_OPTIONS: { value: SeriesStatus; label: string }[] = [
   { value: 'UNKNOWN', label: 'Não informado' },
@@ -325,22 +332,136 @@ function SeriesEditor({ seriesId, onBack }: { seriesId: string; onBack: () => vo
         </div>
       </form>
 
-      <div className="rounded-xl border border-ink-800 bg-ink-900 p-6">
+      <SeriesComics seriesId={seriesId} comics={data.comics} years={seriesYears(data.startYear, data.endYear, data.status)} />
+    </div>
+  );
+}
+
+
+/**
+ * Membros da saga.
+ *
+ * Trocar a saga de uma edicao ja era possivel pelo editor de HQ, mas pelo lado
+ * errado: exigia caçar a edicao na lista e lembrar a qual saga ela pertence. O
+ * caso real e o inverso — a saga esta fechada e falta uma edicao que foi
+ * importada sob a pasta do proprio personagem, como acontece em crossover.
+ */
+function SeriesComics({
+  seriesId,
+  comics,
+  years,
+}: {
+  seriesId: string;
+  comics: ComicSummary[];
+  years: string | null;
+}) {
+  const [search, setSearch] = useState('');
+  const [erro, setErro] = useState<string | null>(null);
+  const attach = useAttachComicToSeries();
+  const detach = useDetachComicFromSeries();
+
+  // Busca so com 2+ caracteres: uma letra devolveria o acervo inteiro.
+  const busca = search.trim();
+  const candidatos = useComics({ q: busca.length >= 2 ? busca : undefined, sort: 'title', page: 1 });
+
+  const jaNaSaga = new Set(comics.map((comic) => comic.id));
+  const resultados = (candidatos.data?.items ?? []).filter((comic) => !jaNaSaga.has(comic.id));
+
+  const numero = (comic: ComicSummary) =>
+    comic.issueNumber === null ? '—' : `#${String(comic.issueNumber).padStart(2, '0')}`;
+
+  async function executar(acao: Promise<unknown>) {
+    setErro(null);
+    try {
+      await acao;
+    } catch (caught) {
+      setErro(caught instanceof ApiError ? caught.message : 'Não foi possível concluir');
+    }
+  }
+
+  return (
+    <div className="space-y-4 rounded-xl border border-ink-800 bg-ink-900 p-6">
+      <div>
         <p className="text-sm font-medium text-ink-100">
-          {data.comics.length} {data.comics.length === 1 ? 'edição' : 'edições'} nesta saga
+          {comics.length} {comics.length === 1 ? 'edição' : 'edições'} nesta saga
         </p>
-        <p className="mt-1 text-xs text-ink-500">
-          {seriesYears(data.startYear, data.endYear, data.status) ?? 'período não informado'}
-        </p>
-        <ol className="mt-3 space-y-1 text-sm text-ink-400">
-          {data.comics.map((comic) => (
-            <li key={comic.id}>
-              {comic.issueNumber === null ? '—' : `#${String(comic.issueNumber).padStart(2, '0')}`}{' '}
-              {comic.title}
+        <p className="mt-1 text-xs text-ink-500">{years ?? 'período não informado'}</p>
+      </div>
+
+      {erro && <ErrorNote>{erro}</ErrorNote>}
+
+      {comics.length > 0 && (
+        <ol className="divide-y divide-ink-800 rounded-lg border border-ink-800">
+          {comics.map((comic) => (
+            <li key={comic.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+              <span className="w-12 shrink-0 text-ink-500">{numero(comic)}</span>
+              <span className="min-w-0 flex-1 truncate text-ink-300">{comic.title}</span>
+              <Button
+                variant="ghost"
+                title={`Tirar "${comic.title}" da saga`}
+                disabled={detach.isPending}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      `Tirar "${comic.title}" desta saga? A edição continua no acervo, apenas sem saga.`,
+                    )
+                  ) {
+                    void executar(detach.mutateAsync({ seriesId, comicId: comic.id }));
+                  }
+                }}
+              >
+                ✕
+              </Button>
             </li>
           ))}
         </ol>
-      </div>
+      )}
+
+      <Field
+        label="Adicionar edição"
+        hint="Busque no acervo inteiro — inclusive edições que hoje estão em outra saga"
+      >
+        <Input
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Tropa dos Lanternas Verdes"
+        />
+      </Field>
+
+      {busca.length >= 2 && (
+        <div className="rounded-lg border border-ink-800">
+          {candidatos.isLoading && <p className="px-3 py-2 text-sm text-ink-500">Buscando...</p>}
+          {!candidatos.isLoading && resultados.length === 0 && (
+            <p className="px-3 py-2 text-sm text-ink-500">
+              Nada encontrado fora desta saga para “{busca}”.
+            </p>
+          )}
+          <ul className="divide-y divide-ink-800">
+            {resultados.slice(0, 8).map((comic) => (
+              <li key={comic.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+                <span className="w-12 shrink-0 text-ink-500">{numero(comic)}</span>
+                <span className="min-w-0 flex-1 truncate text-ink-300">
+                  {comic.title}
+                  {/* Avisa que a edicao sera MOVIDA, nao copiada: ela pertence
+                      a uma saga so. */}
+                  {comic.series && (
+                    <span className="ml-2 text-xs text-amber-400">
+                      sai de “{comic.series.name}”
+                    </span>
+                  )}
+                </span>
+                <Button
+                  variant="secondary"
+                  disabled={attach.isPending}
+                  onClick={() => void executar(attach.mutateAsync({ seriesId, comicId: comic.id }))}
+                >
+                  Adicionar
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

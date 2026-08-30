@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { SeriesStatus } from '@comicz/database';
 import type { CreatorCredit, SeriesDetail, UpsertSeriesInput } from '@comicz/shared';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -178,6 +178,63 @@ export class SeriesService {
         });
       }
     }
+  }
+
+  /**
+   * Move uma edicao para dentro da saga.
+   *
+   * Existe como rota propria em vez de reaproveitar PATCH /comics/:id porque
+   * aquele endpoint recebe a HQ inteira: usa-lo para trocar so a saga exigiria
+   * reenviar titulo, creditos, personagens e tags, e um payload incompleto os
+   * apagaria em silencio.
+   *
+   * Uma edicao pertence a no maximo uma saga, entao anexar uma que ja esta em
+   * outra e uma mudanca, nao um erro — e o caso comum de uma edicao importada
+   * sob a pasta do proprio personagem que na verdade faz parte de um crossover.
+   * Quem chama recebe de volta a saga anterior para poder dizer o que mudou.
+   */
+  async attachComic(
+    seriesId: string,
+    comicId: string,
+  ): Promise<{ comicId: string; title: string; movedFrom: { id: string; name: string } | null }> {
+    const series = await this.prisma.series.findUnique({
+      where: { id: seriesId },
+      select: { id: true },
+    });
+    if (!series) throw new NotFoundException('Saga nao encontrada');
+
+    const comic = await this.prisma.comic.findUnique({
+      where: { id: comicId },
+      select: { id: true, title: true, series: { select: { id: true, name: true } } },
+    });
+    if (!comic) throw new NotFoundException('HQ nao encontrada');
+
+    if (comic.series?.id === seriesId) {
+      throw new BadRequestException('Esta edicao ja faz parte desta saga');
+    }
+
+    await this.prisma.comic.update({ where: { id: comicId }, data: { seriesId } });
+    return { comicId: comic.id, title: comic.title, movedFrom: comic.series };
+  }
+
+  /**
+   * Tira a edicao da saga; ela continua existindo, apenas sem saga.
+   *
+   * Exige que a edicao esteja NESTA saga: sem a checagem, um id trocado
+   * removeria de outra saga sem nenhum sinal de que a acao errou de alvo.
+   */
+  async detachComic(seriesId: string, comicId: string): Promise<{ comicId: string; title: string }> {
+    const comic = await this.prisma.comic.findUnique({
+      where: { id: comicId },
+      select: { id: true, title: true, seriesId: true },
+    });
+    if (!comic) throw new NotFoundException('HQ nao encontrada');
+    if (comic.seriesId !== seriesId) {
+      throw new BadRequestException('Esta edicao nao faz parte desta saga');
+    }
+
+    await this.prisma.comic.update({ where: { id: comicId }, data: { seriesId: null } });
+    return { comicId: comic.id, title: comic.title };
   }
 
   async remove(id: string): Promise<void> {

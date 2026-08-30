@@ -156,6 +156,36 @@ export function useUpdateSeries() {
   });
 }
 
+/**
+ * Mover uma edicao mexe nos dois lados: a saga ganha ou perde uma edicao, e a
+ * propria HQ muda de saga. Por isso invalida series E catalogo.
+ */
+export function useAttachComicToSeries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { seriesId: string; comicId: string }) =>
+      api.post<{ comicId: string; title: string; movedFrom: { id: string; name: string } | null }>(
+        `/series/${input.seriesId}/comics/${input.comicId}`,
+      ),
+    onSuccess: () => {
+      invalidateSeries(queryClient);
+      invalidateCatalog(queryClient);
+    },
+  });
+}
+
+export function useDetachComicFromSeries() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { seriesId: string; comicId: string }) =>
+      api.delete(`/series/${input.seriesId}/comics/${input.comicId}`),
+    onSuccess: () => {
+      invalidateSeries(queryClient);
+      invalidateCatalog(queryClient);
+    },
+  });
+}
+
 export function useDeleteSeries() {
   const queryClient = useQueryClient();
   return useMutation({
