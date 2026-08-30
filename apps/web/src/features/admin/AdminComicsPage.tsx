@@ -16,6 +16,7 @@ import { comicLabel, fileStatusLabel, formatBytes } from '../../lib/format';
 import { fromHere } from '../../lib/navigation';
 import { ApiError, uploadComicFile } from '../../services/api';
 import {
+  useComic,
   useComics,
   usePublishers,
   useSeriesList,
@@ -266,32 +267,81 @@ function UploadButton({ comicId, hasFile }: { comicId: string; hasFile: boolean 
   );
 }
 
+interface ComicFormState {
+  title: string;
+  issueNumber: string;
+  description: string;
+  seriesId: string;
+  seriesName: string;
+  publisherId: string;
+  creators: string;
+  characters: string;
+  tags: string;
+}
+
+const FORM_VAZIO: ComicFormState = {
+  title: '',
+  issueNumber: '',
+  description: '',
+  seriesId: '',
+  seriesName: '',
+  publisherId: '',
+  creators: '',
+  characters: '',
+  tags: '',
+};
+
 function ComicForm({ comic, onClose }: { comic?: ComicSummary; onClose: () => void }) {
   const series = useSeriesList();
   const publishers = usePublishers();
   const createComic = useCreateComic();
   const updateComic = useUpdateComic();
 
-  const [form, setForm] = useState({
-    title: comic?.title ?? '',
-    issueNumber: comic?.issueNumber?.toString() ?? '',
-    description: '',
-    seriesId: comic?.series?.id ?? '',
-    seriesName: '',
-    publisherId: comic?.publisher?.id ?? '',
-    creators: '',
-    characters: '',
-    tags: '',
-  });
+  /**
+   * A edicao precisa do ComicDetail, nao do ComicSummary.
+   *
+   * O summary nao carrega descricao, creditos, personagens nem tags — e o
+   * formulario envia a HQ inteira no PATCH. Semeados em branco, esses quatro
+   * campos chegavam ao servidor como lista vazia, que `syncTaxonomies` trata
+   * como "apague tudo". Editar o titulo de uma HQ apagava as tags dela.
+   */
+  const detail = useComic(comic?.id);
+  const [form, setForm] = useState<ComicFormState | null>(comic ? null : FORM_VAZIO);
   const [error, setError] = useState<string | null>(null);
 
-  function update(key: keyof typeof form) {
-    return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-      setForm((current) => ({ ...current, [key]: event.target.value }));
+  // Semeia uma vez so: refazer isso a cada refetch apagaria o que foi digitado.
+  if (comic && detail.data && !form) {
+    setForm({
+      title: detail.data.title,
+      issueNumber: detail.data.issueNumber?.toString() ?? '',
+      description: detail.data.description ?? '',
+      seriesId: detail.data.series?.id ?? '',
+      seriesName: '',
+      publisherId: detail.data.publisher?.id ?? '',
+      // A API grava todo credito de HQ como 'writer' e o formulario tem um
+      // campo so, entao os papeis nao sobrevivem a um round-trip. Preservar os
+      // nomes ainda e melhor do que perde-los.
+      creators: detail.data.creators.map((credit) => credit.name).join(', '),
+      characters: detail.data.characters.join(', '),
+      tags: detail.data.tags.join(', '),
+    });
   }
+
+  function update(key: keyof ComicFormState) {
+    return (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+      setForm((current) => (current ? { ...current, [key]: event.target.value } : current));
+  }
+
+  /**
+   * Enquanto o detalhe nao chega, o formulario nao existe. E deliberado: um
+   * formulario em branco que aceitasse "Salvar" antes dos dados chegarem
+   * reproduziria exatamente o apagamento que esta correcao remove.
+   */
+  if (!form) return <Spinner label="Carregando a HQ..." />;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (!form) return;
     setError(null);
 
     const payload = {
