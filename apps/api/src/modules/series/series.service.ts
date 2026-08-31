@@ -1,7 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type SeriesStatus } from '@comicz/database';
-import type { CreatorCredit, SeriesDetail, UpsertSeriesInput } from '@comicz/shared';
-import { searchTerms } from '../../common/utils/search';
+import { searchAlternatives, type CreatorCredit, type SeriesDetail, type UpsertSeriesInput } from '@comicz/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { comicSummaryInclude, coverUrl, mediaVersion, toComicSummary } from '../comics/comic-mapper';
 import { seriesCoverUrl } from '../files/media-urls';
@@ -29,11 +28,12 @@ export class SeriesService {
   ) {}
 
   async list(search?: string) {
-    const termos = search ? searchTerms(search) : [];
+    const alternativas = search ? searchAlternatives(search) : [];
     const rows = await this.prisma.series.findMany({
-      // Mesma regra do catalogo: cada palavra precisa aparecer no nome, e a
-      // comparacao ignora acento (ver idsQueCasam em ComicsService).
-      where: termos.length > 0 ? { id: { in: await this.idsQueCasam(termos) } } : undefined,
+      // Mesma regra do catalogo: cada palavra precisa aparecer no nome, a
+      // comparacao ignora acento e "spiderman" encontra Homem-Aranha.
+      where:
+        alternativas.length > 0 ? { id: { in: await this.idsQueCasam(alternativas) } } : undefined,
       orderBy: { name: 'asc' },
       include: {
         publisher: { select: { id: true, name: true, slug: true } },
@@ -56,16 +56,20 @@ export class SeriesService {
   }
 
   /**
-   * Ids das sagas cujo nome casa com todos os termos, ignorando acento.
-   * Mesmo motivo do catalogo: `mode: 'insensitive'` nao cobre acento, e o
-   * `unaccent()` do Postgres nao e chamavel de dentro do `where` do Prisma.
+   * Ids das sagas cujo nome casa com a busca, ignorando acento e idioma.
+   * Mesmo motivo do catalogo: `mode: 'insensitive'` nao cobre acento, o
+   * `unaccent()` do Postgres nao e chamavel de dentro do `where` do Prisma, e
+   * cada alternativa vinda de searchAlternatives() precisa casar por inteiro.
    */
-  private async idsQueCasam(termos: string[]): Promise<string[]> {
-    const condicoes = termos.map(
-      (termo) => Prisma.sql`unaccent(name) ILIKE unaccent(${`%${termo}%`})`,
-    );
+  private async idsQueCasam(alternativas: string[][]): Promise<string[]> {
+    const grupos = alternativas.map((termos) => {
+      const condicoes = termos.map(
+        (termo) => Prisma.sql`unaccent(name) ILIKE unaccent(${`%${termo}%`})`,
+      );
+      return Prisma.sql`(${Prisma.join(condicoes, ' AND ')})`;
+    });
     const linhas = await this.prisma.$queryRaw<{ id: string }[]>`
-      SELECT id FROM series WHERE ${Prisma.join(condicoes, ' AND ')}
+      SELECT id FROM series WHERE ${Prisma.join(grupos, ' OR ')}
     `;
     return linhas.map((linha) => linha.id);
   }

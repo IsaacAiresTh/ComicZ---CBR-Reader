@@ -7,9 +7,10 @@ import {
   enqueueJob,
 } from '@comicz/database';
 import {
-  JOB_TYPES,
   formatComicLabel,
+  JOB_TYPES,
   parseComicFilename,
+  searchAlternatives,
   slugify,
   type CatalogEntry,
   type CatalogQuery,
@@ -22,7 +23,6 @@ import {
 import { originalKey, pagesPrefix, type StorageAdapter } from '@comicz/storage';
 import { seriesCoverUrl } from '../files/media-urls';
 import { paginate, toSkipTake } from '../../common/utils/pagination';
-import { searchTerms } from '../../common/utils/search';
 import { PrismaService } from '../../prisma/prisma.service';
 import { STORAGE } from '../files/storage.provider';
 import {
@@ -459,8 +459,8 @@ export class ComicsService {
      * Termos diferentes podem casar em campos diferentes: "aranha renovando"
      * acha a saga pelo nome e o personagem pelo elenco.
      */
-    const termos = query.q ? searchTerms(query.q) : [];
-    if (termos.length > 0) where.id = { in: await this.idsQueCasam(termos) };
+    const alternativas = query.q ? searchAlternatives(query.q) : [];
+    if (alternativas.length > 0) where.id = { in: await this.idsQueCasam(alternativas) };
 
     /**
      * Material de apoio some da navegacao, mas nao do acervo.
@@ -487,7 +487,12 @@ export class ComicsService {
   }
 
   /**
-   * Ids das HQs que casam com todos os termos, ignorando acento.
+   * Ids das HQs que casam com a busca, ignorando acento e idioma.
+   *
+   * Recebe as ALTERNATIVAS vindas de searchAlternatives(): cada uma e um
+   * conjunto de termos que precisa casar por inteiro, e basta uma delas casar.
+   * E assim que "spiderman" encontra Homem-Aranha sem deixar de encontrar algo
+   * que se chame literalmente Spider-Man.
    *
    * O `mode: 'insensitive'` do Prisma so cobre maiuscula e minuscula: "fenix"
    * continuava sem encontrar "Fênix", e "vinganca" sem encontrar "Vingança" —
@@ -503,25 +508,28 @@ export class ComicsService {
    * irrelevante; se um dia virar dezenas de milhares, o caminho e trocar o
    * prefiltro por uma coluna desnormalizada ja sem acento.
    */
-  private async idsQueCasam(termos: string[]): Promise<string[]> {
-    const condicoes = termos.map((termo) => {
-      const alvo = `%${termo}%`;
-      return Prisma.sql`(
-        unaccent(c.title) ILIKE unaccent(${alvo})
-        OR unaccent(s.name) ILIKE unaccent(${alvo})
-        OR EXISTS (
-          SELECT 1 FROM comic_characters cc
-          JOIN characters ch ON ch.id = cc.character_id
-          WHERE cc.comic_id = c.id AND unaccent(ch.name) ILIKE unaccent(${alvo})
-        )
-      )`;
+  private async idsQueCasam(alternativas: string[][]): Promise<string[]> {
+    const grupos = alternativas.map((termos) => {
+      const condicoes = termos.map((termo) => {
+        const alvo = `%${termo}%`;
+        return Prisma.sql`(
+          unaccent(c.title) ILIKE unaccent(${alvo})
+          OR unaccent(s.name) ILIKE unaccent(${alvo})
+          OR EXISTS (
+            SELECT 1 FROM comic_characters cc
+            JOIN characters ch ON ch.id = cc.character_id
+            WHERE cc.comic_id = c.id AND unaccent(ch.name) ILIKE unaccent(${alvo})
+          )
+        )`;
+      });
+      return Prisma.sql`(${Prisma.join(condicoes, ' AND ')})`;
     });
 
     const linhas = await this.prisma.$queryRaw<{ id: string }[]>`
       SELECT c.id
       FROM comics c
       LEFT JOIN series s ON s.id = c.series_id
-      WHERE ${Prisma.join(condicoes, ' AND ')}
+      WHERE ${Prisma.join(grupos, ' OR ')}
     `;
     return linhas.map((linha) => linha.id);
   }
