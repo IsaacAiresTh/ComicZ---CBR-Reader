@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { readdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { readdir, rename } from 'node:fs/promises';
 import { extname, join, relative } from 'node:path';
 import { IMAGE_EXTENSIONS } from '@comicz/shared';
 
@@ -81,4 +82,56 @@ export async function collectImages(rootDir: string): Promise<string[]> {
 
   await walk(rootDir);
   return found.sort((a, b) => naturalCompare(relative(rootDir, a), relative(rootDir, b)));
+}
+
+/** Byte invalido em UTF-8 vira este caractere na leitura em modo string. */
+const SUBSTITUTO = '�';
+
+/**
+ * Nome seguro para uma entrada extraida.
+ *
+ * CBR/CBZ antigos guardam os nomes na codepage do DOS (cp437/cp850), nao em
+ * UTF-8. Lidos como latin1 os bytes viram caracteres imprimiveis e estaveis —
+ * o acento sai errado ("Danacao" vira "DanaEo"), mas o nome deixa de ser
+ * inutilizavel e a ordem de leitura, que vem do sufixo numerico, se mantem.
+ */
+function nomeSeguro(bytes: Buffer): string {
+  const comoUtf8 = bytes.toString('utf8');
+  if (!comoUtf8.includes(SUBSTITUTO)) return comoUtf8;
+  return bytes.toString('latin1').replace(/[/\\]/g, '_');
+}
+
+/**
+ * Renomeia o que o `readdir` em modo string nao consegue enderecar.
+ *
+ * Com nomes fora do UTF-8, `readdir` devolve U+FFFD no lugar dos bytes
+ * originais; o caminho montado a partir dessa string nao existe no disco, e a
+ * leitura morre com ENOENT. Em modo buffer os bytes voltam intactos, entao aqui
+ * renomeamos a entrada usando o caminho em Buffer como origem — depois disso o
+ * resto do pipeline pode trabalhar so com strings.
+ *
+ * Devolve quantas entradas foram renomeadas.
+ */
+export async function normalizeExtractedNames(dir: string): Promise<number> {
+  const entries = await readdir(dir, { withFileTypes: true, encoding: 'buffer' });
+  let renomeadas = 0;
+
+  for (const entry of entries) {
+    const bytes = entry.name as unknown as Buffer;
+    const seguro = nomeSeguro(bytes);
+    let caminho = join(dir, seguro);
+
+    if (bytes.toString('utf8').includes(SUBSTITUTO)) {
+      const origem = Buffer.concat([Buffer.from(`${dir}/`, 'utf8'), bytes]);
+      // Colisao e improvavel, mas dois nomes diferentes podem cair no mesmo
+      // latin1; sufixar preserva os dois em vez de sobrescrever um deles.
+      for (let n = 1; existsSync(caminho); n += 1) caminho = join(dir, `${n}_${seguro}`);
+      await rename(origem, caminho);
+      renomeadas += 1;
+    }
+
+    if (entry.isDirectory()) renomeadas += await normalizeExtractedNames(caminho);
+  }
+
+  return renomeadas;
 }
