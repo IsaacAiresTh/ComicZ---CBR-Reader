@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, ErrorNote, Input } from '../../components/ui';
 import { mediaUrl } from '../../services/api';
-import { useCollections, useCreateCollection } from './queries';
+import { ehNosso, lerArrasto, type ItemArrastado } from './dragToCollection';
+import { useAddSeriesToCollection, useAddToCollection, useCollections, useCreateCollection } from './queries';
 
 /** Mosaico com as primeiras capas da pasta — a "lombada" dela na estante. */
 function Miniatura({ capas }: { capas: string[] }) {
@@ -21,7 +22,6 @@ function Miniatura({ capas }: { capas: string[] }) {
           src={mediaUrl(capa) ?? undefined}
           alt=""
           loading="lazy"
-          // Uma capa só ocupa o quadrado inteiro; duas ou três não deixam buraco.
           className={`h-full w-full object-cover ${
             capas.length === 1 ? 'col-span-2 row-span-2' : ''
           } ${capas.length === 3 && indice === 0 ? 'col-span-2' : ''}`}
@@ -34,9 +34,15 @@ function Miniatura({ capas }: { capas: string[] }) {
 export function CollectionsSection() {
   const { data: pastas, isLoading } = useCollections();
   const criar = useCreateCollection();
+  const guardarHq = useAddToCollection();
+  const guardarSaga = useAddSeriesToCollection();
+
   const [criando, setCriando] = useState(false);
   const [nome, setNome] = useState('');
   const [erro, setErro] = useState<string | null>(null);
+  /** Pasta sob o cursor durante o arrasto, para destacar só ela. */
+  const [alvo, setAlvo] = useState<string | null>(null);
+  const [recado, setRecado] = useState<string | null>(null);
 
   async function enviar(evento: React.FormEvent) {
     evento.preventDefault();
@@ -50,13 +56,35 @@ export function CollectionsSection() {
     }
   }
 
+  async function soltar(evento: React.DragEvent, pastaId: string, pastaNome: string) {
+    evento.preventDefault();
+    setAlvo(null);
+    const item = lerArrasto(evento);
+    if (!item) return;
+
+    setErro(null);
+    try {
+      const r =
+        item.kind === 'series'
+          ? await guardarSaga.mutateAsync({ collectionId: pastaId, seriesId: item.id })
+          : await guardarHq.mutateAsync({ collectionId: pastaId, comicId: item.id });
+      setRecado(
+        r.alreadyThere
+          ? `“${item.label}” já estava em “${pastaNome}”.`
+          : `“${item.label}” guardada em “${pastaNome}”.`,
+      );
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : 'Não consegui guardar');
+    }
+  }
+
   return (
     <section className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-ink-100">Minhas pastas</h2>
           <p className="text-sm text-ink-400">
-            Organize suas HQs do jeito que quiser — uma HQ pode estar em várias pastas.
+            Arraste uma HQ ou uma saga da biblioteca para cá — ela continua na biblioteca.
           </p>
         </div>
         {!criando && (
@@ -93,6 +121,7 @@ export function CollectionsSection() {
         </form>
       )}
       {erro && <ErrorNote>{erro}</ErrorNote>}
+      {recado && <p className="text-sm text-emerald-400">{recado}</p>}
 
       {isLoading ? (
         <p className="text-sm text-ink-500">Carregando pastas...</p>
@@ -102,14 +131,27 @@ export function CollectionsSection() {
             <li key={pasta.id}>
               <Link
                 to={`/biblioteca/pasta/${pasta.id}`}
-                className="block rounded-xl transition-transform hover:-translate-y-0.5"
+                onDragOver={(evento) => {
+                  if (!ehNosso(evento)) return;
+                  // Sem o preventDefault o navegador recusa o "soltar".
+                  evento.preventDefault();
+                  evento.dataTransfer.dropEffect = 'copy';
+                  setAlvo(pasta.id);
+                }}
+                onDragLeave={() => setAlvo((atual) => (atual === pasta.id ? null : atual))}
+                onDrop={(evento) => void soltar(evento, pasta.id, pasta.name)}
+                className={`block rounded-xl outline-offset-4 transition-transform hover:-translate-y-0.5 ${
+                  alvo === pasta.id ? 'outline outline-2 outline-brand-500' : ''
+                }`}
               >
                 <Miniatura capas={pasta.previewCovers} />
                 <p className="mt-2 truncate text-sm font-medium text-ink-100" title={pasta.name}>
                   {pasta.name}
                 </p>
                 <p className="text-xs text-ink-500">
-                  {pasta.comicCount} {pasta.comicCount === 1 ? 'HQ' : 'HQs'}
+                  {alvo === pasta.id
+                    ? 'Solte aqui'
+                    : `${pasta.itemCount} ${pasta.itemCount === 1 ? 'item' : 'itens'}`}
                 </p>
               </Link>
             </li>
@@ -126,3 +168,5 @@ export function CollectionsSection() {
     </section>
   );
 }
+
+export type { ItemArrastado };

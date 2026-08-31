@@ -71,18 +71,18 @@ export class CollectionsController {
 
   @Patch(':id/reorder')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Reordena as HQs da pasta' })
+  @ApiOperation({ summary: 'Reordena os itens da pasta' })
   reorder(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(reorderCollectionSchema)) body: ReorderCollectionInput,
   ) {
-    return this.collections.reorder(user.id, id, body.comicIds);
+    return this.collections.reorder(user.id, id, body.itemIds);
   }
 
   @Post(':id/series/:seriesId')
   @HttpCode(201)
-  @ApiOperation({ summary: 'Poe todas as edicoes de uma saga na pasta' })
+  @ApiOperation({ summary: 'Guarda a saga inteira como um item so' })
   addSeries(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -102,14 +102,14 @@ export class CollectionsController {
     return this.collections.addComic(user.id, id, comicId);
   }
 
-  @Delete(':id/comics/:comicId')
+  @Delete(':id/items/:itemId')
   @HttpCode(204)
-  @ApiOperation({ summary: 'Tira a HQ da pasta; ela continua na biblioteca' })
-  removeComic(
+  @ApiOperation({ summary: 'Tira o item da pasta; o conteudo continua na biblioteca' })
+  removeItem(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
-    @Param('comicId', ParseUUIDPipe) comicId: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
   ) {
-    return this.collections.removeComic(user.id, id, comicId);
+    return this.collections.removeItem(user.id, id, itemId);
   }
 }

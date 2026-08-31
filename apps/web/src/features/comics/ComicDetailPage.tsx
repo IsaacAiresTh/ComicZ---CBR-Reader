@@ -138,7 +138,7 @@ export function ComicDetailPage() {
               </Button>
             )}
 
-            <AddToCollectionMenu comicId={comic.id} />
+            <AddToCollectionMenu alvo={{ kind: 'comic', id: comic.id }} />
 
             <Button
               variant="ghost"
