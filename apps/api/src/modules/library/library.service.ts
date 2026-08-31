@@ -124,6 +124,51 @@ export class LibraryService {
     return paginate(pageItems, visible.length, query);
   }
 
+  /**
+   * Cards de saga para uma lista de sagas, com os totais da biblioteca do
+   * usuario. Usado pelas pastas, para a saga guardada numa pasta aparecer
+   * exatamente como aparece na biblioteca — mesmos numeros, mesma capa.
+   */
+  async seriesCards(userId: string, seriesIds: string[]) {
+    if (seriesIds.length === 0) return new Map<string, LibrarySeriesCard>();
+
+    const itens = await this.prisma.libraryItem.findMany({
+      where: { userId, comic: { seriesId: { in: seriesIds } } },
+      select: {
+        comicId: true,
+        status: true,
+        favorite: true,
+        updatedAt: true,
+        comic: { select: { seriesId: true } },
+      },
+    });
+
+    const grupos = new Map<string, Parameters<typeof this.loadSeriesCards>[0][number]>();
+    for (const seriesId of seriesIds) {
+      grupos.set(seriesId, {
+        seriesId,
+        comicIds: [],
+        read: 0,
+        reading: 0,
+        wantToRead: 0,
+        favorites: 0,
+        lastActivityAt: new Date(0),
+      });
+    }
+    for (const item of itens) {
+      const grupo = item.comic.seriesId ? grupos.get(item.comic.seriesId) : undefined;
+      if (!grupo) continue;
+      grupo.comicIds.push(item.comicId);
+      if (item.status === 'READ') grupo.read += 1;
+      if (item.status === 'READING') grupo.reading += 1;
+      if (item.status === 'WANT_TO_READ') grupo.wantToRead += 1;
+      if (item.favorite) grupo.favorites += 1;
+      if (item.updatedAt > grupo.lastActivityAt) grupo.lastActivityAt = item.updatedAt;
+    }
+
+    return this.loadSeriesCards([...grupos.values()]);
+  }
+
   /** Monta os cards de saga da pagina: capa, editora e totais do acervo. */
   private async loadSeriesCards(
     groups: {

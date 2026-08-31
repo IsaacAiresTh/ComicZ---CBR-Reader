@@ -161,9 +161,14 @@ export const createCollectionSchema = z.object({ name: collectionNameSchema });
 
 export const renameCollectionSchema = z.object({ name: collectionNameSchema });
 
-/** Nova ordem das HQs dentro da pasta, da primeira para a última. */
+/**
+ * Nova ordem dos itens da pasta, do primeiro para o último.
+ *
+ * São ids de ITEM, não de HQ: um item pode ser uma saga inteira, que não tem
+ * comicId nenhum.
+ */
 export const reorderCollectionSchema = z.object({
-  comicIds: z.array(z.string().uuid()).min(1, 'Informe a nova ordem'),
+  itemIds: z.array(z.string().uuid()).min(1, 'Informe a nova ordem'),
 });
 
 export const updateProgressSchema = z.object({

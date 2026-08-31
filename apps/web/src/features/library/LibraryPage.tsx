@@ -3,6 +3,7 @@ import { CARD_GRID_CLASS, ComicCard } from '../comics/ComicCard';
 import { EmptyState, LinkButton, Spinner } from '../../components/ui';
 import { useLibrary } from '../comics/queries';
 import { CollectionsSection } from '../collections/CollectionsSection';
+import { iniciarArrasto } from '../collections/dragToCollection';
 import { LibrarySeriesCard } from './LibrarySeriesCard';
 
 const TABS = [
@@ -67,7 +68,7 @@ export function LibraryPage() {
       ) : items.length === 0 ? (
         <EmptyState
           title="Nada por aqui ainda"
-          description="Adicione HQs pelo catálogo ou comece a ler — o que você lê entra automaticamente na biblioteca."
+          description="Adicione HQs pelo catálogo. Ler uma HQ não a coloca aqui: a biblioteca é o que você escolheu guardar."
           action={<LinkButton to="/catalogo">Explorar catálogo</LinkButton>}
         />
       ) : (
@@ -75,9 +76,43 @@ export function LibraryPage() {
           <div className={CARD_GRID_CLASS}>
             {items.map((item) =>
               item.kind === 'series' ? (
-                <LibrarySeriesCard key={`s:${item.series.id}`} series={item.series} />
+                /*
+                 * O invólucro existe só para arrastar: assim ComicCard e
+                 * LibrarySeriesCard continuam iguais no catálogo e nos guias,
+                 * onde não há pasta para onde soltar.
+                 *
+                 * Arrastar a saga guarda a SAGA como um item só, não as edições
+                 * uma a uma. Em nenhum dos casos a HQ sai da biblioteca.
+                 */
+                <div
+                  key={`s:${item.series.id}`}
+                  draggable
+                  onDragStart={(evento) =>
+                    iniciarArrasto(evento, {
+                      kind: 'series',
+                      id: item.series.id,
+                      label: item.series.name,
+                    })
+                  }
+                  className="cursor-grab active:cursor-grabbing"
+                >
+                  <LibrarySeriesCard series={item.series} />
+                </div>
               ) : (
-                <ComicCard key={`c:${item.entry.id}`} comic={item.entry.comic} showStatus />
+                <div
+                  key={`c:${item.entry.id}`}
+                  draggable
+                  onDragStart={(evento) =>
+                    iniciarArrasto(evento, {
+                      kind: 'comic',
+                      id: item.entry.comic.id,
+                      label: item.entry.comic.title,
+                    })
+                  }
+                  className="cursor-grab active:cursor-grabbing"
+                >
+                  <ComicCard comic={item.entry.comic} showStatus />
+                </div>
               ),
             )}
           </div>

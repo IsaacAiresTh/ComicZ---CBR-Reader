@@ -99,9 +99,10 @@ model Series {
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
-  publisher Publisher?      @relation(fields: [publisherId], references: [id], onDelete: SetNull)
-  comics    Comic[]
-  creators  SeriesCreator[]
+  publisher       Publisher?       @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+  comics          Comic[]
+  creators        SeriesCreator[]
+  collectionItems CollectionItem[]
 
   @@index([publisherId])
   @@map("series")
@@ -395,19 +396,31 @@ model Collection {
   @@map("collections")
 }
 
-/// Uma HQ dentro de uma pasta. A mesma HQ pode estar em varias pastas: sao
-/// etiquetas de organizacao, nao gavetas exclusivas.
+/// Um item guardado numa pasta: uma HQ avulsa OU uma saga inteira.
+///
+/// Guardar a saga como um item so — e nao as edicoes uma a uma — e o que faz a
+/// pasta ficar legivel: "Magik" ocupa uma linha, nao nove. Espelha o que a
+/// propria biblioteca ja faz, onde a saga e um card e nao 52.
+///
+/// Exatamente um dos dois campos e preenchido; o CHECK na migration garante
+/// isso no banco, e nao so no codigo.
 model CollectionItem {
+  id           String   @id @default(uuid()) @db.Uuid
   collectionId String   @map("collection_id") @db.Uuid
-  comicId      String   @map("comic_id") @db.Uuid
+  comicId      String?  @map("comic_id") @db.Uuid
+  seriesId     String?  @map("series_id") @db.Uuid
   /// Posicao dentro da pasta, para o dono ordenar como quiser.
   position     Int      @default(0)
   addedAt      DateTime @default(now()) @map("added_at")
 
   collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
-  comic      Comic      @relation(fields: [comicId], references: [id], onDelete: Cascade)
+  comic      Comic?     @relation(fields: [comicId], references: [id], onDelete: Cascade)
+  series     Series?    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
 
-  @@id([collectionId, comicId])
+  /// A mesma HQ (ou saga) nao entra duas vezes na mesma pasta. Em Postgres
+  /// varios NULL convivem numa unique, entao a coluna nao usada nao atrapalha.
+  @@unique([collectionId, comicId])
+  @@unique([collectionId, seriesId])
   @@index([collectionId, position])
   @@map("collection_items")
 }

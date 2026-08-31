@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { CARD_GRID_CLASS, ComicCard } from '../comics/ComicCard';
+import { LibrarySeriesCard } from '../library/LibrarySeriesCard';
 import { Button, EmptyState, ErrorNote, Input, LinkButton, Spinner } from '../../components/ui';
 import {
   useCollection,
@@ -35,18 +36,21 @@ export function CollectionPage() {
     );
   }
 
-  const comics = pasta.comics;
+  const entries = pasta.entries;
 
-  /** Troca a HQ de lugar com a vizinha e manda a ordem inteira para a API. */
+  /** Troca o item de lugar com o vizinho e manda a ordem inteira para a API. */
   async function mover(indice: number, direcao: -1 | 1) {
     const destino = indice + direcao;
-    if (destino < 0 || destino >= comics.length) return;
-    const nova = [...comics];
-    const [movida] = nova.splice(indice, 1);
-    nova.splice(destino, 0, movida!);
+    if (destino < 0 || destino >= entries.length) return;
+    const nova = [...entries];
+    const [movido] = nova.splice(indice, 1);
+    nova.splice(destino, 0, movido!);
     setErro(null);
     try {
-      await reordenar.mutateAsync({ collectionId: pasta!.id, comicIds: nova.map((c) => c.id) });
+      await reordenar.mutateAsync({
+        collectionId: pasta!.id,
+        itemIds: nova.map((entrada) => entrada.itemId),
+      });
     } catch (falha) {
       setErro(falha instanceof Error ? falha.message : 'Não consegui reordenar');
     }
@@ -87,7 +91,8 @@ export function CollectionPage() {
             <>
               <h1 className="truncate text-2xl font-semibold text-ink-100">{pasta.name}</h1>
               <p className="mt-1 text-sm text-ink-400">
-                {pasta.comicCount} {pasta.comicCount === 1 ? 'HQ' : 'HQs'} nesta pasta
+                {pasta.itemCount} {pasta.itemCount === 1 ? 'item' : 'itens'} nesta pasta — uma saga
+                inteira conta como um
               </p>
             </>
           )}
@@ -107,7 +112,7 @@ export function CollectionPage() {
             >
               Renomear
             </Button>
-            {comics.length > 1 && (
+            {entries.length > 1 && (
               <Button variant="secondary" onClick={() => setOrganizando((antes) => !antes)}>
                 {organizando ? 'Concluir' : 'Organizar'}
               </Button>
@@ -134,7 +139,7 @@ export function CollectionPage() {
 
       {erro && <ErrorNote>{erro}</ErrorNote>}
 
-      {comics.length === 0 ? (
+      {entries.length === 0 ? (
         <EmptyState
           title="Pasta vazia"
           description="Abra uma HQ e use “Guardar em uma pasta” para trazê-la para cá."
@@ -142,9 +147,14 @@ export function CollectionPage() {
         />
       ) : (
         <ul className={CARD_GRID_CLASS}>
-          {comics.map((comic, indice) => (
-            <li key={comic.id} className="space-y-2">
-              <ComicCard comic={comic} showStatus />
+          {entries.map((entrada, indice) => (
+            <li key={entrada.itemId} className="space-y-2">
+              {/* A saga usa o mesmo card da biblioteca: um item, não N edições. */}
+              {entrada.kind === 'series' ? (
+                <LibrarySeriesCard series={entrada.series} />
+              ) : (
+                <ComicCard comic={entrada.comic} showStatus />
+              )}
               {organizando && (
                 <div className="flex items-center gap-1">
                   <Button
@@ -159,7 +169,7 @@ export function CollectionPage() {
                   <Button
                     variant="secondary"
                     className="flex-1 px-2 py-1 text-xs"
-                    disabled={indice === comics.length - 1 || reordenar.isPending}
+                    disabled={indice === entries.length - 1 || reordenar.isPending}
                     onClick={() => mover(indice, 1)}
                     title="Mover para frente"
                   >
@@ -169,7 +179,9 @@ export function CollectionPage() {
                     variant="ghost"
                     className="px-2 py-1 text-xs"
                     disabled={tirar.isPending}
-                    onClick={() => tirar.mutate({ collectionId: pasta.id, comicId: comic.id })}
+                    onClick={() =>
+                      tirar.mutate({ collectionId: pasta.id, itemId: entrada.itemId })
+                    }
                     title="Tirar desta pasta (continua na biblioteca)"
                   >
                     ✕

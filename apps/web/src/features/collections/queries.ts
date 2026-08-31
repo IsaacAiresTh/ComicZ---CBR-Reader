@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { CollectionBulkResult, CollectionDetail, CollectionSummary } from '@comicz/shared';
+import type { CollectionAddResult, CollectionDetail, CollectionSummary } from '@comicz/shared';
 import { api } from '../../services/api';
 
 /**
@@ -56,7 +56,7 @@ export function useAddToCollection() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { collectionId: string; comicId: string }) =>
-      api.post(`/collections/${input.collectionId}/comics/${input.comicId}`),
+      api.post<CollectionAddResult>(`/collections/${input.collectionId}/comics/${input.comicId}`),
     onSuccess: () => invalidar(queryClient),
   });
 }
@@ -65,16 +65,17 @@ export function useAddSeriesToCollection() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { collectionId: string; seriesId: string }) =>
-      api.post<CollectionBulkResult>(`/collections/${input.collectionId}/series/${input.seriesId}`),
+      api.post<CollectionAddResult>(`/collections/${input.collectionId}/series/${input.seriesId}`),
     onSuccess: () => invalidar(queryClient),
   });
 }
 
+/** Tira um ITEM da pasta — pode ser uma HQ avulsa ou uma saga inteira. */
 export function useRemoveFromCollection() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { collectionId: string; comicId: string }) =>
-      api.delete(`/collections/${input.collectionId}/comics/${input.comicId}`),
+    mutationFn: (input: { collectionId: string; itemId: string }) =>
+      api.delete(`/collections/${input.collectionId}/items/${input.itemId}`),
     onSuccess: () => invalidar(queryClient),
   });
 }
@@ -82,8 +83,8 @@ export function useRemoveFromCollection() {
 export function useReorderCollection() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { collectionId: string; comicIds: string[] }) =>
-      api.patch(`/collections/${input.collectionId}/reorder`, { comicIds: input.comicIds }),
+    mutationFn: (input: { collectionId: string; itemIds: string[] }) =>
+      api.patch(`/collections/${input.collectionId}/reorder`, { itemIds: input.itemIds }),
     onSuccess: () => invalidar(queryClient),
   });
 }

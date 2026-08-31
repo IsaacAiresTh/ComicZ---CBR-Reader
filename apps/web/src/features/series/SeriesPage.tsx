@@ -6,6 +6,7 @@ import { Badge, Button, ErrorNote, Spinner } from '../../components/ui';
 import { creditRoleLabel, groupCredits, seriesStatusLabel, seriesYears } from '../../lib/format';
 import { api, ApiError } from '../../services/api';
 import { ComicGrid } from '../comics/ComicCard';
+import { AddToCollectionMenu } from '../collections/AddToCollectionMenu';
 import { useAddSeriesToLibrary, useRemoveSeriesFromLibrary } from '../comics/queries';
 
 export function SeriesPage() {
@@ -82,7 +83,10 @@ export function SeriesPage() {
       <section>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-ink-100">Edições</h2>
-          <SagaLibraryButton series={data} />
+          <div className="flex flex-wrap items-start gap-2">
+            <SagaLibraryButton series={data} />
+            <AddToCollectionMenu alvo={{ kind: 'series', id: data.id }} />
+          </div>
         </div>
         <ComicGrid comics={data.comics} showSeries={false} />
       </section>

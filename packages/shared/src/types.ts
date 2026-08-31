@@ -247,25 +247,33 @@ export interface CollectionSummary {
   id: string;
   name: string;
   position: number;
-  /** Quantas HQs estão na pasta. */
-  comicCount: number;
-  /** Capas das primeiras HQs, para a miniatura do card. */
+  /** Quantos itens estão na pasta — uma saga inteira conta como um. */
+  itemCount: number;
+  /** Uma capa por saga (ou por HQ avulsa), para a miniatura do card. */
   previewCovers: string[];
   createdAt: string;
   updatedAt: string;
 }
 
+/**
+ * Um item guardado na pasta: uma HQ avulsa ou uma saga inteira.
+ *
+ * Guardar a saga como um item só é o que faz a pasta ficar legível — "Magik"
+ * ocupa uma linha, não nove. É o mesmo agrupamento que a biblioteca já usa, e
+ * por isso o card da saga aqui é o mesmo card de lá.
+ */
+export type CollectionEntry =
+  | { kind: 'series'; itemId: string; series: LibrarySeriesGroup }
+  | { kind: 'comic'; itemId: string; comic: ComicSummary };
+
 export interface CollectionDetail extends CollectionSummary {
-  comics: ComicSummary[];
+  entries: CollectionEntry[];
 }
 
-/** Resultado de jogar uma saga inteira dentro de uma pasta. */
-export interface CollectionBulkResult {
-  collectionId: string;
-  seriesId: string;
-  total: number;
-  added: number;
-  alreadyIn: number;
+/** Guardar é idempotente, então a resposta diz se o item já estava na pasta. */
+export interface CollectionAddResult {
+  itemId: string;
+  alreadyThere: boolean;
 }
 
 export interface AdminStats {
