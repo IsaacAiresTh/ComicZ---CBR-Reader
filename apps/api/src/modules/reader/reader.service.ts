@@ -80,14 +80,18 @@ export class ReaderService {
       create: { userId, comicId, currentPage, pageCount, completed },
     });
 
-    await this.prisma.libraryItem.upsert({
-      where: { userId_comicId: { userId, comicId } },
-      update: { status: completed ? LibraryStatus.READ : LibraryStatus.READING },
-      create: {
-        userId,
-        comicId,
-        status: completed ? LibraryStatus.READ : LibraryStatus.READING,
-      },
+    /**
+     * Se a HQ ja esta na biblioteca, o progresso mantem o status de la em dia.
+     * Se nao esta, ler NAO coloca: entrar na biblioteca e uma escolha de quem
+     * le, nao efeito colateral de abrir uma pagina — senao a biblioteca vira um
+     * historico de tudo que a pessoa espiou.
+     *
+     * `updateMany` nao falha quando nao ha linha, que e exatamente o caso de
+     * quem esta so lendo sem ter adicionado.
+     */
+    await this.prisma.libraryItem.updateMany({
+      where: { userId, comicId },
+      data: { status: completed ? LibraryStatus.READ : LibraryStatus.READING },
     });
 
     return {
