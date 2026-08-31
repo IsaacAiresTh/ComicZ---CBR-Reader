@@ -2,7 +2,8 @@ import { Link } from 'react-router-dom';
 import { EmptyState, LinkButton, Spinner } from '../../components/ui';
 import { useAuth } from '../auth/AuthContext';
 import { CatalogGrid } from './CatalogGrid';
-import { ComicGrid } from './ComicCard';
+import { ComicGrid, CARD_GRID_CLASS } from './ComicCard';
+import { GuideCard } from '../guides/GuideCard';
 import { useCatalog, useContinueReading, useGuides, useUserStats } from './queries';
 
 export function HomePage() {
@@ -65,19 +66,9 @@ export function HomePage() {
             description="Guias são listas ordenadas de HQs — o caminho mais fácil para quem está começando."
           />
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className={CARD_GRID_CLASS}>
             {publishedGuides.slice(0, 6).map((guide) => (
-              <Link
-                key={guide.id}
-                to={`/guias/${guide.slug}`}
-                className="rounded-xl border border-ink-800 bg-ink-900 p-5 transition-colors hover:border-brand-500/50"
-              >
-                <p className="font-medium text-ink-100">{guide.title}</p>
-                {guide.summary && (
-                  <p className="mt-1.5 line-clamp-2 text-sm text-ink-400">{guide.summary}</p>
-                )}
-                <p className="mt-3 text-xs text-ink-500">{guide.itemCount} HQs na ordem</p>
-              </Link>
+              <GuideCard key={guide.id} guide={guide} />
             ))}
           </div>
         )}
