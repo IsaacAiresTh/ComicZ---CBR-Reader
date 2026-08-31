@@ -11,6 +11,7 @@ import { AdminJobsPage } from '../features/admin/AdminJobsPage';
 import { AdminLayout } from '../features/admin/AdminLayout';
 import { AdminSeriesPage } from '../features/admin/AdminSeriesPage';
 import { AdminUsersPage } from '../features/admin/AdminUsersPage';
+import { CollectionPage } from '../features/collections/CollectionPage';
 import { CatalogPage } from '../features/comics/CatalogPage';
 import { ComicDetailPage } from '../features/comics/ComicDetailPage';
 import { HomePage } from '../features/comics/HomePage';
@@ -36,6 +37,7 @@ export function AppRouter() {
           <Route path="/hq/:id" element={<ComicDetailPage />} />
           <Route path="/serie/:slug" element={<SeriesPage />} />
           <Route path="/biblioteca" element={<LibraryPage />} />
+          <Route path="/biblioteca/pasta/:id" element={<CollectionPage />} />
           <Route path="/guias" element={<GuidesPage />} />
           <Route path="/guias/:slug" element={<GuideDetailPage />} />
           <Route path="/perfil" element={<ProfilePage />} />

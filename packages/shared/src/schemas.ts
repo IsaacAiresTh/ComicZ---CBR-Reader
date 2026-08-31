@@ -147,6 +147,25 @@ export const updateLibraryItemSchema = z
     message: 'Informe status e/ou favorite',
   });
 
+/**
+ * Nome da pasta. O limite existe para o card não quebrar no grid, e o trim
+ * evita que " " passe como nome.
+ */
+const collectionNameSchema = z
+  .string()
+  .trim()
+  .min(1, 'Dê um nome à pasta')
+  .max(60, 'No máximo 60 caracteres');
+
+export const createCollectionSchema = z.object({ name: collectionNameSchema });
+
+export const renameCollectionSchema = z.object({ name: collectionNameSchema });
+
+/** Nova ordem das HQs dentro da pasta, da primeira para a última. */
+export const reorderCollectionSchema = z.object({
+  comicIds: z.array(z.string().uuid()).min(1, 'Informe a nova ordem'),
+});
+
 export const updateProgressSchema = z.object({
   currentPage: z.coerce.number().int().min(1),
   completed: z.boolean().optional(),
@@ -201,3 +220,7 @@ export type UpdateProgressInput = z.infer<typeof updateProgressSchema>;
 export type UpsertGuideInput = z.infer<typeof upsertGuideSchema>;
 export type GuideItemInput = z.infer<typeof guideItemInputSchema>;
 export type ReorderGuideItemsInput = z.infer<typeof reorderGuideItemsSchema>;
+
+export type CreateCollectionInput = z.infer<typeof createCollectionSchema>;
+export type RenameCollectionInput = z.infer<typeof renameCollectionSchema>;
+export type ReorderCollectionInput = z.infer<typeof reorderCollectionSchema>;

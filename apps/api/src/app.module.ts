@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { ComicsModule } from './modules/comics/comics.module';
 import { FilesModule } from './modules/files/files.module';
 import { GuidesModule } from './modules/guides/guides.module';
+import { CollectionsModule } from './modules/collections/collections.module';
 import { LibraryModule } from './modules/library/library.module';
 import { MetaModule } from './modules/meta/meta.module';
 import { PublishersModule } from './modules/publishers/publishers.module';
@@ -33,6 +34,7 @@ import { UsersModule } from './modules/users/users.module';
     SeriesModule,
     PublishersModule,
     LibraryModule,
+    CollectionsModule,
     ReaderModule,
     GuidesModule,
     AdminModule,

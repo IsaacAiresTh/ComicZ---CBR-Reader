@@ -32,6 +32,7 @@ model User {
   libraryItems  LibraryItem[]
   progress      ReadingProgress[]
   guides        Guide[]
+  collections   Collection[]
 
   @@map("users")
 }
@@ -164,16 +165,17 @@ model Comic {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  series     Series?    @relation(fields: [seriesId], references: [id], onDelete: SetNull)
-  publisher  Publisher? @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+  series     Series?          @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  publisher  Publisher?       @relation(fields: [publisherId], references: [id], onDelete: SetNull)
   file       ComicFile?
   creators   ComicCreator[]
   characters ComicCharacter[]
   tags       ComicTag[]
 
-  libraryItems LibraryItem[]
-  progress     ReadingProgress[]
-  guideItems   GuideItem[]
+  libraryItems    LibraryItem[]
+  progress        ReadingProgress[]
+  guideItems      GuideItem[]
+  collectionItems CollectionItem[]
 
   @@index([seriesId, issueNumber])
   @@index([title])
@@ -369,4 +371,43 @@ model GuideItem {
   @@unique([guideId, comicId])
   @@index([guideId, position])
   @@map("guide_items")
+}
+
+/// Pasta que o proprio leitor cria dentro da biblioteca para organizar as HQs
+/// do jeito dele — "Para reler", "Do Batman", "Emprestadas". Nao se confunde
+/// com Series (que descreve a publicacao) nem com Guide (curadoria do acervo,
+/// igual para todo mundo): esta e privada de cada usuario.
+model Collection {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String
+  /// Ordem escolhida pelo dono; empates caem no nome.
+  position  Int      @default(0)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user  User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CollectionItem[]
+
+  /// Duas pastas "Para reler" na mesma biblioteca so confundiriam o dono.
+  @@unique([userId, name])
+  @@index([userId, position])
+  @@map("collections")
+}
+
+/// Uma HQ dentro de uma pasta. A mesma HQ pode estar em varias pastas: sao
+/// etiquetas de organizacao, nao gavetas exclusivas.
+model CollectionItem {
+  collectionId String   @map("collection_id") @db.Uuid
+  comicId      String   @map("comic_id") @db.Uuid
+  /// Posicao dentro da pasta, para o dono ordenar como quiser.
+  position     Int      @default(0)
+  addedAt      DateTime @default(now()) @map("added_at")
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  comic      Comic      @relation(fields: [comicId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, comicId])
+  @@index([collectionId, position])
+  @@map("collection_items")
 }
