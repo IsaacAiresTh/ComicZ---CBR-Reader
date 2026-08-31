@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CARD_GRID_CLASS, ComicCard } from '../comics/ComicCard';
 import { EmptyState, LinkButton, Spinner } from '../../components/ui';
 import { useLibrary } from '../comics/queries';
+import { CollectionsSection } from '../collections/CollectionsSection';
 import { LibrarySeriesCard } from './LibrarySeriesCard';
 
 const TABS = [
@@ -36,6 +37,10 @@ export function LibraryPage() {
             : 'Carregando...'}
         </p>
       </div>
+
+      <CollectionsSection />
+
+      <div className="h-px bg-ink-850" />
 
       <div className="flex flex-wrap gap-2">
         {TABS.map((item) => (

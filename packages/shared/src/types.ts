@@ -235,6 +235,37 @@ export type LibraryGroup =
   | { kind: 'series'; series: LibrarySeriesGroup }
   | { kind: 'comic'; entry: LibraryEntry };
 
+/**
+ * Pasta criada pelo leitor dentro da própria biblioteca.
+ *
+ * Diferente de uma saga (que descreve a publicação) e de um guia (curadoria do
+ * acervo, igual para todos): esta é privada e a ordem é a que o dono escolheu.
+ */
+export interface CollectionSummary {
+  id: string;
+  name: string;
+  position: number;
+  /** Quantas HQs estão na pasta. */
+  comicCount: number;
+  /** Capas das primeiras HQs, para a miniatura do card. */
+  previewCovers: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CollectionDetail extends CollectionSummary {
+  comics: ComicSummary[];
+}
+
+/** Resultado de jogar uma saga inteira dentro de uma pasta. */
+export interface CollectionBulkResult {
+  collectionId: string;
+  seriesId: string;
+  total: number;
+  added: number;
+  alreadyIn: number;
+}
+
 export interface AdminStats {
   users: number;
   comics: number;

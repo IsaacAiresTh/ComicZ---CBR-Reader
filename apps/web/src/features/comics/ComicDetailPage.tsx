@@ -3,6 +3,7 @@ import { Badge, Button, ErrorNote, LinkButton, Spinner } from '../../components/
 import { comicLabel, fileStatusLabel, formatBytes, percent } from '../../lib/format';
 import { keepFrom, readFrom } from '../../lib/navigation';
 import { mediaUrl } from '../../services/api';
+import { AddToCollectionMenu } from '../collections/AddToCollectionMenu';
 import {
   useAddToLibrary,
   useComic,
@@ -136,6 +137,8 @@ export function ComicDetailPage() {
                 Adicionar à biblioteca
               </Button>
             )}
+
+            <AddToCollectionMenu comicId={comic.id} />
 
             <Button
               variant="ghost"
