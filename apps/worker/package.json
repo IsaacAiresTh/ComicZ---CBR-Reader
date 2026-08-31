@@ -7,7 +7,8 @@
     "dev": "tsx watch --clear-screen=false --include \"../../packages/*/dist/**/*.js\" src/index.ts",
     "start": "node dist/index.js",
     "import": "tsx src/cli/import-local.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@comicz/database": "*",

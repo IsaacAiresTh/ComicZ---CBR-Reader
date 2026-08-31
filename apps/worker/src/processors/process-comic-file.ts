@@ -1,7 +1,7 @@
 import { mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { FileStatus, type PrismaClient } from '@comicz/database';
-import { collectImages, extractArchive } from '../lib/archive';
+import { collectImages, extractArchive, normalizeExtractedNames } from '../lib/archive';
 import { workerConfig } from '../config';
 import { convertPage, generateCover } from '../lib/images';
 import { createLogger } from '../lib/logger';
@@ -76,6 +76,14 @@ export async function processComicFile(
 
     const extractor = await extractArchive(original.path, extractDir);
     await original.discard();
+
+    // Nomes fora do UTF-8 (CBZ antigo feito no Windows) precisam virar nomes
+    // enderecaveis antes de qualquer leitura; sem isto o walk quebra com ENOENT.
+    const renomeadas = await normalizeExtractedNames(extractDir);
+    if (renomeadas > 0) {
+      log.info(`${file.comic.title}: ${renomeadas} nome(s) fora do UTF-8 normalizado(s)`);
+    }
+
     const images = await collectImages(extractDir);
 
     if (images.length === 0) {
