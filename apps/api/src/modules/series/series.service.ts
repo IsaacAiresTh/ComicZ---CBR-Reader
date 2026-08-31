@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import type { SeriesStatus } from '@comicz/database';
+import { Prisma, type SeriesStatus } from '@comicz/database';
 import type { CreatorCredit, SeriesDetail, UpsertSeriesInput } from '@comicz/shared';
 import { searchTerms } from '../../common/utils/search';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -31,10 +31,9 @@ export class SeriesService {
   async list(search?: string) {
     const termos = search ? searchTerms(search) : [];
     const rows = await this.prisma.series.findMany({
-      // Mesma regra do catalogo: cada palavra digitada precisa aparecer no nome.
-      where: termos.length > 0
-        ? { AND: termos.map((termo) => ({ name: { contains: termo, mode: 'insensitive' as const } })) }
-        : undefined,
+      // Mesma regra do catalogo: cada palavra precisa aparecer no nome, e a
+      // comparacao ignora acento (ver idsQueCasam em ComicsService).
+      where: termos.length > 0 ? { id: { in: await this.idsQueCasam(termos) } } : undefined,
       orderBy: { name: 'asc' },
       include: {
         publisher: { select: { id: true, name: true, slug: true } },
@@ -54,6 +53,21 @@ export class SeriesService {
       publisher: row.publisher,
       comicCount: row._count.comics,
     }));
+  }
+
+  /**
+   * Ids das sagas cujo nome casa com todos os termos, ignorando acento.
+   * Mesmo motivo do catalogo: `mode: 'insensitive'` nao cobre acento, e o
+   * `unaccent()` do Postgres nao e chamavel de dentro do `where` do Prisma.
+   */
+  private async idsQueCasam(termos: string[]): Promise<string[]> {
+    const condicoes = termos.map(
+      (termo) => Prisma.sql`unaccent(name) ILIKE unaccent(${`%${termo}%`})`,
+    );
+    const linhas = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT id FROM series WHERE ${Prisma.join(condicoes, ' AND ')}
+    `;
+    return linhas.map((linha) => linha.id);
   }
 
   async findOne(idOrSlug: string, userId: string): Promise<SeriesDetail> {

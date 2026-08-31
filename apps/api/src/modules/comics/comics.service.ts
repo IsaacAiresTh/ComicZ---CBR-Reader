@@ -53,7 +53,7 @@ export class ComicsService {
   // ------------------------------------------------------------------ leitura
 
   async list(query: ListComicsQuery, userId: string): Promise<Paginated<ComicSummary>> {
-    const where = this.buildWhere(query);
+    const where = await this.buildWhere(query);
 
     const orderBy: Prisma.ComicOrderByWithRelationInput[] =
       query.sort === 'title'
@@ -94,7 +94,7 @@ export class ComicsService {
    * pagina com 6 edicoes, independente do filtro que o trouxe ate aqui.
    */
   async catalog(query: CatalogQuery, userId: string): Promise<Paginated<CatalogEntry>> {
-    const where = this.buildWhere(query);
+    const where = await this.buildWhere(query);
 
     const grouped = await this.prisma.comic.groupBy({
       by: ['seriesId'],
@@ -440,14 +440,14 @@ export class ComicsService {
   // ------------------------------------------------------------------ helpers
 
   /** Filtros de catalogo compartilhados pela listagem plana e pela agrupada. */
-  private buildWhere(query: {
+  private async buildWhere(query: {
     q?: string;
     seriesId?: string;
     publisherId?: string;
     tag?: string;
     status?: string;
     includeSupporting?: boolean;
-  }): Prisma.ComicWhereInput {
+  }): Promise<Prisma.ComicWhereInput> {
     const where: Prisma.ComicWhereInput = {};
     const and: Prisma.ComicWhereInput[] = [];
 
@@ -460,21 +460,7 @@ export class ComicsService {
      * acha a saga pelo nome e o personagem pelo elenco.
      */
     const termos = query.q ? searchTerms(query.q) : [];
-    if (termos.length > 0) {
-      and.push(
-        ...termos.map((termo) => ({
-        OR: [
-          { title: { contains: termo, mode: 'insensitive' as const } },
-          { series: { name: { contains: termo, mode: 'insensitive' as const } } },
-          {
-            characters: {
-              some: { character: { name: { contains: termo, mode: 'insensitive' as const } } },
-            },
-          },
-        ],
-      })),
-      );
-    }
+    if (termos.length > 0) where.id = { in: await this.idsQueCasam(termos) };
 
     /**
      * Material de apoio some da navegacao, mas nao do acervo.
@@ -498,6 +484,46 @@ export class ComicsService {
     if (and.length > 0) where.AND = and;
 
     return where;
+  }
+
+  /**
+   * Ids das HQs que casam com todos os termos, ignorando acento.
+   *
+   * O `mode: 'insensitive'` do Prisma so cobre maiuscula e minuscula: "fenix"
+   * continuava sem encontrar "Fênix", e "vinganca" sem encontrar "Vingança" —
+   * justamente o jeito como se digita no celular. Quem resolve isso e o
+   * `unaccent()` do Postgres, aplicado nos dois lados da comparacao, e o Prisma
+   * nao chama funcao SQL dentro de `where`. Dai a consulta crua aqui, com o
+   * resultado voltando para o `where` como uma lista de ids.
+   *
+   * Os termos vem de searchTerms(), que separa em letras e numeros — `%` e `_`
+   * viram separador e somem, entao nao ha curinga de LIKE para escapar.
+   *
+   * A lista de ids cresce com o acervo. Nesta escala (centenas de HQs) isso e
+   * irrelevante; se um dia virar dezenas de milhares, o caminho e trocar o
+   * prefiltro por uma coluna desnormalizada ja sem acento.
+   */
+  private async idsQueCasam(termos: string[]): Promise<string[]> {
+    const condicoes = termos.map((termo) => {
+      const alvo = `%${termo}%`;
+      return Prisma.sql`(
+        unaccent(c.title) ILIKE unaccent(${alvo})
+        OR unaccent(s.name) ILIKE unaccent(${alvo})
+        OR EXISTS (
+          SELECT 1 FROM comic_characters cc
+          JOIN characters ch ON ch.id = cc.character_id
+          WHERE cc.comic_id = c.id AND unaccent(ch.name) ILIKE unaccent(${alvo})
+        )
+      )`;
+    });
+
+    const linhas = await this.prisma.$queryRaw<{ id: string }[]>`
+      SELECT c.id
+      FROM comics c
+      LEFT JOIN series s ON s.id = c.series_id
+      WHERE ${Prisma.join(condicoes, ' AND ')}
+    `;
+    return linhas.map((linha) => linha.id);
   }
 
   private byIdOrSlug(value: string): Prisma.ComicWhereInput {
