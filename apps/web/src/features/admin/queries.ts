@@ -7,7 +7,7 @@ import type {
   UpsertComicPayload,
   UpsertSeriesPayload,
 } from '@comicz/shared';
-import { api, uploadCover } from '../../services/api';
+import { api, uploadCover, type AlvoDeCapa } from '../../services/api';
 
 export interface AdminJob {
   id: string;
@@ -188,32 +188,37 @@ export function useDetachComicFromSeries() {
 
 /**
  * Trocar a capa muda o card em toda parte: catalogo, biblioteca, pagina da
- * saga. Por isso invalida os dois grupos.
+ * saga, indice de guias. Por isso invalida todos os grupos — sai mais barato
+ * que acertar quais listas mostram aquele card.
  */
 export function useSetCover() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { alvo: 'comics' | 'series'; id: string; imagem: Blob }) =>
+    mutationFn: (input: { alvo: AlvoDeCapa; id: string; imagem: Blob }) =>
       uploadCover(input.alvo, input.id, input.imagem),
-    onSuccess: () => {
-      invalidateSeries(queryClient);
-      invalidateCatalog(queryClient);
-      void queryClient.invalidateQueries({ queryKey: ['library'] });
-    },
+    onSuccess: () => invalidateCovers(queryClient),
   });
 }
 
-/** Devolve a saga a capa derivada da primeira edicao que tiver uma. */
-export function useClearSeriesCover() {
+/**
+ * Devolve o alvo a capa herdada — a da primeira edicao da saga, ou a da
+ * primeira HQ da ordem do guia. Edicao nao tem de quem herdar, por isso nao
+ * entra aqui.
+ */
+export function useClearCover() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (seriesId: string) => api.delete(`/series/${seriesId}/cover`),
-    onSuccess: () => {
-      invalidateSeries(queryClient);
-      invalidateCatalog(queryClient);
-      void queryClient.invalidateQueries({ queryKey: ['library'] });
-    },
+    mutationFn: (input: { alvo: 'series' | 'guides'; id: string }) =>
+      api.delete(`/${input.alvo}/${input.id}/cover`),
+    onSuccess: () => invalidateCovers(queryClient),
   });
+}
+
+function invalidateCovers(queryClient: ReturnType<typeof useQueryClient>) {
+  invalidateSeries(queryClient);
+  invalidateCatalog(queryClient);
+  invalidateGuides(queryClient);
+  void queryClient.invalidateQueries({ queryKey: ['library'] });
 }
 
 export function useDeleteSeries() {

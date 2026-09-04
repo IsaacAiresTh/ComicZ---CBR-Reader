@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,8 +9,12 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@comicz/database';
 import {
   guideItemInputSchema,
@@ -22,12 +27,16 @@ import {
 import { CurrentUser, type AuthenticatedUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { CoverService, OPCOES_CAPA, type UploadedCover } from '../files/cover.service';
 import { GuidesService } from './guides.service';
 
 @ApiTags('guides')
 @Controller('guides')
 export class GuidesController {
-  constructor(private readonly guides: GuidesService) {}
+  constructor(
+    private readonly guides: GuidesService,
+    private readonly covers: CoverService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Lista os guias de leitura' })
@@ -59,6 +68,27 @@ export class GuidesController {
     @Body(new ZodValidationPipe(upsertGuideSchema)) body: UpsertGuideInput,
   ) {
     return this.guides.update(id, body);
+  }
+
+  @Roles(Role.ADMIN)
+  @Put(':id/cover')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: '[admin] Define a capa do guia (imagem ja redimensionada)' })
+  @UseInterceptors(FileInterceptor('file', OPCOES_CAPA))
+  setCover(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: UploadedCover | undefined,
+  ) {
+    if (!file) throw new BadRequestException('Envie a imagem no campo "file"');
+    return this.covers.setGuideCover(id, file);
+  }
+
+  @Roles(Role.ADMIN)
+  @Delete(':id/cover')
+  @HttpCode(204)
+  @ApiOperation({ summary: '[admin] Volta o guia para a capa da primeira HQ da ordem' })
+  clearCover(@Param('id', ParseUUIDPipe) id: string) {
+    return this.covers.clearGuideCover(id);
   }
 
   @Roles(Role.ADMIN)

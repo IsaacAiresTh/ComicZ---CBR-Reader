@@ -12,8 +12,8 @@ export const MAX_CAPA_BYTES = 2 * 1024 * 1024;
  *
  * `storage` precisa estar aqui: sem ele, cada rota herda o que o modulo dela
  * configurou — o ComicsModule registra o multer em disco para o arquivo da HQ,
- * enquanto o SeriesModule nao registra nada e cai em memoria. As duas rotas de
- * capa fazem a mesma coisa e nao podem depender de onde moram.
+ * enquanto Series e Guides nao registram nada e caem em memoria. As rotas de
+ * capa fazem todas a mesma coisa e nao podem depender de onde moram.
  *
  * Memoria, e nao disco, porque a capa tem no maximo 2 MB: um arquivo
  * temporario aqui so acrescentaria um caminho de limpeza para dar errado. O
@@ -38,9 +38,9 @@ export interface UploadedCover {
 /**
  * Capas escolhidas pelo admin.
  *
- * Saga e edicao guardam a capa do mesmo jeito — `covers/<id>.webp` — e o id de
- * uma saga e de uma HQ sao ambos UUID, entao a rota de midia que ja existe
- * serve as duas sem alteracao.
+ * Guia, saga e edicao guardam a capa do mesmo jeito — `covers/<id>.webp` — e os
+ * tres ids sao UUID, entao a rota de midia que ja existe serve todos sem
+ * alteracao.
  *
  * A imagem chega pronta: o navegador redimensiona para 500px antes de enviar.
  * A alternativa seria redimensionar aqui, e isso exigiria o sharp e seus
@@ -70,6 +70,14 @@ export class CoverService {
     return { coverPath: key };
   }
 
+  async setGuideCover(guideId: string, upload: UploadedCover): Promise<{ coverPath: string }> {
+    const guide = await this.prisma.guide.findUnique({ where: { id: guideId }, select: { id: true } });
+    if (!guide) throw new NotFoundException('Guia nao encontrado');
+    const key = await this.store(guideId, upload);
+    await this.prisma.guide.update({ where: { id: guideId }, data: { coverPath: key } });
+    return { coverPath: key };
+  }
+
   /**
    * Devolve a saga a capa derivada — a da primeira edicao que tiver uma.
    * O objeto e removido do storage porque nada mais aponta para ele.
@@ -84,6 +92,19 @@ export class CoverService {
 
     await this.prisma.series.update({ where: { id: seriesId }, data: { coverPath: null } });
     await this.storage.remove(series.coverPath);
+  }
+
+  /** O mesmo para o guia: volta a valer a capa da primeira HQ da ordem. */
+  async clearGuideCover(guideId: string): Promise<void> {
+    const guide = await this.prisma.guide.findUnique({
+      where: { id: guideId },
+      select: { id: true, coverPath: true },
+    });
+    if (!guide) throw new NotFoundException('Guia nao encontrado');
+    if (!guide.coverPath) return;
+
+    await this.prisma.guide.update({ where: { id: guideId }, data: { coverPath: null } });
+    await this.storage.remove(guide.coverPath);
   }
 
   private async store(id: string, upload: UploadedCover): Promise<string> {

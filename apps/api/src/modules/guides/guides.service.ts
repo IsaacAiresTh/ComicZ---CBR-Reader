@@ -14,6 +14,7 @@ import {
 } from '../comics/comic-mapper';
 import { ComicsService } from '../comics/comics.service';
 import { TaxonomyService } from '../comics/taxonomy.service';
+import { guideCoverUrl } from '../files/media-urls';
 
 @Injectable()
 export class GuidesService {
@@ -57,8 +58,8 @@ export class GuidesService {
         summary: row.summary,
         published: row.published,
         itemCount: row._count.items,
-        // A capa do guia e, por padrao, a capa da primeira HQ da ordem.
-        coverUrl: first ? coverUrl(first) : null,
+        // A capa escolhida pelo admin; na falta dela, a da primeira HQ da ordem.
+        coverUrl: guideCoverUrl(row, first ? coverUrl(first) : null),
       };
     });
   }
@@ -103,7 +104,8 @@ export class GuidesService {
       description: guide.description,
       published: guide.published,
       itemCount: guide._count.items,
-      coverUrl: firstCover ? coverUrl(firstCover) : null,
+      coverUrl: guideCoverUrl(guide, firstCover ? coverUrl(firstCover) : null),
+      hasOwnCover: Boolean(guide.coverPath),
       items,
       readCount,
     };
