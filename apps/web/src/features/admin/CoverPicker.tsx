@@ -3,20 +3,21 @@ import type { ComicSummary } from '@comicz/shared';
 import { Button, ErrorNote, Spinner } from '../../components/ui';
 import { comicLabel } from '../../lib/format';
 import { baixarPagina, CoverError, prepararCapa } from '../../lib/cover';
-import { ApiError, mediaUrl } from '../../services/api';
+import { ApiError, mediaUrl, type AlvoDeCapa } from '../../services/api';
 import { useReaderPayload } from '../reader/useReader';
-import { useClearSeriesCover, useSetCover } from './queries';
+import { useClearCover, useSetCover } from './queries';
 
 /**
- * Escolha da capa de uma saga ou de uma edição.
+ * Escolha da capa de um guia, de uma saga ou de uma edição.
  *
  * Dois caminhos, um destino: enviar um arquivo do computador, ou escolher uma
  * página de uma edição. Nos dois casos a imagem é reduzida para 500px aqui no
  * navegador antes de subir — o servidor guarda os bytes como chegam.
  *
  * `edicoes` são as edições que podem servir de origem. Para uma saga, são as
- * dela; para uma edição, ela mesma. É essa lista que garante a regra de só
- * poder usar página de HQ que pertença à saga.
+ * dela; para um guia, as da ordem de leitura; para uma edição, ela mesma. É
+ * essa lista que garante a regra de só poder usar página de HQ que já pertença
+ * ao que está recebendo a capa.
  */
 export function CoverPicker({
   alvo,
@@ -25,7 +26,7 @@ export function CoverPicker({
   temCapaPropria,
   edicoes,
 }: {
-  alvo: 'comics' | 'series';
+  alvo: AlvoDeCapa;
   id: string;
   capaAtual: string | null;
   /** Falso quando a capa mostrada é herdada de uma edição. */
@@ -33,11 +34,13 @@ export function CoverPicker({
   edicoes: ComicSummary[];
 }) {
   const setCover = useSetCover();
-  const clearCover = useClearSeriesCover();
+  const clearCover = useClearCover();
   const [erro, setErro] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
   const [origem, setOrigem] = useState<ComicSummary | null>(null);
 
+  /** Só saga e guia herdam capa de uma edição; a edição é a origem, não herda. */
+  const herda = alvo !== 'comics';
   const legiveis = edicoes.filter((e) => e.file?.status === 'READY');
 
   async function aplicar(produzir: () => Promise<Blob>) {
@@ -73,8 +76,10 @@ export function CoverPicker({
         <div className="min-w-0 flex-1 space-y-2">
           <p className="text-sm font-medium text-ink-100">Capa</p>
           <p className="text-xs text-ink-500">
-            {alvo === 'series' && !temCapaPropria
-              ? 'Herdada da primeira edição que tem capa. Escolher uma abaixo passa a valer só para a saga.'
+            {herda && !temCapaPropria
+              ? alvo === 'guides'
+                ? 'Herdada da primeira HQ da ordem de leitura. Escolher uma abaixo passa a valer só para o guia.'
+                : 'Herdada da primeira edição que tem capa. Escolher uma abaixo passa a valer só para a saga.'
               : 'Imagem reduzida para 500px antes de enviar.'}
           </p>
 
@@ -96,13 +101,16 @@ export function CoverPicker({
               </span>
             </label>
 
-            {alvo === 'series' && temCapaPropria && (
+            {herda && temCapaPropria && (
               <Button
                 variant="ghost"
                 disabled={ocupado}
                 onClick={() => {
                   setErro(null);
-                  clearCover.mutate(id, { onError: () => setErro('Não foi possível remover a capa') });
+                  clearCover.mutate(
+                    { alvo, id },
+                    { onError: () => setErro('Não foi possível remover a capa') },
+                  );
                 }}
               >
                 Voltar para a capa herdada

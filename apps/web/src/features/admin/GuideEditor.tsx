@@ -3,6 +3,7 @@ import { Badge, Button, ErrorNote, Field, Input, Spinner, Textarea } from '../..
 import { comicLabel } from '../../lib/format';
 import { ApiError, mediaUrl } from '../../services/api';
 import { useComics, useGuide } from '../comics/queries';
+import { CoverPicker } from './CoverPicker';
 import {
   useAddGuideItem,
   useRemoveGuideItem,
@@ -120,6 +121,18 @@ export function GuideEditor({ guideId, onBack }: { guideId: string; onBack: () =
           {updateGuide.isPending ? 'Salvando...' : 'Salvar'}
         </Button>
       </section>
+
+      {/*
+        As HQs do próprio guia são as origens possíveis de página: a capa de um
+        guia deve sair de dentro da ordem de leitura que ele propõe.
+      */}
+      <CoverPicker
+        alvo="guides"
+        id={guideId}
+        capaAtual={mediaUrl(guide.coverUrl)}
+        temCapaPropria={guide.hasOwnCover}
+        edicoes={guide.items.map((item) => item.comic)}
+      />
 
       <section className="space-y-4 rounded-xl border border-ink-800 bg-ink-900 p-6">
         <h2 className="font-medium text-ink-100">Ordem de leitura ({guide.items.length})</h2>

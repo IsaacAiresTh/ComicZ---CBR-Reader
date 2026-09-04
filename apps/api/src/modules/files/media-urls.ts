@@ -49,9 +49,31 @@ export function seriesCoverUrl(
   series: { id: string; coverPath: string | null; updatedAt?: Date | null },
   fallback: string | null,
 ): string | null {
-  if (!series.coverPath) return fallback;
-  const version = series.updatedAt ? series.updatedAt.getTime().toString(36) : '0';
-  return `/media/covers/${series.id}/${version}`;
+  return capaPropriaOuHerdada(series, fallback);
+}
+
+/**
+ * Capa do guia.
+ *
+ * Mesma regra da saga — capa escolhida pelo admin, ou a da primeira HQ da
+ * ordem de leitura quando ninguem escolheu. O id do guia tambem e UUID, entao
+ * a rota de midia serve os tres tipos sem alteracao.
+ */
+export function guideCoverUrl(
+  guide: { id: string; coverPath: string | null; updatedAt?: Date | null },
+  fallback: string | null,
+): string | null {
+  return capaPropriaOuHerdada(guide, fallback);
+}
+
+/** Capa propria quando existe; senao a herdada de uma edicao. */
+function capaPropriaOuHerdada(
+  dono: { id: string; coverPath: string | null; updatedAt?: Date | null },
+  fallback: string | null,
+): string | null {
+  if (!dono.coverPath) return fallback;
+  const version = dono.updatedAt ? dono.updatedAt.getTime().toString(36) : '0';
+  return `/media/covers/${dono.id}/${version}`;
 }
 
 export function pageUrl(comicFileId: string, index: number, version: string): string {

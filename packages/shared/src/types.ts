@@ -178,11 +178,18 @@ export interface GuideSummary {
   summary: string | null;
   published: boolean;
   itemCount: number;
+  /**
+   * Capa do guia: a escolhida pelo admin, ou — na falta dela — a da primeira
+   * HQ da ordem de leitura. Mesma regra da saga; `hasOwnCover` (no detalhe)
+   * separa os dois casos para a UI poder oferecer "voltar para a herdada".
+   */
   coverUrl: string | null;
 }
 
 export interface GuideDetail extends GuideSummary {
   description: string | null;
+  /** Falso quando a capa mostrada vem da primeira HQ, e não do admin. */
+  hasOwnCover: boolean;
   items: GuideItemView[];
   readCount?: number;
 }

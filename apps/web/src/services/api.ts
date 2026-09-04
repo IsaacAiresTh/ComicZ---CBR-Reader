@@ -137,6 +137,9 @@ export const api = {
   delete: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
 };
 
+/** O que pode ter capa propria — e tambem o prefixo da rota de cada um. */
+export type AlvoDeCapa = 'comics' | 'series' | 'guides';
+
 /**
  * Upload com progresso — usa XMLHttpRequest porque `fetch` ainda nao expoe
  * progresso de envio, e um CBR pode ter centenas de MB.
@@ -146,7 +149,7 @@ export const api = {
  * HQ: a capa tem no maximo 2 MB e nao precisa de barra de progresso.
  */
 export async function uploadCover(
-  alvo: 'comics' | 'series',
+  alvo: AlvoDeCapa,
   id: string,
   imagem: Blob,
 ): Promise<{ coverPath: string }> {
