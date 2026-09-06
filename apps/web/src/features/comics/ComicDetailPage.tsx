@@ -1,6 +1,6 @@
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { Badge, Button, ErrorNote, LinkButton, Spinner } from '../../components/ui';
-import { comicLabel, fileStatusLabel, formatBytes, percent } from '../../lib/format';
+import { comicLabel, fileStatusLabel, percent } from '../../lib/format';
 import { keepFrom, readFrom } from '../../lib/navigation';
 import { mediaUrl } from '../../services/api';
 import { AddToCollectionMenu } from '../collections/AddToCollectionMenu';
@@ -174,12 +174,6 @@ export function ComicDetailPage() {
               <Meta label="Personagens" value={comic.characters.join(', ')} />
             )}
             {comic.tags.length > 0 && <Meta label="Tags" value={comic.tags.join(', ')} />}
-            {comic.file && (
-              <Meta
-                label="Arquivo"
-                value={`${comic.file.format} · ${formatBytes(comic.file.sizeBytes)}`}
-              />
-            )}
           </dl>
         </div>
       </div>
