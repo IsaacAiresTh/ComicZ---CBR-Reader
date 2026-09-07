@@ -40,3 +40,8 @@ tmp/
 *.swp
 .DS_Store
 Thumbs.db
+
+# Worktrees e patches de sessao do Claude Code: nao sao do projeto, e um
+# `git add -A` distraido levaria um checkout inteiro para dentro do commit.
+/.claude/worktrees/
+/.claude/*.patch
