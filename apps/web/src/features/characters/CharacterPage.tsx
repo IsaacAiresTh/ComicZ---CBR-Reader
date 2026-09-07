@@ -243,7 +243,10 @@ function Historia({
 function Arte({ imagem, lado }: { imagem: CharacterImageView; lado: 'esquerda' | 'direita' }) {
   return (
     <figure
-      className={`relative mb-4 w-full sm:w-[38%] ${
+      // `clear-both` e o que impede duas artes de flutuarem ao mesmo tempo em
+      // lados opostos: sem ele, a segunda comeca antes da primeira terminar e o
+      // texto passa a correr por uma goteira de tres palavras entre as duas.
+      className={`relative mb-4 w-full sm:clear-both sm:w-[38%] ${
         lado === 'direita' ? 'sm:float-right sm:ml-6' : 'sm:float-left sm:mr-6'
       }`}
     >
