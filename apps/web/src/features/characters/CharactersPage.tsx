@@ -3,6 +3,7 @@ import type { CharacterSummary } from '@comicz/shared';
 import { EmptyState, ErrorNote, Spinner } from '../../components/ui';
 import { mediaUrl } from '../../services/api';
 import { useCharacters } from '../comics/queries';
+import { variaveisDoPersonagem } from './estilo';
 
 export function CharactersPage() {
   const { data: personagens, isLoading, error } = useCharacters();
@@ -51,8 +52,14 @@ function CharacterTile({ personagem }: { personagem: CharacterSummary }) {
   const retrato = mediaUrl(personagem.portraitUrl);
 
   return (
-    <Link to={`/personagens/${personagem.slug}`} className="group block text-center">
-      <div className="mx-auto aspect-square w-full overflow-hidden rounded-full border border-ink-800 bg-ink-850 transition-colors group-hover:border-ink-600">
+    <Link
+      to={`/personagens/${personagem.slug}`}
+      className="personagem group block text-center"
+      // A cor do personagem tambem identifica ele na grade: sem isso, a
+      // identidade so existiria depois de entrar na pagina.
+      style={variaveisDoPersonagem(personagem)}
+    >
+      <div className="mx-auto aspect-square w-full overflow-hidden rounded-full border border-ink-800 bg-ink-850 transition-colors group-hover:border-[color-mix(in_srgb,var(--accent)_70%,transparent)]">
         {retrato ? (
           <img
             src={retrato}

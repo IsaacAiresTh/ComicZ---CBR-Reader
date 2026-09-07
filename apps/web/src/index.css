@@ -155,23 +155,80 @@
 }
 
 /*
- * O nome recebe as duas cores. Fica em background-clip porque um degrade so
- * existe como fundo: e o texto que vira janela dele.
+ * As duas cores do personagem entram de verdade, e nao como filete: no
+ * Superboy-Prime a pagina tem que ser o azul e o vermelho do Superman.
+ *
+ * O que segura isso e a divisao de trabalho: COR no topo e nos cromados, INK
+ * embaixo da coluna de leitura. Um paragrafo de mil caracteres sobre azul
+ * cansa a vista em duas linhas — e foi por texto apagado que esta pagina
+ * comecou a ser mexida.
+ */
+
+/* O chao: uma lavagem da cor 1 que morre antes da coluna de texto comecar. */
+@utility personagem-chao {
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--accent) 26%, var(--color-ink-900)),
+    var(--color-ink-900) 560px
+  );
+}
+
+/*
+ * O painel do topo. As duas cores escurecidas contra o ink-950 ate darem
+ * contraste de sobra para o texto branco: o azul fica em torno de 8:1 e o
+ * vermelho passa de 10:1.
+ */
+@utility personagem-painel {
+  background-image: linear-gradient(
+    115deg,
+    color-mix(in srgb, var(--accent) 62%, var(--color-ink-950)) 0%,
+    color-mix(in srgb, var(--accent) 38%, var(--color-ink-950)) 48%,
+    color-mix(in srgb, var(--accent-2) 44%, var(--color-ink-950)) 100%
+  );
+}
+
+/* A faixa da segunda cor, cruzando por tras da figura. */
+@utility personagem-faixa {
+  background-image: linear-gradient(
+    100deg,
+    transparent 38%,
+    color-mix(in srgb, var(--accent-2) 60%, transparent) 56%,
+    transparent 74%
+  );
+}
+
+/*
+ * Reticula: o ponto de impressao. Vive so no topo — no corpo do texto o mesmo
+ * ponto vira sujeira atras da letra.
+ */
+@utility personagem-reticula {
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--color-ink-950) 50%, transparent) 1px,
+    transparent 1.2px
+  );
+  background-size: 6px 6px;
+}
+
+/*
+ * O nome: branco com a sombra deslocada na segunda cor. E como letreiro de
+ * quadrinho poe cor no tipo sem tirar contraste dele — degrade dentro da letra
+ * faria o oposto, comendo a legibilidade justamente no que e maior na pagina.
  */
 @utility personagem-nome {
   font-family: var(--fonte-personagem);
-  background-image: linear-gradient(
-    100deg,
-    var(--color-ink-100) 18%,
-    color-mix(in srgb, var(--accent) 65%, var(--color-ink-100)) 55%,
-    color-mix(in srgb, var(--accent-2) 70%, var(--color-ink-100)) 92%
-  );
-  background-clip: text;
-  color: transparent;
+  color: var(--color-ink-100);
+  text-shadow:
+    3px 3px 0 color-mix(in srgb, var(--accent-2) 88%, var(--color-ink-950)),
+    7px 7px 0 color-mix(in srgb, var(--color-ink-950) 55%, transparent);
 }
 
 @utility personagem-filete {
   background-image: linear-gradient(to right, var(--accent), var(--accent-2));
+}
+
+/* Rotulo de secao na cor do personagem, forte o bastante para se ler. */
+@utility personagem-rotulo {
+  color: color-mix(in srgb, var(--accent) 55%, var(--color-ink-100));
 }
 
 /*

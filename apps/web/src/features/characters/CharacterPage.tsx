@@ -32,7 +32,7 @@ export function CharacterPage() {
 
   return (
     <div
-      className="personagem space-y-12"
+      className="personagem personagem-chao -mx-4 -mt-8 space-y-12 px-4 pb-4 pt-8"
       // As duas cores e a fonte entram por aqui e so daqui: nenhum componente
       // abaixo conhece o valor, todos leem as variaveis.
       style={variaveisDoPersonagem(personagem)}
@@ -105,14 +105,19 @@ function Topo({
   emblema: CharacterImageView | null;
 }) {
   return (
-    <header className="relative -mx-4 -mt-6 overflow-hidden border-b border-ink-800 sm:-mx-6 lg:-mx-8">
+    <header className="personagem-painel relative -mx-4 -mt-8 overflow-hidden rounded-b-2xl">
+      {/* A faixa da segunda cor e a reticula ficam por baixo de tudo: sao o
+          fundo do painel, nao elementos que alguem deva notar um a um. */}
+      <div className="personagem-faixa pointer-events-none absolute inset-0" />
+      <div className="personagem-reticula pointer-events-none absolute inset-0 opacity-40" />
+
       <Emblema personagem={personagem} imagem={emblema} />
 
       {arte && (
         <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/2 sm:block">
           {/* O halo nasce atras da figura e morre antes da borda: sem ele, o
               recorte fica boiando sobre o ink liso. */}
-          <div className="personagem-halo absolute inset-0" />
+          <div className="absolute inset-0 bg-[radial-gradient(58%_52%_at_58%_45%,rgba(0,0,0,0.28),transparent_70%)]" />
           <img
             src={mediaUrl(arte.url) ?? ''}
             alt={personagem.name}
@@ -121,8 +126,8 @@ function Topo({
         </div>
       )}
 
-      <div className="relative px-4 pb-10 pt-10 sm:px-6 lg:px-8">
-        <Link to="/personagens" className="text-sm text-ink-300 hover:text-ink-100">
+      <div className="relative px-4 pb-10 pt-10">
+        <Link to="/personagens" className="text-sm text-ink-200/80 hover:text-ink-100">
           Personagens
         </Link>
 
@@ -130,7 +135,7 @@ function Topo({
           {personagem.name}
         </h1>
 
-        <div className="personagem-filete mt-4 h-1 w-24 rounded-full" />
+        <div className="personagem-filete mt-4 h-1.5 w-32 rounded-full" />
 
         {personagem.summary && (
           <p className="mt-5 max-w-md text-[15px] leading-relaxed text-ink-200 sm:max-w-sm lg:max-w-md">
@@ -169,12 +174,12 @@ function Emblema({
         <img
           src={mediaUrl(imagem.url) ?? ''}
           alt=""
-          className="h-64 w-64 object-contain opacity-[0.07] sm:h-80 sm:w-80"
+          className="h-64 w-64 object-contain opacity-[0.14] sm:h-80 sm:w-80"
         />
       ) : (
         <span
           aria-hidden
-          className="personagem-titulo personagem-texto block text-[16rem] leading-none opacity-[0.08] sm:text-[22rem]"
+          className="personagem-titulo block text-[16rem] leading-none text-ink-950 opacity-25 sm:text-[22rem]"
         >
           {personagem.name.slice(0, 1)}
         </span>
@@ -258,7 +263,7 @@ function Arte({ imagem, lado }: { imagem: CharacterImageView; lado: 'esquerda' |
 
 function Rotulo({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">
+    <h2 className="personagem-rotulo mb-3 text-xs font-semibold uppercase tracking-[0.18em]">
       {children}
     </h2>
   );
