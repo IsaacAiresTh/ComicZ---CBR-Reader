@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { initialLetter, searchAlternatives, searchTerms } from './search';
+import { chave, initialLetter, searchAlternatives, searchTerms } from './search';
 
 /** Todas as alternativas, cada uma como texto, para facilitar as asserções. */
 const formas = (q: string) => searchAlternatives(q).map((termos) => termos.join(' '));
@@ -84,4 +84,23 @@ test('initialLetter poe acento na letra sem acento e o resto no #', () => {
   assert.equal(initialLetter('3-D Man'), '#');
   assert.equal(initialLetter('...e entao'), '#');
   assert.equal(initialLetter(''), '#');
+});
+
+test('chave casa nome de saga escrito de outro jeito', () => {
+  // E o que o import usa: o arquivo e escrito a mao, e o hifen, o travessao e o
+  // acento variam sem que a saga pretendida mude.
+  assert.equal(chave('Batman - Ano Um'), chave('batman ano um'));
+  assert.equal(chave('Batman - Ano Um'), chave('Batman — Ano Um'));
+  assert.equal(
+    chave('Mulher-Maravilha por George Pérez'),
+    chave('mulher maravilha por george perez'),
+  );
+  assert.equal(chave('Noite de Trevas: Death Metal'), chave('noite de trevas death metal'));
+  assert.equal(chave('  Crise Final  '), chave('crise final'));
+});
+
+test('chave nao junta sagas diferentes', () => {
+  assert.notEqual(chave('Noite de Trevas: Metal'), chave('Noite de Trevas: Death Metal'));
+  assert.notEqual(chave('Crise Final'), chave('Crise Final - Revelações'));
+  assert.notEqual(chave('Batman - Ano Um'), chave('Batman e Espantalho - Ano Um'));
 });

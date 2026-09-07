@@ -1,9 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { chave } from '@comicz/shared';
 import type {
   CharacterAppearanceGroup,
   CharacterDetail,
+  CharacterImportInput,
+  CharacterImportReport,
   CharacterSummary,
   ComicSummary,
+  ImportCharactersInput,
   SetCharacterComicsInput,
   SetMilestonesInput,
   SetSeriesNotesInput,
@@ -253,35 +257,196 @@ export class CharactersService {
     });
     if (!existing) throw new NotFoundException('Personagem nao encontrado');
 
-    // Mesma regra do resto do painel: ausente mantem, null limpa.
-    return this.prisma.character.update({
-      where: { id },
-      data: {
-        ...(input.summary !== undefined ? { summary: input.summary } : {}),
-        ...(input.description !== undefined ? { description: input.description } : {}),
-        ...(input.aliases !== undefined ? { aliases: input.aliases } : {}),
-        ...(input.accentColor !== undefined ? { accentColor: input.accentColor } : {}),
-        ...(input.accentColor2 !== undefined ? { accentColor2: input.accentColor2 } : {}),
-        ...(input.displayFont !== undefined ? { displayFont: input.displayFont } : {}),
-        ...(input.tags !== undefined ? { tags: input.tags } : {}),
-        ...(input.firstAppearance !== undefined ? { firstAppearance: input.firstAppearance } : {}),
-        ...(input.firstAppearanceYear !== undefined
-          ? { firstAppearanceYear: input.firstAppearanceYear }
-          : {}),
-        ...(input.affiliations !== undefined ? { affiliations: input.affiliations } : {}),
-        ...(input.powers !== undefined ? { powers: input.powers } : {}),
-        ...(input.powerLevel !== undefined ? { powerLevel: input.powerLevel } : {}),
-        ...(input.powerLevelRank !== undefined ? { powerLevelRank: input.powerLevelRank } : {}),
-        ...(input.status !== undefined ? { status: input.status } : {}),
-        ...(input.statusNote !== undefined ? { statusNote: input.statusNote } : {}),
-        ...(input.primer !== undefined ? { primer: input.primer } : {}),
-        ...(input.whyMatters !== undefined ? { whyMatters: input.whyMatters } : {}),
-        ...(input.startHereSeriesId !== undefined
-          ? { startHereSeriesId: input.startHereSeriesId }
-          : {}),
-        ...(input.startHereNote !== undefined ? { startHereNote: input.startHereNote } : {}),
-      },
+    return this.prisma.character.update({ where: { id }, data: this.dadosDaFicha(input) });
+  }
+
+  /**
+   * A ficha, campo a campo: ausente MANTEM, `null` LIMPA.
+   *
+   * Escrito uma vez porque tem dois chamadores — o painel e o import de
+   * arquivo. Um campo novo lembrado so em um dos dois seria um campo que o
+   * arquivo silenciosamente deixa de gravar, e nada na tela denunciaria isso.
+   */
+  private dadosDaFicha(input: Partial<UpdateCharacterInput>) {
+    return {
+      ...(input.summary !== undefined ? { summary: input.summary } : {}),
+      ...(input.description !== undefined ? { description: input.description } : {}),
+      ...(input.aliases !== undefined ? { aliases: input.aliases } : {}),
+      ...(input.accentColor !== undefined ? { accentColor: input.accentColor } : {}),
+      ...(input.accentColor2 !== undefined ? { accentColor2: input.accentColor2 } : {}),
+      ...(input.displayFont !== undefined ? { displayFont: input.displayFont } : {}),
+      ...(input.tags !== undefined ? { tags: input.tags } : {}),
+      ...(input.firstAppearance !== undefined ? { firstAppearance: input.firstAppearance } : {}),
+      ...(input.firstAppearanceYear !== undefined
+        ? { firstAppearanceYear: input.firstAppearanceYear }
+        : {}),
+      ...(input.affiliations !== undefined ? { affiliations: input.affiliations } : {}),
+      ...(input.powers !== undefined ? { powers: input.powers } : {}),
+      ...(input.powerLevel !== undefined ? { powerLevel: input.powerLevel } : {}),
+      ...(input.powerLevelRank !== undefined ? { powerLevelRank: input.powerLevelRank } : {}),
+      ...(input.status !== undefined ? { status: input.status } : {}),
+      ...(input.statusNote !== undefined ? { statusNote: input.statusNote } : {}),
+      ...(input.primer !== undefined ? { primer: input.primer } : {}),
+      ...(input.whyMatters !== undefined ? { whyMatters: input.whyMatters } : {}),
+      ...(input.startHereSeriesId !== undefined
+        ? { startHereSeriesId: input.startHereSeriesId }
+        : {}),
+      ...(input.startHereNote !== undefined ? { startHereNote: input.startHereNote } : {}),
+    };
+  }
+
+  /**
+   * Importa fichas vindas de arquivo.
+   *
+   * Um personagem que falha nao derruba os outros: desistir das 189 porque um
+   * slug estava errado seria pior do que o erro. Cada um volta com sua linha no
+   * relatorio, e `simular` percorre exatamente o mesmo codigo sem gravar — e o
+   * que impede a previa de mentir sobre o que o import vai fazer.
+   */
+  async importar(
+    personagens: ImportCharactersInput['personagens'],
+    simular: boolean,
+  ): Promise<CharacterImportReport[]> {
+    const relatorios: CharacterImportReport[] = [];
+    for (const entrada of personagens) {
+      relatorios.push(await this.importaUm(entrada, simular));
+    }
+    return relatorios;
+  }
+
+  private async importaUm(
+    entrada: CharacterImportInput,
+    simular: boolean,
+  ): Promise<CharacterImportReport> {
+    const relatorio: CharacterImportReport = {
+      slug: entrada.slug,
+      name: null,
+      campos: [],
+      marcos: null,
+      sagas: null,
+      sagasAusentes: [],
+      ancorasMantidas: 0,
+      erro: null,
+    };
+
+    const character = await this.prisma.character.findUnique({
+      where: { slug: entrada.slug },
+      include: { milestones: { select: { era: true, imageId: true, sourceLabel: true } } },
     });
+    if (!character) return { ...relatorio, erro: 'Nao existe personagem com este slug' };
+    relatorio.name = character.name;
+
+    /*
+     * O nome de saga do arquivo so casa entre as sagas em que ele APARECE. Uma
+     * nota para saga de que ele nao faz parte nao teria linha na pagina, e
+     * aceita-la calada esconderia justamente o erro de digitacao que o
+     * relatorio existe para mostrar. A chave ignora acento, hifen e caixa,
+     * entao "Batman - Ano Um" e "batman ano um" sao a mesma saga.
+     */
+    const sagas = await this.prisma.series.findMany({
+      where: { comics: { some: { characters: { some: { characterId: character.id } } } } },
+      select: { id: true, name: true },
+    });
+    const porNome = new Map(sagas.map((saga) => [chave(saga.name), saga]));
+
+    const ficha: Partial<UpdateCharacterInput> = { ...(entrada.ficha ?? {}) };
+
+    if (entrada.comecarPor === null) {
+      ficha.startHereSeriesId = null;
+      ficha.startHereNote = null;
+    } else if (entrada.comecarPor !== undefined) {
+      const achada = porNome.get(chave(entrada.comecarPor.saga));
+      if (achada) {
+        ficha.startHereSeriesId = achada.id;
+        ficha.startHereNote = entrada.comecarPor.nota ?? null;
+      } else {
+        relatorio.sagasAusentes.push(entrada.comecarPor.saga);
+      }
+    }
+
+    const dados = this.dadosDaFicha(ficha);
+    relatorio.campos = Object.keys(dados);
+
+    /*
+     * A ancora de imagem nao cabe no arquivo — ela se escolhe no painel,
+     * olhando a galeria. Ao substituir a lista, cada marco reencontra a imagem
+     * do marco de mesma era, senao reimportar um texto corrigido custaria
+     * refazer as ancoras uma a uma.
+     */
+    let marcos:
+      | {
+          characterId: string;
+          position: number;
+          era: string;
+          headline: string | null;
+          body: string;
+          spoiler: boolean;
+          imageId: string | null;
+          sourceLabel: string | null;
+        }[]
+      | null = null;
+
+    if (entrada.marcos !== undefined) {
+      const anteriores = new Map(character.milestones.map((marco) => [chave(marco.era), marco]));
+      marcos = entrada.marcos.map((marco, posicao) => {
+        const anterior = anteriores.get(chave(marco.era));
+        if (anterior?.imageId) relatorio.ancorasMantidas += 1;
+        return {
+          characterId: character.id,
+          position: posicao,
+          era: marco.era,
+          headline: marco.headline ?? null,
+          body: marco.body,
+          spoiler: marco.spoiler,
+          imageId: anterior?.imageId ?? null,
+          sourceLabel: marco.sourceLabel ?? anterior?.sourceLabel ?? null,
+        };
+      });
+      relatorio.marcos = marcos.length;
+    }
+
+    let notas: { characterId: string; seriesId: string; position: number; note: string | null }[] =
+      [];
+    let mexeNasSagas = false;
+    if (entrada.sagas !== undefined) {
+      mexeNasSagas = true;
+      const vistas = new Set<string>();
+      for (const item of entrada.sagas) {
+        const achada = porNome.get(chave(item.saga));
+        if (!achada) {
+          relatorio.sagasAusentes.push(item.saga);
+          continue;
+        }
+        // Repetida no arquivo violaria a chave composta e derrubaria o lote.
+        if (vistas.has(achada.id)) continue;
+        vistas.add(achada.id);
+        notas.push({
+          characterId: character.id,
+          seriesId: achada.id,
+          position: notas.length,
+          note: item.nota ?? null,
+        });
+      }
+      relatorio.sagas = notas.length;
+    }
+
+    if (simular) return relatorio;
+
+    await this.prisma.$transaction(async (tx) => {
+      if (Object.keys(dados).length > 0) {
+        await tx.character.update({ where: { id: character.id }, data: dados });
+      }
+      if (marcos) {
+        await tx.characterMilestone.deleteMany({ where: { characterId: character.id } });
+        if (marcos.length > 0) await tx.characterMilestone.createMany({ data: marcos });
+      }
+      if (mexeNasSagas) {
+        await tx.characterSeriesNote.deleteMany({ where: { characterId: character.id } });
+        if (notas.length > 0) await tx.characterSeriesNote.createMany({ data: notas });
+      }
+    });
+
+    return relatorio;
   }
 
   /**

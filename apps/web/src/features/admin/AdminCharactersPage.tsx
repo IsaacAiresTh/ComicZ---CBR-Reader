@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type {
   CharacterDetail,
   CharacterFont,
+  CharacterImportReport,
   CharacterSummary,
   ComicSummary,
+  ImportCharactersInput,
   SeriesListItem,
 } from '@comicz/shared';
 import { Button, ErrorNote, Field, Input, Select, Spinner, Textarea } from '../../components/ui';
@@ -23,6 +25,7 @@ function normalizar(valor: string): string {
 import {
   useAddCharacterImage,
   useBuscarSaga,
+  useImportCharacters,
   useRemoveCharacterImage,
   useReorderCharacterImages,
   useSeriesDetail,
@@ -38,6 +41,12 @@ const LARGURA_DA_FOTO = 900;
 export function AdminCharactersPage() {
   const { data: personagens, isLoading } = useCharacters();
   const [escolhido, setEscolhido] = useState<string | null>(null);
+  /*
+   * O import e um MODO, e nao a tela vazia: com um personagem aberto a tela
+   * vazia nao existe mais, e o botao sumia justo depois de alguem escolher
+   * alguem — que e quando se percebe que era mais rapido subir um arquivo.
+   */
+  const [importando, setImportando] = useState(false);
   const [busca, setBusca] = useState('');
   const [ordem, setOrdem] = useState<'edicoes' | 'nome'>('edicoes');
 
@@ -68,6 +77,18 @@ export function AdminCharactersPage() {
           placeholder="Buscar personagem"
         />
 
+        <button
+          type="button"
+          onClick={() => setImportando(true)}
+          className={`w-full rounded-lg border border-dashed px-3 py-2 text-xs transition-colors ${
+            importando
+              ? 'border-brand-500 text-ink-100'
+              : 'border-ink-700 text-ink-400 hover:border-ink-500 hover:text-ink-200'
+          }`}
+        >
+          importar JSON
+        </button>
+
         <div className="flex items-center justify-between text-xs text-ink-500">
           <span>
             {lista.length === (personagens ?? []).length
@@ -88,19 +109,27 @@ export function AdminCharactersPage() {
               <ItemDaLista
                 personagem={personagem}
                 ativo={personagem.slug === escolhido}
-                onEscolher={() => setEscolhido(personagem.slug)}
+                onEscolher={() => {
+                  setEscolhido(personagem.slug);
+                  setImportando(false);
+                }}
               />
             </li>
           ))}
         </ul>
       </div>
 
-      {escolhido ? (
-        <Editor slug={escolhido} />
+      {importando || !escolhido ? (
+        <div className="space-y-4">
+          {!escolhido && !importando && (
+            <p className="rounded-xl border border-dashed border-ink-700 px-6 py-8 text-center text-sm text-ink-400">
+              Escolha um personagem para escrever a história dele — ou suba um arquivo.
+            </p>
+          )}
+          <ImportarFichas onFechar={escolhido ? () => setImportando(false) : undefined} />
+        </div>
       ) : (
-        <p className="rounded-xl border border-dashed border-ink-700 px-6 py-12 text-center text-sm text-ink-400">
-          Escolha um personagem para escrever a história dele.
-        </p>
+        <Editor slug={escolhido} />
       )}
     </div>
   );
@@ -131,6 +160,260 @@ function ItemDaLista({
       {/* Sem texto, o personagem nao tem pagina de verdade — vale ver de longe. */}
       {!personagem.summary && <span className="text-[10px] text-ink-600">vazio</span>}
     </button>
+  );
+}
+
+/**
+ * A ficha no formato do arquivo.
+ *
+ * O que sai daqui e exatamente o que o import aceita, e e de proposito: o ciclo
+ * util e baixar, editar fora e subir de volta. Saga vai por NOME, e nao por id,
+ * porque id de saga nao atravessa ambiente — e atravessar ambiente (escrever no
+ * local, subir em producao) e o motivo de existir o arquivo.
+ */
+function fichaParaArquivo(personagem: CharacterDetail) {
+  return {
+    slug: personagem.slug,
+    ficha: {
+      summary: personagem.summary,
+      description: personagem.description,
+      aliases: personagem.aliases,
+      accentColor: personagem.accentColor,
+      accentColor2: personagem.accentColor2,
+      displayFont: personagem.displayFont,
+      tags: personagem.tags,
+      firstAppearance: personagem.firstAppearance,
+      firstAppearanceYear: personagem.firstAppearanceYear,
+      affiliations: personagem.affiliations,
+      powers: personagem.powers,
+      powerLevel: personagem.powerLevel,
+      powerLevelRank: personagem.powerLevelRank,
+      status: personagem.status,
+      statusNote: personagem.statusNote,
+      primer: personagem.primer,
+      whyMatters: personagem.whyMatters,
+    },
+    comecarPor: personagem.startHere
+      ? { saga: personagem.startHere.name, nota: personagem.startHere.note }
+      : null,
+    marcos: personagem.milestones.map((marco) => ({
+      era: marco.era,
+      headline: marco.headline,
+      body: marco.body,
+      spoiler: marco.spoiler,
+      sourceLabel: marco.sourceLabel,
+    })),
+    sagas: personagem.appearances
+      .filter((grupo) => grupo.seriesId)
+      .map((grupo) => ({ saga: grupo.name, nota: grupo.note })),
+  };
+}
+
+function BotaoDeExportar({ personagem }: { personagem: CharacterDetail }) {
+  function baixar() {
+    const conteudo = JSON.stringify([fichaParaArquivo(personagem)], null, 2);
+    const url = URL.createObjectURL(new Blob([conteudo], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${personagem.slug}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={baixar}
+      title="Baixa a ficha no mesmo formato que o import aceita"
+      className="shrink-0 rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:border-ink-500 hover:text-ink-100"
+    >
+      baixar JSON
+    </button>
+  );
+}
+
+/**
+ * Import de fichas por arquivo.
+ *
+ * O arquivo e um ARRAY de fichas — uma so e um array de um. Nao ha dois
+ * formatos nem duas rotas, entao subir os 189 e o mesmo caminho de subir um.
+ * Um objeto solto tambem passa: e o que sai do "baixar JSON" de uma ficha, e
+ * seria estranho ele nao voltar.
+ *
+ * Nada e gravado antes da previa. O servidor roda o import inteiro em modo
+ * simulacao e devolve, personagem a personagem, o que entraria — e como e o
+ * MESMO codigo da gravacao, a previa nao tem como prometer o que o import nao
+ * faz. So depois dela aparece o botao que grava.
+ */
+function ImportarFichas({ onFechar }: { onFechar?: () => void }) {
+  const importar = useImportCharacters();
+  const [fichas, setFichas] = useState<ImportCharactersInput['personagens'] | null>(null);
+  const [rotulo, setRotulo] = useState<string | null>(null);
+  const [previa, setPrevia] = useState<CharacterImportReport[] | null>(null);
+  const [gravado, setGravado] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  // Contador, e nao booleano: entrar num filho dispara dragleave no pai.
+  const [arrastes, setArrastes] = useState(0);
+
+  async function ler(arquivo: File) {
+    setErro(null);
+    setPrevia(null);
+    setGravado(false);
+    setFichas(null);
+    setRotulo(null);
+    try {
+      const bruto: unknown = JSON.parse(await arquivo.text());
+      const lista = (
+        Array.isArray(bruto) ? bruto : [bruto]
+      ) as ImportCharactersInput['personagens'];
+      if (lista.length === 0) {
+        setErro('O arquivo não tem nenhuma ficha.');
+        return;
+      }
+      setFichas(lista);
+      setRotulo(`${arquivo.name} — ${lista.length} ${lista.length === 1 ? 'ficha' : 'fichas'}`);
+      setPrevia(await importar.mutateAsync({ personagens: lista, simular: true }));
+    } catch (e) {
+      setErro(
+        e instanceof ApiError
+          ? e.message
+          : e instanceof SyntaxError
+            ? 'O arquivo não é um JSON válido.'
+            : 'Não foi possível ler o arquivo.',
+      );
+    }
+  }
+
+  async function gravar() {
+    if (!fichas) return;
+    setErro(null);
+    try {
+      setPrevia(await importar.mutateAsync({ personagens: fichas, simular: false }));
+      setGravado(true);
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : 'Não foi possível gravar o import.');
+    }
+  }
+
+  const validos = previa?.filter((linha) => !linha.erro).length ?? 0;
+
+  return (
+    <section className="rounded-xl border border-ink-800 p-4">
+      <div className="mb-1 flex items-baseline justify-between gap-3">
+        <h3 className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">
+          Importar fichas
+        </h3>
+        {onFechar && (
+          <button
+            type="button"
+            onClick={onFechar}
+            className="text-xs text-ink-400 transition-colors hover:text-ink-100"
+          >
+            voltar para a ficha
+          </button>
+        )}
+      </div>
+      <p className="mb-4 text-xs text-ink-500">
+        Um JSON com uma ficha ou com várias. O arquivo manda: campo que estiver lá é gravado por
+        cima, campo que não estiver não é tocado — e <code>null</code> limpa. Vínculo de edição não
+        entra aqui; isso continua saindo de “Onde aparece”.
+      </p>
+
+      <label
+        onDragEnter={(e) => {
+          e.preventDefault();
+          setArrastes((n) => n + 1);
+        }}
+        onDragOver={(e) => e.preventDefault()}
+        onDragLeave={() => setArrastes((n) => Math.max(0, n - 1))}
+        onDrop={(e) => {
+          e.preventDefault();
+          setArrastes(0);
+          const arquivo = e.dataTransfer.files[0];
+          if (arquivo) void ler(arquivo);
+        }}
+        className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed px-6 py-10 text-center text-sm transition-colors ${
+          arrastes > 0
+            ? 'border-brand-500 text-ink-100'
+            : 'border-ink-700 text-ink-400 hover:border-ink-500'
+        }`}
+      >
+        {importar.isPending && !gravado
+          ? 'conferindo...'
+          : (rotulo ?? 'Solte o JSON aqui, ou clique para escolher')}
+        <input
+          type="file"
+          accept="application/json,.json"
+          className="hidden"
+          onChange={(e) => {
+            const arquivo = e.target.files?.[0];
+            if (arquivo) void ler(arquivo);
+            e.target.value = '';
+          }}
+        />
+      </label>
+
+      {erro && (
+        <div className="mt-3">
+          <ErrorNote>{erro}</ErrorNote>
+        </div>
+      )}
+
+      {previa && (
+        <div className="mt-4">
+          <p className="mb-2 text-xs text-ink-500">
+            {gravado ? 'Gravado:' : 'Prévia — nada foi gravado ainda:'}
+          </p>
+          <ul className="space-y-1">
+            {previa.map((linha) => (
+              <LinhaDoRelatorio key={linha.slug} linha={linha} />
+            ))}
+          </ul>
+
+          {!gravado && (
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Button onClick={() => void gravar()} disabled={importar.isPending || validos === 0}>
+                {importar.isPending
+                  ? 'Gravando...'
+                  : `Gravar ${validos} ${validos === 1 ? 'ficha' : 'fichas'}`}
+              </Button>
+              {validos === 0 && (
+                <span className="text-xs text-ink-500">Nenhuma ficha do arquivo pode entrar.</span>
+              )}
+            </div>
+          )}
+          {gravado && <p className="mt-3 text-xs text-emerald-400">Pronto.</p>}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function LinhaDoRelatorio({ linha }: { linha: CharacterImportReport }) {
+  if (linha.erro) {
+    return (
+      <li className="rounded border border-rose-500/40 px-3 py-2 text-sm">
+        <span className="text-ink-200">{linha.slug}</span>{' '}
+        <span className="text-rose-400">— {linha.erro}</span>
+      </li>
+    );
+  }
+
+  const partes = [`${linha.campos.length} campos`];
+  if (linha.marcos !== null) partes.push(`${linha.marcos} marcos`);
+  if (linha.sagas !== null) partes.push(`${linha.sagas} sagas`);
+  if (linha.ancorasMantidas > 0) partes.push(`${linha.ancorasMantidas} âncoras mantidas`);
+
+  return (
+    <li className="rounded border border-ink-800 px-3 py-2 text-sm">
+      <span className="text-ink-100">{linha.name}</span>{' '}
+      <span className="text-xs text-ink-400">— {partes.join(' · ')}</span>
+      {linha.sagasAusentes.length > 0 && (
+        <p className="mt-0.5 text-xs text-amber-400">
+          saga não encontrada entre as aparições dele: {linha.sagasAusentes.join(', ')}
+        </p>
+      )}
+    </li>
   );
 }
 
@@ -294,12 +577,15 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="font-display text-2xl tracking-wide text-ink-100">{personagem.name}</h2>
-        <p className="mt-1 text-xs text-ink-500">
-          {personagem.comicCount} {personagem.comicCount === 1 ? 'edição' : 'edições'} no acervo ·
-          /personagens/{personagem.slug}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="font-display text-2xl tracking-wide text-ink-100">{personagem.name}</h2>
+          <p className="mt-1 text-xs text-ink-500">
+            {personagem.comicCount} {personagem.comicCount === 1 ? 'edição' : 'edições'} no acervo ·
+            /personagens/{personagem.slug}
+          </p>
+        </div>
+        <BotaoDeExportar personagem={personagem} />
       </div>
 
       {erro && <ErrorNote>{erro}</ErrorNote>}

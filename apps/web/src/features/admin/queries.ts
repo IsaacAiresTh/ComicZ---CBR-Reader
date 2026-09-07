@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AdminStats,
+  CharacterImportReport,
   ComicDetail,
+  ImportCharactersInput,
   SetCharacterComicsInput,
   SetMilestonesInput,
   SetSeriesNotesInput,
@@ -257,6 +259,24 @@ export function useSetCharacterComics() {
     onSuccess: () => {
       invalidarPersonagens(queryClient);
       void queryClient.invalidateQueries({ queryKey: ['comic'] });
+    },
+  });
+}
+
+/**
+ * Import de fichas por arquivo.
+ *
+ * `simular` roda o mesmo codigo do servidor sem gravar — e o que a previa usa,
+ * para o que a tela promete nao poder divergir do que a gravacao faz. So
+ * invalida quando gravou de verdade.
+ */
+export function useImportCharacters() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: ImportCharactersInput) =>
+      api.post<CharacterImportReport[]>('/characters/importar', input),
+    onSuccess: (_dados, input) => {
+      if (!input.simular) invalidarPersonagens(queryClient);
     },
   });
 }
