@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { CharacterDetail, CharacterFont, CharacterSummary } from '@comicz/shared';
 import { Button, ErrorNote, Field, Input, Select, Spinner, Textarea } from '../../components/ui';
 import { CoverError, prepararCapa } from '../../lib/cover';
@@ -105,6 +105,13 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
   const [fonte, setFonte] = useState<CharacterFont>(personagem.displayFont ?? 'bangers');
   const [erro, setErro] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
+  const [enviando, setEnviando] = useState<{ atual: number; total: number } | null>(null);
+  /*
+   * Contador, e nao booleano: dragleave dispara toda vez que o ponteiro passa
+   * de um filho para outro dentro da area, e com booleano a moldura piscaria a
+   * cada miniatura por baixo do cursor.
+   */
+  const [arrastes, setArrastes] = useState(0);
 
   async function enviar() {
     setErro(null);
@@ -131,18 +138,58 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
     }
   }
 
-  async function subir(arquivo: File) {
+  /*
+   * Errar o alvo nao pode custar o texto. Sem isto, uma foto solta fora da area
+   * faz o navegador ABRIR a imagem na aba — e a biografia digitada e ainda nao
+   * salva vai junto. O guard vale so enquanto o editor esta montado, entao
+   * arrastar arquivo no resto do painel continua se comportando como sempre.
+   */
+  useEffect(() => {
+    const engolir = (evento: DragEvent) => {
+      if (evento.dataTransfer?.types.includes('Files')) evento.preventDefault();
+    };
+    window.addEventListener('dragover', engolir);
+    window.addEventListener('drop', engolir);
+    return () => {
+      window.removeEventListener('dragover', engolir);
+      window.removeEventListener('drop', engolir);
+    };
+  }, []);
+
+  /**
+   * Envia uma de cada vez, e nao em paralelo, de proposito: a posicao de cada
+   * imagem e calculada a partir da ultima existente no servidor. Disparando
+   * tudo junto, tres uploads leriam a mesma "ultima" e brigariam pela mesma
+   * posicao — e posicao aqui decide quem e retrato, quem e o topo e a ordem no
+   * texto. Sequencial, a ordem de chegada e a ordem em que foram soltas.
+   */
+  async function subir(arquivos: File[]) {
     setErro(null);
-    try {
-      const imagem = await prepararCapa(arquivo, LARGURA_DA_FOTO);
-      await adicionar.mutateAsync({ id: personagem.id, imagem });
-    } catch (e) {
-      setErro(
-        e instanceof CoverError || e instanceof ApiError
-          ? e.message
-          : 'Não foi possível enviar a imagem',
-      );
+
+    const imagens = arquivos.filter((arquivo) => arquivo.type.startsWith('image/'));
+    if (imagens.length === 0) {
+      setErro('Solte um arquivo de imagem.');
+      return;
     }
+    if (imagens.length < arquivos.length) {
+      setErro(`${arquivos.length - imagens.length} arquivo(s) ignorado(s): só imagem.`);
+    }
+
+    for (const [i, arquivo] of imagens.entries()) {
+      setEnviando({ atual: i + 1, total: imagens.length });
+      try {
+        const imagem = await prepararCapa(arquivo, LARGURA_DA_FOTO);
+        await adicionar.mutateAsync({ id: personagem.id, imagem });
+      } catch (e) {
+        setErro(
+          e instanceof CoverError || e instanceof ApiError
+            ? e.message
+            : `Não foi possível enviar ${arquivo.name}`,
+        );
+        break;
+      }
+    }
+    setEnviando(null);
   }
 
   return (
@@ -246,12 +293,32 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
           Imagens
         </h3>
         <p className="mb-3 text-xs text-ink-500">
-          A ordem tem papel: a 1ª é o retrato (o círculo da lista, onde o rosto precisa caber num
-          quadrado), a 2ª é a arte grande do topo e as seguintes entram no meio do texto, alternando
-          os lados. Recorte com fundo transparente funciona melhor que foto em moldura.
+          Arraste as fotos para cá, ou clique. A ordem tem papel: a 1ª é o retrato (o círculo da
+          lista, onde o rosto precisa caber num quadrado), a 2ª é a arte grande do topo e as
+          seguintes entram no meio do texto, alternando os lados. Recorte com fundo transparente
+          funciona melhor que foto em moldura.
         </p>
 
-        <div className="flex flex-wrap gap-3">
+        <div
+          onDragEnter={(e) => {
+            if (e.dataTransfer.types.includes('Files')) setArrastes((n) => n + 1);
+          }}
+          onDragLeave={() => setArrastes((n) => Math.max(0, n - 1))}
+          onDragOver={(e) => {
+            // Sem isto o navegador abre a imagem numa aba e o drop nunca chega.
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'copy';
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setArrastes(0);
+            const arquivos = [...e.dataTransfer.files];
+            if (arquivos.length) void subir(arquivos);
+          }}
+          className={`flex flex-wrap gap-3 rounded-xl border-2 border-dashed p-3 transition-colors ${
+            arrastes > 0 ? 'border-brand-500 bg-brand-500/5' : 'border-transparent'
+          }`}
+        >
           {personagem.images.map((imagem, i) => (
             <figure key={imagem.id} className="w-32">
               <img
@@ -272,15 +339,27 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
             </figure>
           ))}
 
-          <label className="grid h-32 w-32 cursor-pointer place-items-center rounded-lg border border-dashed border-ink-700 text-xs text-ink-400 hover:border-ink-500">
-            {adicionar.isPending ? 'enviando...' : '+ imagem'}
+          <label
+            className={`grid h-32 w-32 cursor-pointer place-items-center rounded-lg border border-dashed px-2 text-center text-xs transition-colors ${
+              arrastes > 0
+                ? 'border-brand-500 text-brand-400'
+                : 'border-ink-700 text-ink-400 hover:border-ink-500'
+            }`}
+          >
+            {enviando
+              ? `enviando ${enviando.atual} de ${enviando.total}...`
+              : arrastes > 0
+                ? 'solte aqui'
+                : '+ imagem ou arraste'}
             <input
               type="file"
               accept="image/*"
+              multiple
               className="hidden"
               onChange={(e) => {
-                const arquivo = e.target.files?.[0];
-                if (arquivo) void subir(arquivo);
+                const arquivos = [...(e.target.files ?? [])];
+                if (arquivos.length) void subir(arquivos);
+                // Limpa para o mesmo arquivo poder ser escolhido de novo.
                 e.target.value = '';
               }}
             />
