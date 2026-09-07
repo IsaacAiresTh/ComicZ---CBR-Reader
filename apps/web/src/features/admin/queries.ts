@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AdminStats,
   ComicDetail,
+  SetMilestonesInput,
+  SetSeriesNotesInput,
   UpdateCharacterInput,
   GuideDetail,
   SeriesDetail,
@@ -206,6 +208,24 @@ export function useAddCharacterImage() {
   return useMutation({
     mutationFn: (input: { id: string; imagem: Blob }) =>
       uploadCharacterImage(input.id, input.imagem),
+    onSuccess: () => invalidarPersonagens(queryClient),
+  });
+}
+
+export function useSetMilestones() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; marcos: SetMilestonesInput['marcos'] }) =>
+      api.put<void>(`/characters/${input.id}/marcos`, { marcos: input.marcos }),
+    onSuccess: () => invalidarPersonagens(queryClient),
+  });
+}
+
+export function useSetSeriesNotes() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; sagas: SetSeriesNotesInput['sagas'] }) =>
+      api.put<void>(`/characters/${input.id}/sagas`, { sagas: input.sagas }),
     onSuccess: () => invalidarPersonagens(queryClient),
   });
 }

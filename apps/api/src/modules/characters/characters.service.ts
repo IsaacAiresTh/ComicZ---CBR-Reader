@@ -4,6 +4,8 @@ import type {
   CharacterDetail,
   CharacterSummary,
   ComicSummary,
+  SetMilestonesInput,
+  SetSeriesNotesInput,
   UpdateCharacterInput,
 } from '@comicz/shared';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -260,8 +262,94 @@ export class CharactersService {
         ...(input.accentColor !== undefined ? { accentColor: input.accentColor } : {}),
         ...(input.accentColor2 !== undefined ? { accentColor2: input.accentColor2 } : {}),
         ...(input.displayFont !== undefined ? { displayFont: input.displayFont } : {}),
+        ...(input.tags !== undefined ? { tags: input.tags } : {}),
+        ...(input.firstAppearance !== undefined ? { firstAppearance: input.firstAppearance } : {}),
+        ...(input.firstAppearanceYear !== undefined
+          ? { firstAppearanceYear: input.firstAppearanceYear }
+          : {}),
+        ...(input.affiliations !== undefined ? { affiliations: input.affiliations } : {}),
+        ...(input.powers !== undefined ? { powers: input.powers } : {}),
+        ...(input.powerLevel !== undefined ? { powerLevel: input.powerLevel } : {}),
+        ...(input.powerLevelRank !== undefined ? { powerLevelRank: input.powerLevelRank } : {}),
+        ...(input.status !== undefined ? { status: input.status } : {}),
+        ...(input.statusNote !== undefined ? { statusNote: input.statusNote } : {}),
+        ...(input.primer !== undefined ? { primer: input.primer } : {}),
+        ...(input.whyMatters !== undefined ? { whyMatters: input.whyMatters } : {}),
+        ...(input.startHereSeriesId !== undefined
+          ? { startHereSeriesId: input.startHereSeriesId }
+          : {}),
+        ...(input.startHereNote !== undefined ? { startHereNote: input.startHereNote } : {}),
       },
     });
+  }
+
+  /**
+   * Grava a linha do tempo inteira.
+   *
+   * Apaga e recria em uma transacao, em vez de casar id a id. Os marcos nao sao
+   * referenciados por nada — a imagem vem no proprio payload —, entao id novo
+   * nao quebra ninguem, e recriar dispensa a maquinaria de descobrir o que
+   * mudou, o que sumiu e o que so trocou de lugar.
+   */
+  async setMilestones(characterId: string, marcos: SetMilestonesInput['marcos']): Promise<void> {
+    const existe = await this.prisma.character.findUnique({
+      where: { id: characterId },
+      select: { id: true },
+    });
+    if (!existe) throw new NotFoundException('Personagem nao encontrado');
+
+    // Imagem de outro personagem nao pode ser ancorada aqui.
+    const daGaleria = await this.prisma.characterImage.findMany({
+      where: { characterId },
+      select: { id: true },
+    });
+    const permitidas = new Set(daGaleria.map((imagem) => imagem.id));
+    for (const marco of marcos) {
+      if (marco.imageId && !permitidas.has(marco.imageId)) {
+        throw new BadRequestException('A imagem do marco nao e deste personagem');
+      }
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.characterMilestone.deleteMany({ where: { characterId } }),
+      ...marcos.map((marco, posicao) =>
+        this.prisma.characterMilestone.create({
+          data: {
+            characterId,
+            position: posicao,
+            era: marco.era,
+            headline: marco.headline ?? null,
+            body: marco.body,
+            spoiler: marco.spoiler,
+            imageId: marco.imageId ?? null,
+            sourceLabel: marco.sourceLabel ?? null,
+          },
+        }),
+      ),
+    ]);
+  }
+
+  /** A ordem e a nota das sagas em "onde aparece" — a lista inteira, como os marcos. */
+  async setSeriesNotes(characterId: string, sagas: SetSeriesNotesInput['sagas']): Promise<void> {
+    const existe = await this.prisma.character.findUnique({
+      where: { id: characterId },
+      select: { id: true },
+    });
+    if (!existe) throw new NotFoundException('Personagem nao encontrado');
+
+    await this.prisma.$transaction([
+      this.prisma.characterSeriesNote.deleteMany({ where: { characterId } }),
+      ...sagas.map((saga, posicao) =>
+        this.prisma.characterSeriesNote.create({
+          data: {
+            characterId,
+            seriesId: saga.seriesId,
+            position: posicao,
+            note: saga.note ?? null,
+          },
+        }),
+      ),
+    ]);
   }
 
   /**

@@ -279,6 +279,18 @@ export type ReorderCollectionInput = z.infer<typeof reorderCollectionSchema>;
  * entra aqui de proposito — ele e unico, e a chave por onde o auto-link casa o
  * texto; renomear e uma operacao com consequencia, nao um campo de formulario.
  */
+/**
+ * Lista de textos curtos vinda de um campo separado por virgula.
+ *
+ * Vazios e repetidos saem aqui, e nao na tela: quatro campos usam a mesma
+ * regra, e limpar em cada um seria quatro lugares para esquecer.
+ */
+const listaDeTextos = z
+  .array(z.string().trim().min(1).max(80))
+  .max(20)
+  .transform((lista) => [...new Set(lista)])
+  .optional();
+
 export const updateCharacterSchema = z.object({
   summary: z.string().trim().max(300).nullish(),
   description: z.string().trim().max(20000).nullish(),
@@ -296,6 +308,56 @@ export const updateCharacterSchema = z.object({
   accentColor: hexColorSchema.nullish(),
   accentColor2: hexColorSchema.nullish(),
   displayFont: z.enum(['bangers', 'cinzel', 'orbitron', 'metal', 'maquina']).nullish(),
+
+  /** A ficha rapida. Tudo opcional, tudo limpavel com null. */
+  tags: listaDeTextos,
+  firstAppearance: z.string().trim().max(160).nullish(),
+  firstAppearanceYear: z.coerce.number().int().min(1900).max(2200).nullish(),
+  affiliations: listaDeTextos,
+  powers: listaDeTextos,
+  powerLevel: z.string().trim().max(80).nullish(),
+  /** Escala fechada: o mesmo 1..5 que o CHECK do banco exige. */
+  powerLevelRank: z.coerce.number().int().min(1).max(5).nullish(),
+  status: z.string().trim().max(120).nullish(),
+  statusNote: z.string().trim().max(120).nullish(),
+  primer: z.string().trim().max(2000).nullish(),
+  whyMatters: z.string().trim().max(2000).nullish(),
+  startHereSeriesId: z.string().uuid().nullish(),
+  startHereNote: z.string().trim().max(160).nullish(),
+});
+
+/**
+ * Os marcos, a lista inteira de uma vez.
+ *
+ * Mesma razao do reordenamento das imagens: a posicao e o indice no array, e
+ * mandar a lista completa dispensa "insira aqui", "mova aquele" e o estado
+ * intermediario em que dois marcos disputam a mesma posicao.
+ */
+export const setMilestonesSchema = z.object({
+  marcos: z
+    .array(
+      z.object({
+        era: z.string().trim().min(1, 'Informe a era').max(80),
+        headline: z.string().trim().max(200).nullish(),
+        body: z.string().trim().min(1, 'Informe o texto').max(8000),
+        spoiler: z.boolean().default(false),
+        imageId: z.string().uuid().nullish(),
+        sourceLabel: z.string().trim().max(160).nullish(),
+      }),
+    )
+    .max(30),
+});
+
+/** A ordem e a nota de cada saga em "onde aparece". */
+export const setSeriesNotesSchema = z.object({
+  sagas: z
+    .array(
+      z.object({
+        seriesId: z.string().uuid(),
+        note: z.string().trim().max(160).nullish(),
+      }),
+    )
+    .max(50),
 });
 
 /**
@@ -311,4 +373,6 @@ export const reorderCharacterImagesSchema = z.object({
 });
 
 export type UpdateCharacterInput = z.infer<typeof updateCharacterSchema>;
+export type SetMilestonesInput = z.infer<typeof setMilestonesSchema>;
+export type SetSeriesNotesInput = z.infer<typeof setSeriesNotesSchema>;
 export type ReorderCharacterImagesInput = z.infer<typeof reorderCharacterImagesSchema>;

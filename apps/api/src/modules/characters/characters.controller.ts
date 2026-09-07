@@ -17,8 +17,12 @@ import { ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@comicz/database';
 import {
   reorderCharacterImagesSchema,
+  setMilestonesSchema,
+  setSeriesNotesSchema,
   updateCharacterSchema,
   type ReorderCharacterImagesInput,
+  type SetMilestonesInput,
+  type SetSeriesNotesInput,
   type UpdateCharacterInput,
 } from '@comicz/shared';
 import {
@@ -60,6 +64,28 @@ export class CharactersController {
     @Body(new ZodValidationPipe(updateCharacterSchema)) body: UpdateCharacterInput,
   ) {
     return this.characters.update(id, body);
+  }
+
+  @Roles(Role.ADMIN)
+  @Put(':id/marcos')
+  @HttpCode(204)
+  @ApiOperation({ summary: '[admin] Grava a linha do tempo inteira, na ordem enviada' })
+  setMilestones(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(setMilestonesSchema)) body: SetMilestonesInput,
+  ) {
+    return this.characters.setMilestones(id, body.marcos);
+  }
+
+  @Roles(Role.ADMIN)
+  @Put(':id/sagas')
+  @HttpCode(204)
+  @ApiOperation({ summary: '[admin] Ordem e nota de cada saga em "onde aparece"' })
+  setSeriesNotes(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(setSeriesNotesSchema)) body: SetSeriesNotesInput,
+  ) {
+    return this.characters.setSeriesNotes(id, body.sagas);
   }
 
   @Roles(Role.ADMIN)
