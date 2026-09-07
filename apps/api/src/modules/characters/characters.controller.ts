@@ -17,10 +17,12 @@ import { ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@comicz/database';
 import {
   reorderCharacterImagesSchema,
+  setCharacterComicsSchema,
   setMilestonesSchema,
   setSeriesNotesSchema,
   updateCharacterSchema,
   type ReorderCharacterImagesInput,
+  type SetCharacterComicsInput,
   type SetMilestonesInput,
   type SetSeriesNotesInput,
   type UpdateCharacterInput,
@@ -75,6 +77,17 @@ export class CharactersController {
     @Body(new ZodValidationPipe(setMilestonesSchema)) body: SetMilestonesInput,
   ) {
     return this.characters.setMilestones(id, body.marcos);
+  }
+
+  @Roles(Role.ADMIN)
+  @Put(':id/edicoes')
+  @HttpCode(204)
+  @ApiOperation({ summary: '[admin] Em quais edicoes ele esta no elenco — a lista inteira' })
+  setComics(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(setCharacterComicsSchema)) body: SetCharacterComicsInput,
+  ) {
+    return this.characters.setComics(id, body.comicIds);
   }
 
   @Roles(Role.ADMIN)

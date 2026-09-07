@@ -4,6 +4,7 @@ import type {
   CharacterDetail,
   CharacterSummary,
   ComicSummary,
+  SetCharacterComicsInput,
   SetMilestonesInput,
   SetSeriesNotesInput,
   UpdateCharacterInput,
@@ -349,6 +350,64 @@ export class CharactersService {
           },
         }),
       ),
+    ]);
+  }
+
+  /**
+   * Em quais edicoes este personagem esta no elenco.
+   *
+   * Manda o conjunto inteiro, como os marcos e a ordem das imagens: o vinculo
+   * nasceu do metadado dos arquivos e erra em bloco — uma saga toda herda o
+   * elenco da primeira edicao —, entao corrigir e reescrever a lista, e nao
+   * remendar uma edicao de cada vez.
+   *
+   * A nota da saga que saiu inteira vai junto, e o "comece por aqui" tambem se
+   * apontava para ela. As duas sao curadoria sobre algo que deixou de existir
+   * na pagina: guardadas, a nota velha voltaria sozinha no dia em que a saga
+   * fosse religada, e o comeco continuaria mandando o leitor para uma saga que
+   * a pagina nao lista mais — que e justamente o que ele nao pode fazer.
+   */
+  async setComics(characterId: string, comicIds: string[]): Promise<void> {
+    const existe = await this.prisma.character.findUnique({
+      where: { id: characterId },
+      select: { id: true, startHereSeriesId: true },
+    });
+    if (!existe) throw new NotFoundException('Personagem nao encontrado');
+
+    const ids = [...new Set(comicIds)];
+    const edicoes = await this.prisma.comic.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, seriesId: true },
+    });
+    if (edicoes.length !== ids.length) {
+      throw new BadRequestException('Alguma edicao enviada nao existe');
+    }
+
+    const sagas = [
+      ...new Set(edicoes.flatMap((edicao) => (edicao.seriesId ? [edicao.seriesId] : []))),
+    ];
+
+    const perdeuOComeco =
+      existe.startHereSeriesId !== null && !sagas.includes(existe.startHereSeriesId);
+
+    await this.prisma.$transaction([
+      this.prisma.comicCharacter.deleteMany({ where: { characterId } }),
+      this.prisma.comicCharacter.createMany({
+        data: ids.map((comicId) => ({ comicId, characterId })),
+      }),
+      sagas.length
+        ? this.prisma.characterSeriesNote.deleteMany({
+            where: { characterId, seriesId: { notIn: sagas } },
+          })
+        : this.prisma.characterSeriesNote.deleteMany({ where: { characterId } }),
+      ...(perdeuOComeco
+        ? [
+            this.prisma.character.update({
+              where: { id: characterId },
+              data: { startHereSeriesId: null, startHereNote: null },
+            }),
+          ]
+        : []),
     ]);
   }
 
