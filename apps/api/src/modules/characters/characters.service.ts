@@ -1,5 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import type { CharacterDetail, CharacterSummary, UpdateCharacterInput } from '@comicz/shared';
+import type {
+  CharacterAppearanceGroup,
+  CharacterDetail,
+  CharacterSummary,
+  ComicSummary,
+  UpdateCharacterInput,
+} from '@comicz/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { comicSummaryInclude, toComicSummary } from '../comics/comic-mapper';
 import { ComicsService } from '../comics/comics.service';
@@ -39,6 +45,11 @@ export class CharactersService {
       where: { slug },
       include: {
         images: { orderBy: { position: 'asc' } },
+        milestones: { orderBy: { position: 'asc' }, include: { image: true } },
+        seriesNotes: { include: { series: { select: { id: true, name: true, slug: true } } } },
+        startHereSeries: {
+          select: { id: true, name: true, slug: true, _count: { select: { comics: true } } },
+        },
         _count: { select: { comics: true } },
       },
     });
@@ -69,9 +80,57 @@ export class CharactersService {
       },
     });
 
+    const resumos = comics.map((comic) => toComicSummary(comic, contexts.get(comic.id) ?? {}));
+    const grupos = this.agrupaPorSaga(resumos, character.seriesNotes);
+    const related = await this.quemAparecejunto(character.id, comics);
+
+    /*
+     * A editora da migalha e a que MAIS publica as edicoes dele, e nao a da
+     * primeira: um personagem da DC com um crossover da Marvel no acervo nao
+     * pode virar "Personagens · Marvel" por causa de uma edicao.
+     */
+    const editoras = new Map<string, number>();
+    for (const comic of comics) {
+      const nome = comic.publisher?.name;
+      if (nome) editoras.set(nome, (editoras.get(nome) ?? 0) + 1);
+    }
+    const publisher = [...editoras.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+
     return {
       ...this.toSummary({ ...character, images: character.images.slice(0, 1) }),
       description: character.description,
+      tags: character.tags,
+      firstAppearance: character.firstAppearance,
+      firstAppearanceYear: character.firstAppearanceYear,
+      affiliations: character.affiliations,
+      powers: character.powers,
+      powerLevel: character.powerLevel,
+      status: character.status,
+      statusNote: character.statusNote,
+      primer: character.primer,
+      whyMatters: character.whyMatters,
+      publisher,
+      startHere: character.startHereSeries
+        ? {
+            seriesId: character.startHereSeries.id,
+            name: character.startHereSeries.name,
+            slug: character.startHereSeries.slug,
+            issueCount: character.startHereSeries._count.comics,
+            note: character.startHereNote,
+          }
+        : null,
+      milestones: character.milestones.map((marco) => ({
+        id: marco.id,
+        position: marco.position,
+        era: marco.era,
+        headline: marco.headline,
+        body: marco.body,
+        spoiler: marco.spoiler,
+        imageUrl: marco.image ? characterImageUrl(marco.image) : null,
+        sourceLabel: marco.sourceLabel,
+      })),
+      appearances: grupos,
+      related,
       images: character.images.map((image) => ({
         id: image.id,
         url: characterImageUrl(image),
@@ -79,7 +138,7 @@ export class CharactersService {
         position: image.position,
         emblem: image.emblem,
       })),
-      comics: comics.map((comic) => toComicSummary(comic, contexts.get(comic.id) ?? {})),
+      comics: resumos,
       guides: noElenco
         .filter((link) => link.guide.published)
         .map((link) => ({
@@ -90,6 +149,97 @@ export class CharactersService {
           role: link.role,
         })),
     };
+  }
+
+  /**
+   * "Onde aparece", agrupado por saga.
+   *
+   * A ordem vem da curadoria quando existe; o que nao foi ordenado vai depois,
+   * por nome. As edicoes sem saga viram um grupo no fim — elas sao titulos por
+   * si mesmas, e mistura-las no meio quebraria a numeracao da ordem de leitura.
+   */
+  private agrupaPorSaga(
+    comics: ComicSummary[],
+    notas: { seriesId: string; position: number; note: string | null }[],
+  ): CharacterAppearanceGroup[] {
+    const porSaga = new Map<string, { name: string; slug: string; comics: ComicSummary[] }>();
+    const soltas: ComicSummary[] = [];
+
+    for (const comic of comics) {
+      if (!comic.series) {
+        soltas.push(comic);
+        continue;
+      }
+      const grupo = porSaga.get(comic.series.id);
+      if (grupo) grupo.comics.push(comic);
+      else
+        porSaga.set(comic.series.id, {
+          name: comic.series.name,
+          slug: comic.series.slug,
+          comics: [comic],
+        });
+    }
+
+    const posicaoDe = new Map(notas.map((nota) => [nota.seriesId, nota.position]));
+    const notaDe = new Map(notas.map((nota) => [nota.seriesId, nota.note]));
+
+    const grupos = [...porSaga.entries()]
+      .map(([seriesId, grupo]) => ({
+        seriesId,
+        name: grupo.name,
+        slug: grupo.slug,
+        note: notaDe.get(seriesId) ?? null,
+        comics: grupo.comics,
+        posicao: posicaoDe.get(seriesId) ?? Number.MAX_SAFE_INTEGER,
+      }))
+      .sort((a, b) => a.posicao - b.posicao || a.name.localeCompare(b.name, 'pt-BR'))
+      .map(({ posicao: _posicao, ...grupo }) => grupo);
+
+    if (soltas.length) {
+      grupos.push({
+        seriesId: null as never,
+        name: 'Edições avulsas',
+        slug: null as never,
+        note: null,
+        comics: soltas,
+      });
+    }
+    return grupos;
+  }
+
+  /**
+   * Quem mais aparece nas mesmas edicoes, do mais frequente para o menos.
+   *
+   * Derivado, e nao curado: vale para os 189 sem ninguem preencher nada. A
+   * troca e clara — nao lista quem nao esta no acervo, ainda que a historia
+   * peca (o Alexander Luthor da Crise Infinita, por exemplo).
+   */
+  private async quemAparecejunto(
+    characterId: string,
+    comics: { id: string }[],
+  ): Promise<CharacterSummary[]> {
+    if (comics.length === 0) return [];
+
+    const juntos = await this.prisma.comicCharacter.groupBy({
+      by: ['characterId'],
+      where: {
+        comicId: { in: comics.map((comic) => comic.id) },
+        characterId: { not: characterId },
+      },
+      _count: { comicId: true },
+      orderBy: { _count: { comicId: 'desc' } },
+      take: 8,
+    });
+
+    const rows = await this.prisma.character.findMany({
+      where: { id: { in: juntos.map((linha) => linha.characterId) } },
+      include: retratoInclude,
+    });
+    const porId = new Map(rows.map((row) => [row.id, row]));
+    return juntos
+      .map((linha) => porId.get(linha.characterId))
+      .filter((row): row is (typeof rows)[number] => Boolean(row))
+      .map((row) => this.toSummary(row));
   }
 
   async update(id: string, input: UpdateCharacterInput) {

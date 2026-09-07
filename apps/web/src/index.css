@@ -226,6 +226,11 @@
   background-image: linear-gradient(to right, var(--accent), var(--accent-2));
 }
 
+/* Borda discreta na cor do personagem, para caixas de destaque. */
+@utility personagem-borda-suave {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--color-ink-800));
+}
+
 /* Rotulo de secao na cor do personagem, forte o bastante para se ler. */
 @utility personagem-rotulo {
   color: color-mix(in srgb, var(--accent) 55%, var(--color-ink-100));

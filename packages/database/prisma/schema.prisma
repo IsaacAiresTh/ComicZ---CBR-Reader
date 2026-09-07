@@ -105,6 +105,9 @@ model Series {
   collectionItems CollectionItem[]
 
   @@index([publisherId])
+  startHereFor   Character[]
+  characterNotes CharacterSeriesNote[]
+
   @@map("series")
 }
 
@@ -153,10 +156,76 @@ model Character {
   /// Bangers, referenciada no tema e nunca baixada.
   displayFont String? @map("display_font")
 
-  images CharacterImage[]
-  comics ComicCharacter[]
+  /// A ficha rapida. Tudo opcional: sao 189 personagens vindos do metadado dos
+  /// arquivos, e a pagina precisa ficar inteira com todos os campos vazios.
+  tags                String[] @default([])
+  firstAppearance     String?  @map("first_appearance")
+  firstAppearanceYear Int?     @map("first_appearance_year")
+  affiliations        String[] @default([])
+  powers              String[] @default([])
+  powerLevel          String?  @map("power_level")
+  status              String?
+  /// Ressalva do status ("pos-Death Metal"), nao o estado em si.
+  statusNote          String?  @map("status_note")
+
+  /// O resumo para quem nunca leu, e o fecho da pagina.
+  primer     String?
+  whyMatters String? @map("why_matters")
+
+  /// "Se voce so vai ler uma coisa": a saga, e o motivo dela.
+  startHereSeriesId String? @map("start_here_series_id") @db.Uuid
+  startHereNote     String? @map("start_here_note")
+  startHereSeries   Series? @relation(fields: [startHereSeriesId], references: [id], onDelete: SetNull)
+
+  images      CharacterImage[]
+  milestones  CharacterMilestone[]
+  seriesNotes CharacterSeriesNote[]
+  comics      ComicCharacter[]
 
   @@map("characters")
+}
+
+/// Um marco da linha do tempo.
+///
+/// Tabela, e nao paragrafos num TEXT, porque cada marco carrega o que texto
+/// corrido nao guarda: a imagem ancorada nele, a legenda da edicao de onde ela
+/// saiu e a marca de spoiler que borra o bloco ate alguem pedir para ver.
+model CharacterMilestone {
+  id          String  @id @default(uuid()) @db.Uuid
+  characterId String  @map("character_id") @db.Uuid
+  position    Int
+  /// Titulo curto da era — e o que vai no indice fixo ("O exilio").
+  era         String
+  /// A frase de efeito, acima do corpo.
+  headline    String?
+  body        String
+  spoiler     Boolean @default(false)
+  imageId     String? @map("image_id") @db.Uuid
+  /// "Crise Infinita #1": de onde veio a arte, sob ela.
+  sourceLabel String? @map("source_label")
+
+  character Character       @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  image     CharacterImage? @relation(fields: [imageId], references: [id], onDelete: SetNull)
+
+  @@index([characterId, position])
+  @@map("character_milestones")
+}
+
+/// A ordem e o porque de cada saga em "onde aparece".
+///
+/// O agrupamento sai sozinho do vinculo que ja existe; a ordem de leitura e a
+/// nota de contexto sao curadoria, e e so isso que mora aqui.
+model CharacterSeriesNote {
+  characterId String  @map("character_id") @db.Uuid
+  seriesId    String  @map("series_id") @db.Uuid
+  position    Int
+  note        String?
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  series    Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@id([characterId, seriesId])
+  @@map("character_series_notes")
 }
 
 /// Imagem da pagina do personagem.
@@ -179,7 +248,8 @@ model CharacterImage {
   /// entao trocar o arquivo precisa mudar a URL.
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  character  Character            @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  milestones CharacterMilestone[]
 
   @@index([characterId, position])
   @@map("character_images")

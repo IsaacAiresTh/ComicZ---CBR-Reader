@@ -387,12 +387,72 @@ export interface CharacterSummary {
   displayFont: CharacterFont | null;
 }
 
+/** Um marco da linha do tempo. */
+export interface CharacterMilestoneView {
+  id: string;
+  position: number;
+  /** Titulo curto da era — e o que vai no indice fixo. */
+  era: string;
+  headline: string | null;
+  body: string;
+  /** Borra o bloco ate alguem pedir para ver. */
+  spoiler: boolean;
+  imageUrl: string | null;
+  /** De onde veio a arte: "Crise Infinita #1". */
+  sourceLabel: string | null;
+}
+
+/** Um grupo de "onde aparece": uma saga, ou as edicoes soltas. */
+export interface CharacterAppearanceGroup {
+  /** Nulo no grupo das edicoes que nao pertencem a saga nenhuma. */
+  seriesId: string | null;
+  name: string;
+  slug: string | null;
+  /** Por que ler esta: "leitura de contexto", "fecha o arco". */
+  note: string | null;
+  comics: ComicSummary[];
+}
+
 export interface CharacterDetail extends CharacterSummary {
   description: string | null;
   images: CharacterImageView[];
   comics: ComicSummary[];
   /** Guias em que ele esta no elenco — o caminho de volta para o evento. */
   guides: CharacterGuideAppearance[];
+
+  /** A ficha rapida. Tudo pode vir vazio. */
+  tags: string[];
+  firstAppearance: string | null;
+  firstAppearanceYear: number | null;
+  affiliations: string[];
+  powers: string[];
+  powerLevel: string | null;
+  status: string | null;
+  statusNote: string | null;
+
+  primer: string | null;
+  whyMatters: string | null;
+
+  /** "Se voce so vai ler uma coisa." */
+  startHere: {
+    seriesId: string;
+    name: string;
+    slug: string;
+    issueCount: number;
+    note: string | null;
+  } | null;
+
+  milestones: CharacterMilestoneView[];
+  /** "Onde aparece", ja agrupado e na ordem de leitura. */
+  appearances: CharacterAppearanceGroup[];
+  /**
+   * Quem mais aparece nas mesmas edicoes. E derivado, e nao curado: vale para
+   * os 189 sem ninguem preencher nada, e so lista quem existe no acervo e tem
+   * pagina para onde ir.
+   */
+  related: CharacterSummary[];
+  /** Editora que mais publica as edicoes dele — a migalha do topo. */
+  publisher: string | null;
 }
 
 export interface CharacterGuideAppearance {
