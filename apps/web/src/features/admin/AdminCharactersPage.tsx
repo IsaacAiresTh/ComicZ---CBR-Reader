@@ -185,7 +185,9 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
           Imagens
         </h3>
         <p className="mb-3 text-xs text-ink-500">
-          A primeira é o retrato do topo; as seguintes aparecem entre os parágrafos, na ordem.
+          A ordem tem papel: a 1ª é o retrato (o círculo da lista, onde o rosto precisa caber num
+          quadrado), a 2ª é a arte grande do topo e as seguintes entram no meio do texto, alternando
+          os lados. Recorte com fundo transparente funciona melhor que foto em moldura.
         </p>
 
         <div className="flex flex-wrap gap-3">
@@ -197,7 +199,7 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
                 className="h-32 w-32 rounded-lg border border-ink-800 object-cover"
               />
               <figcaption className="mt-1 flex items-center justify-between text-[11px] text-ink-500">
-                <span>{i === 0 ? 'retrato' : `no texto ${i}`}</span>
+                <span>{i === 0 ? 'retrato' : i === 1 ? 'topo' : `no texto ${i - 1}`}</span>
                 <button
                   type="button"
                   onClick={() => remover.mutate(imagem.id)}

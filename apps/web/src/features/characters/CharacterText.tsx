@@ -71,7 +71,12 @@ export function partir(
 
   const porNome = new Map<string, string>();
   for (const personagem of personagens) {
-    if (personagem.slug === exceto) continue;
+    /*
+     * O excluido ENTRA no casador e so nao vira link la embaixo. Tirando-o
+     * daqui, um nome menor escondido dentro do dele passaria a casar: sem
+     * "Superboy-Prime" na lista, o texto da propria pagina dele linkaria
+     * "Superboy" — outro personagem — dentro do proprio nome.
+     */
     for (const nome of [personagem.name, ...personagem.aliases]) {
       const limpo = nome.trim();
       // Nome de uma letra casaria com meio texto; nome repetido entre dois
@@ -104,7 +109,8 @@ export function partir(
     if (!nome) continue;
     const inicio = achado.index ?? 0;
     const slug = porNome.get(nome);
-    if (!slug || jaLinkados.has(slug)) continue;
+    // Casou e foi consumido pela varredura; so nao vira link.
+    if (!slug || slug === exceto || jaLinkados.has(slug)) continue;
 
     jaLinkados.add(slug);
     if (inicio > cursor) partes.push(texto.slice(cursor, inicio));
