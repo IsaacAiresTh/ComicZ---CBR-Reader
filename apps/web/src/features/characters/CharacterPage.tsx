@@ -28,6 +28,14 @@ export function CharacterPage() {
   // O emblema sai da fila do topo e do texto: ele tem lugar proprio.
   const semEmblema = personagem.images.filter((imagem) => !imagem.emblem);
   const arteDoTopo = semEmblema[1] ?? semEmblema[0] ?? null;
+  /*
+   * O retrato tambem aparece aqui, e nao so no circulo da grade. Sem isto,
+   * quem sobe DUAS imagens ve uma so na pagina — a de position 0 nao teria
+   * lugar nenhum, e some sem explicacao. So entra quando ha uma arte de topo
+   * diferente dele: com uma imagem unica, o circulo repetiria a mesma figura
+   * ao lado dela mesma.
+   */
+  const retrato = semEmblema.length > 1 ? (semEmblema[0] ?? null) : null;
   const noTexto = semEmblema.slice(2);
 
   return (
@@ -37,7 +45,7 @@ export function CharacterPage() {
       // abaixo conhece o valor, todos leem as variaveis.
       style={variaveisDoPersonagem(personagem)}
     >
-      <Topo personagem={personagem} arte={arteDoTopo} emblema={emblema} />
+      <Topo personagem={personagem} arte={arteDoTopo} retrato={retrato} emblema={emblema} />
 
       {personagem.description ? (
         <Historia personagem={personagem} imagens={noTexto} />
@@ -98,10 +106,12 @@ export function CharacterPage() {
 function Topo({
   personagem,
   arte,
+  retrato,
   emblema,
 }: {
   personagem: CharacterDetail;
   arte: CharacterImageView | null;
+  retrato: CharacterImageView | null;
   emblema: CharacterImageView | null;
 }) {
   return (
@@ -130,6 +140,17 @@ function Topo({
         <Link to="/personagens" className="text-sm text-ink-200/80 hover:text-ink-100">
           Personagens
         </Link>
+
+        {retrato && (
+          <img
+            src={mediaUrl(retrato.url) ?? ''}
+            alt={personagem.name}
+            className="mt-4 h-20 w-20 rounded-full object-cover"
+            // Anel na cor do personagem: o retrato costuma ser recorte sobre
+            // fundo escuro, e sem o anel ele se dissolve no painel.
+            style={{ boxShadow: '0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent)' }}
+          />
+        )}
 
         <h1 className="personagem-nome mt-3 max-w-[15ch] text-5xl leading-[0.95] tracking-wide sm:text-6xl lg:text-7xl">
           {personagem.name}
