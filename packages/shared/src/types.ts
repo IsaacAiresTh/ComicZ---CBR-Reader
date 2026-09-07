@@ -427,6 +427,8 @@ export interface CharacterDetail extends CharacterSummary {
   affiliations: string[];
   powers: string[];
   powerLevel: string | null;
+  /** De 1 a 5, so para a barra. Null nao desenha barra nenhuma. */
+  powerLevelRank: number | null;
   status: string | null;
   statusNote: string | null;
 

@@ -242,47 +242,109 @@ function Topo({
 /**
  * A ficha rapida.
  *
- * Some inteira quando nenhum campo foi preenchido, em vez de virar uma grade de
- * tracinhos. Cada campo tambem some sozinho — meia ficha e informacao, ficha
- * vazia e ruido.
+ * Some inteira quando nada foi preenchido, e cada campo some sozinho: meia
+ * ficha e informacao, ficha vazia e ruido.
+ *
+ * Os divisores so aparecem no lg, onde os cinco campos cabem em UMA linha. Nas
+ * larguras em que a grade quebra, `divide-x` poria risco no meio da segunda
+ * fileira — regra vertical so faz sentido separando colunas que existem.
  */
 function Ficha({ personagem }: { personagem: CharacterDetail }) {
-  const campos: { titulo: string; valor: string[]; nota?: string | null }[] = [
-    {
-      titulo: 'Primeira aparição',
-      valor: personagem.firstAppearance ? [personagem.firstAppearance] : [],
-      nota: personagem.firstAppearanceYear ? String(personagem.firstAppearanceYear) : null,
-    },
-    { titulo: 'Afiliações', valor: personagem.affiliations },
-    { titulo: 'Poderes', valor: personagem.powers },
-    { titulo: 'Nível de poder', valor: personagem.powerLevel ? [personagem.powerLevel] : [] },
-    {
-      titulo: 'Status atual',
-      valor: personagem.status ? [personagem.status] : [],
-      nota: personagem.statusNote,
-    },
-  ].filter((campo) => campo.valor.length > 0);
+  const campos = [
+    personagem.firstAppearance && (
+      <Campo key="estreia" titulo="Primeira aparição">
+        <p className="text-[15px] font-semibold text-ink-100">{personagem.firstAppearance}</p>
+        {personagem.firstAppearanceYear && (
+          <p className="mt-0.5 text-xs text-ink-500">{personagem.firstAppearanceYear}</p>
+        )}
+      </Campo>
+    ),
+
+    personagem.affiliations.length > 0 && (
+      <Campo key="afiliacoes" titulo="Afiliações">
+        {/*
+          A primeira e a atual e vem em destaque; as seguintes sao historico e
+          vem apagadas. E o que separa "Sociedade Secreta" de "ex-Legiao" sem
+          precisar de um campo dizendo qual e qual.
+        */}
+        {personagem.affiliations.map((afiliacao, i) => (
+          <p
+            key={afiliacao}
+            className={i === 0 ? 'text-[15px] font-semibold text-ink-100' : 'text-sm text-ink-400'}
+          >
+            {afiliacao}
+          </p>
+        ))}
+      </Campo>
+    ),
+
+    personagem.powers.length > 0 && (
+      <Campo key="poderes" titulo="Poderes">
+        {/* Chips: sao itens de uma lista sem ordem, e lista vertical daria a
+            eles uma hierarquia que nao existe. */}
+        <ul className="flex flex-wrap gap-1.5">
+          {personagem.powers.map((poder) => (
+            <li
+              key={poder}
+              className="rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-xs text-ink-200"
+            >
+              {poder}
+            </li>
+          ))}
+        </ul>
+      </Campo>
+    ),
+
+    (personagem.powerLevel || personagem.powerLevelRank) && (
+      <Campo key="nivel" titulo="Nível de poder">
+        {personagem.powerLevel && (
+          <p className="text-[15px] font-semibold text-ink-100">{personagem.powerLevel}</p>
+        )}
+        {personagem.powerLevelRank && <BarraDeNivel nivel={personagem.powerLevelRank} />}
+      </Campo>
+    ),
+
+    personagem.status && (
+      <Campo key="status" titulo="Status atual">
+        <p className="text-[15px] font-semibold text-ink-100">{personagem.status}</p>
+        {personagem.statusNote && (
+          <p className="mt-0.5 text-xs text-ink-500">{personagem.statusNote}</p>
+        )}
+      </Campo>
+    ),
+  ].filter(Boolean);
 
   if (campos.length === 0) return null;
 
   return (
-    <section className="grid grid-cols-2 gap-x-6 gap-y-5 rounded-xl border border-ink-800 p-5 sm:grid-cols-3 lg:grid-cols-5">
-      {campos.map((campo) => (
-        <div key={campo.titulo}>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-500">
-            {campo.titulo}
-          </p>
-          <ul className="mt-1.5 space-y-0.5">
-            {campo.valor.map((item) => (
-              <li key={item} className="text-sm text-ink-100">
-                {item}
-              </li>
-            ))}
-          </ul>
-          {campo.nota && <p className="mt-0.5 text-xs text-ink-500">{campo.nota}</p>}
-        </div>
-      ))}
+    <section className="grid grid-cols-2 gap-x-6 gap-y-6 rounded-xl border border-ink-800 p-5 sm:grid-cols-3 lg:grid-cols-5 lg:gap-y-0 lg:divide-x lg:divide-ink-800">
+      {campos}
     </section>
+  );
+}
+
+function Campo({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+  return (
+    <div className="lg:px-5 lg:first:pl-0 lg:last:pr-0">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-500">
+        {titulo}
+      </p>
+      {children}
+    </div>
+  );
+}
+
+/** Cinco segmentos, N acesos. A regua fixa e o que torna o numero comparavel. */
+function BarraDeNivel({ nivel }: { nivel: number }) {
+  return (
+    <div className="mt-2 flex gap-1" role="img" aria-label={`Nível ${nivel} de 5`}>
+      {[1, 2, 3, 4, 5].map((degrau) => (
+        <span
+          key={degrau}
+          className={`h-1.5 flex-1 rounded-sm ${degrau <= nivel ? 'personagem-nivel' : 'bg-ink-800'}`}
+        />
+      ))}
+    </div>
   );
 }
 

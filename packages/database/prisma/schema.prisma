@@ -164,6 +164,9 @@ model Character {
   affiliations        String[] @default([])
   powers              String[] @default([])
   powerLevel          String?  @map("power_level")
+  /// De 1 a 5, so para a barra. Nao sai da contagem de poderes: quatro poderes
+  /// fracos ficariam acima de dois devastadores.
+  powerLevelRank      Int?     @map("power_level_rank")
   status              String?
   /// Ressalva do status ("pos-Death Metal"), nao o estado em si.
   statusNote          String?  @map("status_note")

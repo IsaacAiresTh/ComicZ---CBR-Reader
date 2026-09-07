@@ -105,6 +105,7 @@ export class CharactersService {
       affiliations: character.affiliations,
       powers: character.powers,
       powerLevel: character.powerLevel,
+      powerLevelRank: character.powerLevelRank,
       status: character.status,
       statusNote: character.statusNote,
       primer: character.primer,
