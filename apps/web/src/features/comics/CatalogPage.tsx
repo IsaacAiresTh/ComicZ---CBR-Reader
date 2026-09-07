@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { FilaDoAlfabeto } from '../../components/FilaDoAlfabeto';
 import { Button, EmptyState, Input, Select, Spinner } from '../../components/ui';
 import { CatalogGrid } from './CatalogGrid';
 import { useCatalog, usePublishers } from './queries';
@@ -12,6 +13,7 @@ export function CatalogPage() {
     q: params.get('q') ?? undefined,
     publisherId: params.get('publisherId') ?? undefined,
     sort: (params.get('sort') as 'recent' | 'title' | null) ?? 'recent',
+    letter: params.get('letter') ?? undefined,
     page: Number(params.get('page') ?? 1),
   };
 
@@ -82,6 +84,17 @@ export function CatalogPage() {
           Buscar
         </Button>
       </form>
+
+      {/*
+        A contagem vem da API porque ela depende da busca e da editora ativas, e
+        o catalogo e paginado: contar no cliente exigiria baixar tudo so para
+        saber quais teclas apagar.
+      */}
+      <FilaDoAlfabeto
+        porLetra={catalog.data?.letters ?? {}}
+        escolhida={filters.letter ?? null}
+        onEscolher={(letra) => updateParam('letter', letra ?? '')}
+      />
 
       {catalog.isLoading ? (
         <Spinner label="Carregando catálogo..." />

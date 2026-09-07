@@ -81,6 +81,13 @@ export const catalogQuerySchema = z.object({
   publisherId: z.string().uuid().optional(),
   tag: z.string().trim().max(60).optional(),
   sort: z.enum(['recent', 'title']).default('recent'),
+  /** Inicial do titulo, ou "#" para o que nao comeca por letra. */
+  letter: z
+    .string()
+    .trim()
+    .max(1)
+    .transform((valor) => valor.toUpperCase())
+    .optional(),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(60).default(24),
   /** O painel precisa enxergar tudo; a navegacao publica, nao. */

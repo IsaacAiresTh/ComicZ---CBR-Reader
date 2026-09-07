@@ -27,6 +27,18 @@ export interface Paginated<T> {
   totalPages: number;
 }
 
+/**
+ * O catalogo devolve, alem da pagina, quantos titulos existem por inicial.
+ *
+ * Vem junto porque a contagem depende dos OUTROS filtros — busca e editora — e
+ * porque a lista de titulos ja esta montada na memoria do servidor na hora de
+ * paginar. Calcular no cliente exigiria baixar o catalogo inteiro so para
+ * saber quais teclas apagar.
+ */
+export interface CatalogResult extends Paginated<CatalogEntry> {
+  letters: Record<string, number>;
+}
+
 export interface SeriesSummary {
   id: string;
   name: string;

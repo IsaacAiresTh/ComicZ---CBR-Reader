@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   BulkLibraryResult,
-  CatalogEntry,
+  CatalogResult,
   CharacterDetail,
   CharacterSummary,
   ComicDetail,
@@ -62,7 +62,7 @@ export function useComics(filters: CatalogFilters) {
 export function useCatalog(filters: CatalogEntryFilters) {
   return useQuery({
     queryKey: ['catalog', filters],
-    queryFn: () => api.get<Paginated<CatalogEntry>>(`/comics/catalog${toQueryString(filters)}`),
+    queryFn: () => api.get<CatalogResult>(`/comics/catalog${toQueryString(filters)}`),
   });
 }
 

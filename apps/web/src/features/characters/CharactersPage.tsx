@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { CharacterSummary } from '@comicz/shared';
+import { initialLetter, type CharacterSummary } from '@comicz/shared';
+import { FilaDoAlfabeto } from '../../components/FilaDoAlfabeto';
 import { EmptyState, ErrorNote, Input, Spinner } from '../../components/ui';
 import { mediaUrl } from '../../services/api';
 import { useCharacters } from '../comics/queries';
@@ -8,23 +9,12 @@ import { variaveisDoPersonagem } from './estilo';
 
 type Ordem = 'edicoes' | 'alfabetica';
 
-/** A fila do alfabeto. "#" recolhe quem nao comeca por letra. */
-const ALFABETO = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
-
-/**
- * Sem acento e em minuscula. A busca precisa disso para "perpetua" encontrar
- * Perpétua, e a fila do alfabeto para ela cair no P e nao numa letra propria.
- */
+/** Sem acento e em minuscula: "perpetua" precisa encontrar Perpétua. */
 function normalizar(valor: string): string {
   return valor
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
-}
-
-function inicial(nome: string): string {
-  const primeira = normalizar(nome).charAt(0).toUpperCase();
-  return /[A-Z]/.test(primeira) ? primeira : '#';
 }
 
 export function CharactersPage() {
@@ -37,10 +27,10 @@ export function CharactersPage() {
 
   /** Quantos por letra — e o que decide qual tecla fica apagada. */
   const porLetra = useMemo(() => {
-    const conta = new Map<string, number>();
+    const conta: Record<string, number> = {};
     for (const personagem of todos) {
-      const chave = inicial(personagem.name);
-      conta.set(chave, (conta.get(chave) ?? 0) + 1);
+      const chave = initialLetter(personagem.name);
+      conta[chave] = (conta[chave] ?? 0) + 1;
     }
     return conta;
   }, [todos]);
@@ -48,7 +38,7 @@ export function CharactersPage() {
   const visiveis = useMemo(() => {
     const termo = normalizar(busca.trim());
     const filtrados = todos.filter((personagem) => {
-      if (letra && inicial(personagem.name) !== letra) return false;
+      if (letra && initialLetter(personagem.name) !== letra) return false;
       if (termo && !normalizar(personagem.name).includes(termo)) return false;
       return true;
     });
@@ -163,67 +153,6 @@ function BotaoDeOrdem({
     >
       {children}
     </button>
-  );
-}
-
-/**
- * A fila do alfabeto.
- *
- * Letra sem ninguem fica apagada e nao clicavel, em vez de sumir: a fila e uma
- * regua, e regua com buracos obriga a procurar onde estava o L. Clicar na letra
- * ja escolhida desfaz — sem isso o unico jeito de voltar a lista inteira seria
- * recarregar a pagina.
- */
-function FilaDoAlfabeto({
-  porLetra,
-  escolhida,
-  onEscolher,
-}: {
-  porLetra: Map<string, number>;
-  escolhida: string | null;
-  onEscolher: (letra: string | null) => void;
-}) {
-  return (
-    /*
-     * De A a Z a fila e sempre inteira, com as letras vazias apagadas: regua
-     * com buraco obriga a procurar onde estava o L. O "#" e a excecao — ele so
-     * aparece quando alguem cai nele, senao seria uma tecla morta permanente na
-     * frente de todas as outras.
-     */
-    <div className="-mx-1 flex flex-wrap gap-1 px-1">
-      {ALFABETO.filter((letra) => letra !== '#' || (porLetra.get('#') ?? 0) > 0).map((letra) => {
-        const quantos = porLetra.get(letra) ?? 0;
-        const ativa = escolhida === letra;
-        return (
-          <button
-            key={letra}
-            type="button"
-            disabled={quantos === 0}
-            aria-pressed={ativa}
-            title={quantos === 1 ? '1 personagem' : `${quantos} personagens`}
-            onClick={() => onEscolher(ativa ? null : letra)}
-            className={`h-8 w-8 rounded-md text-xs font-semibold tabular-nums transition-colors ${
-              ativa
-                ? 'bg-brand-500 text-ink-950'
-                : quantos === 0
-                  ? 'cursor-default text-ink-700'
-                  : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100'
-            }`}
-          >
-            {letra}
-          </button>
-        );
-      })}
-      {escolhida && (
-        <button
-          type="button"
-          onClick={() => onEscolher(null)}
-          className="ml-2 h-8 rounded-md px-3 text-xs text-ink-400 hover:text-ink-100"
-        >
-          limpar
-        </button>
-      )}
-    </div>
   );
 }
 

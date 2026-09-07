@@ -252,3 +252,27 @@ export function searchAlternatives(query: string): string[][] {
 
   return alternativas;
 }
+
+/**
+ * A inicial de um nome para a fila do alfabeto.
+ *
+ * Mora aqui, e nao em cada tela, porque servidor e cliente PRECISAM concordar:
+ * a API filtra o catalogo por letra e o navegador filtra os personagens com a
+ * mesma regra. Duas implementacoes iguais hoje divergem no primeiro nome com
+ * acento que alguem esquecer de normalizar.
+ *
+ * Acento cai na letra sem acento — "Órion" fica no O, e nao numa tecla propria
+ * que so ele ocuparia. O que nao comeca por letra vai para "#".
+ */
+export function initialLetter(nome: string): string {
+  const primeira = nome
+    .trim()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .charAt(0)
+    .toUpperCase();
+  return /[A-Z]/.test(primeira) ? primeira : '#';
+}
+
+/** As teclas da fila, na ordem em que aparecem. */
+export const ALPHABET = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'] as const;
