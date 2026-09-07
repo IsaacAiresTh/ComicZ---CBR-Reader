@@ -14,7 +14,7 @@ export function EventCast({ elenco }: { elenco: GuideCharacterView[] }) {
 
   return (
     <section>
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-ink-500">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">
         Quem move a história
       </h2>
 
@@ -32,16 +32,19 @@ export function EventCast({ elenco }: { elenco: GuideCharacterView[] }) {
                     className="h-full w-full object-cover"
                   />
                 ) : (
-                  <span className="grid h-full place-items-center text-xl font-semibold text-ink-600">
+                  <span className="grid h-full place-items-center text-xl font-semibold text-ink-500">
                     {personagem.name.slice(0, 1)}
                   </span>
                 )}
               </div>
-              <p className="mt-2 truncate text-xs font-medium text-ink-200" title={personagem.name}>
+              <p
+                className="mt-2 truncate text-xs font-semibold text-ink-100"
+                title={personagem.name}
+              >
                 {personagem.name}
               </p>
               {personagem.role && (
-                <p className="truncate text-[10px] text-ink-500" title={personagem.role}>
+                <p className="truncate text-[11px] text-ink-400" title={personagem.role}>
                   {personagem.role}
                 </p>
               )}

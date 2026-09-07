@@ -10,6 +10,7 @@
   --color-ink-500: #5b6478;
   --color-ink-400: #8b95a9;
   --color-ink-300: #b8c0d0;
+  --color-ink-200: #d6dbe6;
   --color-ink-100: #eef1f7;
 
   --color-brand-400: #ffd23f;
@@ -30,7 +31,13 @@
   body {
     @apply bg-ink-900 text-ink-100 antialiased;
     font-family:
-      ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      Roboto,
+      'Helvetica Neue',
+      sans-serif;
   }
 
   /* Scrollbar discreta, importante no modo de leitura continua */
@@ -67,34 +74,57 @@
   .evento {
     --accent: var(--color-brand-500);
   }
-  .evento-tinta {
-    background-color: color-mix(in srgb, var(--accent) 10%, transparent);
-  }
-  .evento-trilho {
-    background-color: color-mix(in srgb, var(--accent) 30%, transparent);
-  }
-  .evento-texto {
-    color: var(--accent);
-  }
-  .evento-borda {
-    border-color: color-mix(in srgb, var(--accent) 28%, transparent);
-  }
-  .evento-barra {
-    background-color: var(--accent);
-  }
-  .evento-selo {
-    background-color: color-mix(in srgb, var(--accent) 16%, transparent);
-    color: var(--accent);
-  }
-  /* Vinheta sobre a arte do topo: o texto precisa de contraste sem apagar a capa. */
-  .evento-capa::after {
+}
+
+/*
+ * Os acentos sao @utility, e nao @layer components, porque so utility aceita
+ * variante: `hover:evento-texto` e `hover:evento-borda` nao geram uma linha de
+ * CSS sequer quando a classe mora em components.
+ */
+@utility evento-tinta {
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+@utility evento-trilho {
+  background-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+@utility evento-texto {
+  color: var(--accent);
+}
+@utility evento-borda {
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+@utility evento-barra {
+  background-color: var(--accent);
+}
+@utility evento-selo {
+  background-color: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+/*
+ * Vinheta sobre a arte do topo. A faixa da esquerda e mais fechada que a de
+ * baixo de proposito: e nela que o titulo e a apresentacao se apoiam, e capa
+ * clara com texto por cima nao se resolve so com cor de fonte.
+ */
+@utility evento-capa {
+  &::after {
     content: '';
     position: absolute;
     inset: 0;
     background:
-      linear-gradient(to top, var(--color-ink-950) 4%, transparent 60%),
-      linear-gradient(to right, var(--color-ink-950) 8%, transparent 55%);
+      linear-gradient(to top, var(--color-ink-950) 12%, transparent 70%),
+      linear-gradient(
+        to right,
+        var(--color-ink-950) 26%,
+        color-mix(in srgb, var(--color-ink-950) 45%, transparent) 68%,
+        transparent 100%
+      );
   }
+}
+
+/* Ultimo reforco do texto do topo, para a capa que escapa da vinheta. */
+@utility evento-capa-texto {
+  text-shadow: 0 1px 14px var(--color-ink-950);
 }
 
 @layer utilities {

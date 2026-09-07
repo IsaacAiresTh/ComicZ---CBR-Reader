@@ -17,7 +17,7 @@ export function EventsPage() {
     <div className="space-y-6">
       <header className="max-w-2xl">
         <h1 className="font-display text-3xl tracking-wide text-ink-100">Grandes sagas</h1>
-        <p className="mt-2 text-sm text-ink-400">
+        <p className="mt-2 text-[15px] leading-relaxed text-ink-300">
           Os eventos que atravessam várias revistas, com a trilha cronológica inteira em ordem de
           leitura — prólogos, tie-ins e epílogos no lugar certo.
         </p>
@@ -59,7 +59,7 @@ function EventCard({ evento }: { evento: GuideSummary }) {
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
-          <span className="grid h-full place-items-center text-xs text-ink-600">sem capa</span>
+          <span className="grid h-full place-items-center text-xs text-ink-500">sem capa</span>
         )}
         {/* Faixa da cor da saga no pe da capa: identifica de longe sem pintar o card. */}
         <span className="absolute inset-x-0 bottom-0 h-1 evento-barra" aria-hidden />
@@ -70,7 +70,7 @@ function EventCard({ evento }: { evento: GuideSummary }) {
           <h2 className="text-sm font-semibold leading-snug text-ink-100">{evento.title}</h2>
           {!evento.published && <Badge tone="warning">rascunho</Badge>}
         </div>
-        <p className="text-xs text-ink-500">{evento.itemCount} edições</p>
+        <p className="text-xs text-ink-400">{evento.itemCount} edições</p>
       </div>
     </Link>
   );

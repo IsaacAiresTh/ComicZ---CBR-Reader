@@ -124,14 +124,14 @@ function NodeCard({
             {bloco.label}
           </p>
           {bloco.note && (
-            <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-ink-500">
+            <p className="mt-0.5 line-clamp-2 text-[10px] leading-snug text-ink-400">
               {bloco.note}
             </p>
           )}
         </div>
 
         <div className="mt-1">
-          <div className="mb-1 flex items-baseline justify-between text-[10px] text-ink-500">
+          <div className="mb-1 flex items-baseline justify-between text-[10px] text-ink-400">
             <span className="tabular-nums">{bloco.itemCount} ed.</span>
             {completo && <span className="text-emerald-400">lido</span>}
           </div>

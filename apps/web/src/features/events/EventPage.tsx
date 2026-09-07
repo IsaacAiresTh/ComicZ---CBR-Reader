@@ -40,9 +40,7 @@ export function EventPage() {
   const capa = mediaUrl(guia.coverUrl);
 
   // Com mapa, a lista embaixo e a do bloco escolhido; sem mapa, e o guia todo.
-  const doBloco = temMapa
-    ? guia.items.filter((item) => item.nodeId === selecionado)
-    : guia.items;
+  const doBloco = temMapa ? guia.items.filter((item) => item.nodeId === selecionado) : guia.items;
   const opcionais = doBloco.filter((item) => item.optional).length;
   const visiveis = soEssencial ? doBloco.filter((item) => !item.optional) : doBloco;
   const atos = agruparEmAtos(visiveis);
@@ -69,9 +67,11 @@ export function EventPage() {
           </div>
         )}
 
-        <div className="relative px-4 pb-8 pt-10 sm:px-6 lg:px-8">
+        <div
+          className={`relative px-4 pb-8 pt-10 sm:px-6 lg:px-8 ${capa ? 'evento-capa-texto' : ''}`}
+        >
           <div className="flex items-center gap-2 text-sm">
-            <Link to="/eventos" className="text-ink-400 hover:text-ink-200">
+            <Link to="/eventos" className="text-ink-300 hover:text-ink-100">
               Eventos
             </Link>
             {!guia.published && <Badge tone="warning">rascunho</Badge>}
@@ -81,27 +81,29 @@ export function EventPage() {
             {guia.title}
           </h1>
           {guia.summary && (
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-ink-300">{guia.summary}</p>
+            <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-ink-200">
+              {guia.summary}
+            </p>
           )}
 
-          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-ink-400">
+          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] text-ink-300">
             <span>
-              <strong className="text-ink-200">{guia.itemCount}</strong> edições
+              <strong className="text-ink-100">{guia.itemCount}</strong> edições
             </span>
             {temMapa && (
               <span>
-                <strong className="text-ink-200">{guia.nodes.length}</strong> histórias
+                <strong className="text-ink-100">{guia.nodes.length}</strong> histórias
               </span>
             )}
             {guia.characters.length > 0 && (
               <span>
-                <strong className="text-ink-200">{guia.characters.length}</strong> personagens
+                <strong className="text-ink-100">{guia.characters.length}</strong> personagens
               </span>
             )}
           </div>
 
           <div className="mt-4 max-w-sm">
-            <div className="mb-1.5 flex justify-between text-[11px] text-ink-400">
+            <div className="mb-1.5 flex justify-between text-xs text-ink-300">
               <span>
                 {lidas} de {guia.itemCount} lidas
               </span>
@@ -121,7 +123,7 @@ export function EventPage() {
 
       {texto && (
         <section className="max-w-3xl">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-ink-500">
+          <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">
             O que é
           </h2>
           {/*
@@ -129,7 +131,7 @@ export function EventPage() {
             caracteres, e abrir a pagina num muro de texto e o que faz alguem
             desistir antes de chegar no mapa.
           */}
-          <p className="whitespace-pre-line text-sm leading-relaxed text-ink-400">{previa}</p>
+          <p className="whitespace-pre-line text-[15px] leading-7 text-ink-200">{previa}</p>
           {longo && (
             <button
               type="button"
@@ -145,14 +147,12 @@ export function EventPage() {
       {temMapa && (
         <section>
           <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-500">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">
               O mapa
             </h2>
-            <p className="text-[11px] text-ink-600">
-              Clique numa história para ver as edições dela
-            </p>
+            <p className="text-xs text-ink-400">Clique numa história para ver as edições dela</p>
           </div>
-          <p className="mb-4 max-w-2xl text-xs text-ink-500">
+          <p className="mb-4 max-w-2xl text-[13px] text-ink-300">
             Cada bloco é uma história inteira. Os marcados com{' '}
             <span className="evento-texto">comece aqui</span> não dependem de nada anterior — as
             setas mostram o que nasce de cada um.
@@ -171,16 +171,16 @@ export function EventPage() {
       <section>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-500">
+            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">
               {temMapa ? 'As edições' : 'A trilha'}
             </h2>
             {blocoAtual && (
-              <p className="mt-1 text-sm font-medium text-ink-200">{blocoAtual.label}</p>
+              <p className="mt-1 text-base font-semibold text-ink-100">{blocoAtual.label}</p>
             )}
           </div>
 
           {opcionais > 0 && (
-            <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-400">
+            <label className="flex cursor-pointer items-center gap-2 text-xs text-ink-300">
               <input
                 type="checkbox"
                 checked={soEssencial}
@@ -188,7 +188,7 @@ export function EventPage() {
                 className="h-3.5 w-3.5 rounded border-ink-600 bg-ink-850 accent-[var(--accent)]"
               />
               Só o essencial
-              <span className="text-ink-600">
+              <span className="text-ink-500">
                 ({doBloco.length - opcionais} de {doBloco.length})
               </span>
             </label>
@@ -198,7 +198,7 @@ export function EventPage() {
         {visiveis.length > 0 ? (
           <EventTrail atos={atos} />
         ) : (
-          <p className="rounded-xl border border-dashed border-ink-700 px-6 py-10 text-center text-sm text-ink-500">
+          <p className="rounded-xl border border-dashed border-ink-700 px-6 py-10 text-center text-sm text-ink-400">
             {temMapa ? 'Esta história ainda não tem edições.' : 'Este evento ainda não tem HQs.'}
           </p>
         )}

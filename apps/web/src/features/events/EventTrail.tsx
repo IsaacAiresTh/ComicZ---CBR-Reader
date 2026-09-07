@@ -54,7 +54,7 @@ export function EventTrail({ atos }: { atos: Ato[] }) {
             <h3 className="mb-3 flex items-center gap-3 text-xs font-semibold uppercase tracking-[0.18em] evento-texto">
               {ato.nome}
               <span className="h-px flex-1 evento-trilho" />
-              <span className="font-normal tabular-nums text-ink-600">{ato.itens.length}</span>
+              <span className="font-normal tabular-nums text-ink-500">{ato.itens.length}</span>
             </h3>
           )}
 
@@ -91,7 +91,7 @@ function EventTrailItem({ item }: { item: GuideItemView }) {
       />
 
       <div className="flex items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-ink-900">
-        <span className="w-6 shrink-0 text-right text-xs tabular-nums text-ink-600">
+        <span className="w-6 shrink-0 text-right text-xs tabular-nums text-ink-500">
           {item.position}
         </span>
 
@@ -103,7 +103,7 @@ function EventTrailItem({ item }: { item: GuideItemView }) {
           {cover ? (
             <img src={cover} alt="" loading="lazy" className="h-full w-full object-cover" />
           ) : (
-            <span className="grid h-full place-items-center px-0.5 text-center text-[9px] text-ink-600">
+            <span className="grid h-full place-items-center px-0.5 text-center text-[9px] text-ink-500">
               {fileStatusLabel(item.comic.file?.status)}
             </span>
           )}
@@ -114,7 +114,7 @@ function EventTrailItem({ item }: { item: GuideItemView }) {
             <Link
               to={`/hq/${item.comic.id}`}
               state={fromHere(location)}
-              className="text-sm font-medium text-ink-100 hover:evento-texto"
+              className="text-[15px] font-semibold text-ink-100 hover:evento-texto"
             >
               {comicLabel(item.comic.title, item.comic.issueNumber)}
             </Link>
@@ -125,14 +125,14 @@ function EventTrailItem({ item }: { item: GuideItemView }) {
             tres revistas diferentes vira a mesma linha.
           */}
           {item.comic.series && (
-            <p className="truncate text-[11px] text-ink-600">{item.comic.series.name}</p>
+            <p className="truncate text-xs text-ink-500">{item.comic.series.name}</p>
           )}
           {/*
             Nota em uma linha, e so. A nota inteira fica na pagina da HQ: a
             trilha existe para ser percorrida de cima a baixo, e paragrafo por
             item transforma isso em leitura.
           */}
-          {item.note && <p className="truncate text-xs text-ink-500">{item.note}</p>}
+          {item.note && <p className="truncate text-xs text-ink-400">{item.note}</p>}
         </div>
 
         {readable ? (
@@ -144,7 +144,7 @@ function EventTrailItem({ item }: { item: GuideItemView }) {
             {done ? 'Reler' : emCurso ? 'Continuar' : 'Ler'}
           </Link>
         ) : (
-          <span className="shrink-0 text-[10px] text-ink-600">
+          <span className="shrink-0 text-[10px] text-ink-500">
             {fileStatusLabel(item.comic.file?.status)}
           </span>
         )}
