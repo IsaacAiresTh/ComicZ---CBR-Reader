@@ -348,6 +348,22 @@ export const setMilestonesSchema = z.object({
     .max(30),
 });
 
+/**
+ * Quais edicoes tem este personagem no elenco — a lista inteira.
+ *
+ * O vinculo veio do metadado dos arquivos, que erra: uma saga inteira herda o
+ * elenco da primeira edicao e o personagem passa a "aparecer" onde nunca
+ * esteve. Corrigir isso e trocar o CONJUNTO, e nao mandar "tire esta" e
+ * "ponha aquela": duas edicoes marcadas em telas diferentes nao se sobrepoem,
+ * e o resultado de salvar e exatamente o que estava na tela.
+ *
+ * O acervo tem 527 edicoes; o teto so existe para o corpo do PUT nao crescer
+ * sem limite.
+ */
+export const setCharacterComicsSchema = z.object({
+  comicIds: z.array(z.string().uuid()).max(1000),
+});
+
 /** A ordem e a nota de cada saga em "onde aparece". */
 export const setSeriesNotesSchema = z.object({
   sagas: z
@@ -375,4 +391,5 @@ export const reorderCharacterImagesSchema = z.object({
 export type UpdateCharacterInput = z.infer<typeof updateCharacterSchema>;
 export type SetMilestonesInput = z.infer<typeof setMilestonesSchema>;
 export type SetSeriesNotesInput = z.infer<typeof setSeriesNotesSchema>;
+export type SetCharacterComicsInput = z.infer<typeof setCharacterComicsSchema>;
 export type ReorderCharacterImagesInput = z.infer<typeof reorderCharacterImagesSchema>;

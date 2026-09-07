@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
-import type { CharacterDetail, CharacterFont, CharacterSummary } from '@comicz/shared';
+import type {
+  CharacterDetail,
+  CharacterFont,
+  CharacterSummary,
+  ComicSummary,
+  SeriesListItem,
+} from '@comicz/shared';
 import { Button, ErrorNote, Field, Input, Select, Spinner, Textarea } from '../../components/ui';
 import { CoverError, prepararCapa } from '../../lib/cover';
+import { comicLabel } from '../../lib/format';
 import { ApiError, mediaUrl } from '../../services/api';
-import { useCharacter, useCharacters } from '../comics/queries';
+import { useCharacter, useCharacters, useSeriesList } from '../comics/queries';
 import { FONTES } from '../characters/estilo';
 
 /** Sem acento e em minuscula, para a busca do painel achar "Perpetua". */
@@ -15,8 +22,11 @@ function normalizar(valor: string): string {
 }
 import {
   useAddCharacterImage,
+  useBuscarSaga,
   useRemoveCharacterImage,
   useReorderCharacterImages,
+  useSeriesDetail,
+  useSetCharacterComics,
   useSetMilestones,
   useSetSeriesNotes,
   useUpdateCharacter,
@@ -565,7 +575,7 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
       </section>
 
       <EditorDeMarcos personagem={personagem} />
-      <EditorDeSagas personagem={personagem} />
+      <EditorDeAparicoes personagem={personagem} />
     </div>
   );
 }
@@ -764,25 +774,71 @@ function EditorDeMarcos({ personagem }: { personagem: CharacterDetail }) {
   );
 }
 
+interface SagaEmEdicao {
+  seriesId: string;
+  name: string;
+  note: string;
+  /** As edicoes marcadas. E delas que sai o vinculo — a saga em si nao e gravada. */
+  edicoes: string[];
+}
+
 /**
- * A ordem das sagas em "onde aparece", e o porque de cada uma.
+ * "Onde aparece": quais sagas entram, em que ordem, e o porque de cada uma.
  *
- * As sagas nao sao escolhidas aqui: elas vem do vinculo entre personagem e
- * edicao. O que se edita e so a ordem de leitura e a nota — que e o que nenhum
- * vinculo sabe.
+ * O vinculo entre personagem e edicao nasceu do metadado dos arquivos, e erra
+ * em bloco: uma saga inteira herda o elenco da primeira edicao e o personagem
+ * passa a "aparecer" onde nunca esteve. Por isso a unidade daqui e a SAGA, que
+ * e como o erro chega e como a pagina mostra; quem precisar de precisao abre a
+ * saga e desmarca edicao por edicao.
+ *
+ * Salvar manda o CONJUNTO inteiro de edicoes, e nao "tire esta, ponha aquela":
+ * o que fica gravado e exatamente o que estava na tela.
  */
-function EditorDeSagas({ personagem }: { personagem: CharacterDetail }) {
-  const salvar = useSetSeriesNotes();
-  const [sagas, setSagas] = useState(() =>
-    personagem.appearances
-      .filter((grupo) => grupo.seriesId)
-      .map((grupo) => ({
-        seriesId: grupo.seriesId as string,
-        name: grupo.name,
-        note: grupo.note ?? '',
-      })),
+function EditorDeAparicoes({ personagem }: { personagem: CharacterDetail }) {
+  const salvarEdicoes = useSetCharacterComics();
+  const salvarNotas = useSetSeriesNotes();
+  const buscarSaga = useBuscarSaga();
+  const { data: catalogo } = useSeriesList();
+
+  const [sagas, setSagas] = useState<SagaEmEdicao[]>(() =>
+    personagem.appearances.flatMap((grupo) =>
+      grupo.seriesId
+        ? [
+            {
+              seriesId: grupo.seriesId,
+              name: grupo.name,
+              note: grupo.note ?? '',
+              edicoes: grupo.comics.map((comic) => comic.id),
+            },
+          ]
+        : [],
+    ),
   );
+
+  /*
+   * As edicoes sem saga nao tem linha aqui, mas fazem parte do conjunto que
+   * sobe no Salvar: esquecer delas seria apaga-las sem ninguem pedir. Da para
+   * tirar uma; para ACRESCENTAR uma avulsa, o caminho e a pagina da HQ, onde o
+   * elenco se edita do outro lado do vinculo.
+   */
+  const [avulsas, setAvulsas] = useState<ComicSummary[]>(
+    () => personagem.appearances.find((grupo) => !grupo.seriesId)?.comics ?? [],
+  );
+
+  const [aberta, setAberta] = useState<string | null>(null);
+  const [termo, setTermo] = useState('');
+  const [adicionando, setAdicionando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
+
+  const sugestoes = useMemo(() => {
+    const busca = normalizar(termo.trim());
+    if (!busca) return [];
+    const presentes = new Set(sagas.map((saga) => saga.seriesId));
+    return (catalogo ?? [])
+      .filter((serie) => !presentes.has(serie.id) && normalizar(serie.name).includes(busca))
+      .slice(0, 8);
+  }, [catalogo, sagas, termo]);
 
   function move(indice: number, direcao: -1 | 1) {
     const alvo = indice + direcao;
@@ -796,7 +852,67 @@ function EditorDeSagas({ personagem }: { personagem: CharacterDetail }) {
     setSagas(copia);
   }
 
-  if (sagas.length === 0) return null;
+  function altera(seriesId: string, mudanca: Partial<SagaEmEdicao>) {
+    setSagas((atual) =>
+      atual.map((saga) => (saga.seriesId === seriesId ? { ...saga, ...mudanca } : saga)),
+    );
+  }
+
+  /** Entra com TODAS as edicoes marcadas, e ja aberta: desmarcar fica a um clique. */
+  async function adiciona(serie: SeriesListItem) {
+    setErro(null);
+    setOk(false);
+    setAdicionando(true);
+    try {
+      const detalhe = await buscarSaga(serie.id);
+      setSagas((atual) => [
+        ...atual,
+        {
+          seriesId: serie.id,
+          name: serie.name,
+          note: '',
+          edicoes: detalhe.comics.map((comic) => comic.id),
+        },
+      ]);
+      setAberta(serie.id);
+      setTermo('');
+    } catch {
+      setErro('Não foi possível carregar as edições dessa saga.');
+    } finally {
+      setAdicionando(false);
+    }
+  }
+
+  const total = sagas.reduce((soma, saga) => soma + saga.edicoes.length, 0) + avulsas.length;
+  const salvando = salvarEdicoes.isPending || salvarNotas.isPending;
+
+  async function enviar() {
+    setErro(null);
+    setOk(false);
+    // Saga sem nenhuma edicao marcada nao existe na pagina: nao entra no
+    // conjunto nem leva nota. A linha some da tela quando o servidor concorda.
+    const comEdicoes = sagas.filter((saga) => saga.edicoes.length > 0);
+    try {
+      await salvarEdicoes.mutateAsync({
+        id: personagem.id,
+        comicIds: [
+          ...comEdicoes.flatMap((saga) => saga.edicoes),
+          ...avulsas.map((comic) => comic.id),
+        ],
+      });
+      await salvarNotas.mutateAsync({
+        id: personagem.id,
+        sagas: comEdicoes.map((saga) => ({
+          seriesId: saga.seriesId,
+          note: saga.note.trim() || null,
+        })),
+      });
+      setSagas(comEdicoes);
+      setOk(true);
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : 'Não foi possível salvar as aparições');
+    }
+  }
 
   return (
     <section className="rounded-xl border border-ink-800 p-4">
@@ -804,67 +920,287 @@ function EditorDeSagas({ personagem }: { personagem: CharacterDetail }) {
         Onde aparece
       </h3>
       <p className="mb-4 text-xs text-ink-500">
-        As sagas vêm das edições marcadas com ele. Aqui se define a ordem de leitura e o porquê de
-        cada uma.
+        Cada saga daqui vira uma linha na página do personagem, na ordem em que estiverem. Adicionar
+        marca todas as edições dela — abra a saga para desmarcar aquelas em que ele não está.
       </p>
 
-      <div className="space-y-2">
-        {sagas.map((saga, i) => (
-          <div key={saga.seriesId} className="flex flex-wrap items-center gap-2">
-            <span className="w-6 text-xs tabular-nums text-ink-500">
-              {String(i + 1).padStart(2, '0')}
-            </span>
-            <span className="min-w-40 flex-1 truncate text-sm text-ink-200">{saga.name}</span>
-            <Input
-              value={saga.note}
-              onChange={(e) =>
-                setSagas((atual) =>
-                  atual.map((item, j) => (j === i ? { ...item, note: e.target.value } : item)),
-                )
-              }
-              placeholder="“leitura de contexto”"
-              className="min-w-48 flex-1"
+      {sagas.length === 0 ? (
+        <p className="rounded-lg border border-dashed border-ink-700 px-4 py-6 text-center text-xs text-ink-500">
+          Nenhuma saga marcada. A seção “Onde aparece” não vai sair na página.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {sagas.map((saga, i) => (
+            <LinhaDeSagaEditavel
+              key={saga.seriesId}
+              saga={saga}
+              numero={i + 1}
+              primeira={i === 0}
+              ultima={i === sagas.length - 1}
+              aberta={aberta === saga.seriesId}
+              onAbrir={() => setAberta((atual) => (atual === saga.seriesId ? null : saga.seriesId))}
+              onNota={(note) => altera(saga.seriesId, { note })}
+              onEdicoes={(edicoes) => altera(saga.seriesId, { edicoes })}
+              onMover={(direcao) => move(i, direcao)}
+              onRemover={() => {
+                setSagas((atual) => atual.filter((item) => item.seriesId !== saga.seriesId));
+                if (aberta === saga.seriesId) setAberta(null);
+              }}
             />
-            <button
-              type="button"
-              onClick={() => move(i, -1)}
-              disabled={i === 0}
-              className="h-8 w-8 rounded border border-ink-700 text-ink-300 disabled:border-ink-800 disabled:text-ink-700"
-            >
-              ↑
-            </button>
-            <button
-              type="button"
-              onClick={() => move(i, 1)}
-              disabled={i === sagas.length - 1}
-              className="h-8 w-8 rounded border border-ink-700 text-ink-300 disabled:border-ink-800 disabled:text-ink-700"
-            >
-              ↓
-            </button>
-          </div>
-        ))}
+          ))}
+        </div>
+      )}
+
+      <div className="relative mt-3">
+        <Input
+          value={termo}
+          onChange={(e) => setTermo(e.target.value)}
+          placeholder="Adicionar saga — busque pelo nome"
+          disabled={adicionando}
+        />
+        {sugestoes.length > 0 && (
+          <ul className="mt-1 divide-y divide-ink-800 overflow-hidden rounded-lg border border-ink-700 bg-ink-900">
+            {sugestoes.map((serie) => (
+              <li key={serie.id}>
+                <button
+                  type="button"
+                  onClick={() => void adiciona(serie)}
+                  disabled={adicionando}
+                  className="flex w-full items-baseline justify-between gap-3 px-3 py-2 text-left text-sm text-ink-200 transition-colors hover:bg-ink-850"
+                >
+                  <span className="truncate">{serie.name}</span>
+                  <span className="shrink-0 text-xs tabular-nums text-ink-500">
+                    {serie.comicCount} ed.
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {termo.trim() && sugestoes.length === 0 && (
+          <p className="mt-1 text-xs text-ink-500">Nenhuma saga fora da lista com esse nome.</p>
+        )}
       </div>
 
-      <div className="mt-4 flex items-center gap-3">
-        <Button
-          onClick={async () => {
-            setOk(false);
-            await salvar.mutateAsync({
-              id: personagem.id,
-              sagas: sagas.map((saga) => ({
-                seriesId: saga.seriesId,
-                note: saga.note.trim() || null,
-              })),
-            });
-            setOk(true);
-          }}
-          disabled={salvar.isPending}
-        >
-          {salvar.isPending ? 'Salvando...' : 'Salvar a ordem'}
+      {avulsas.length > 0 && (
+        <div className="mt-4">
+          <p className="mb-2 text-xs text-ink-500">
+            Edições avulsas — sem saga, aparecem uma a uma na página.
+          </p>
+          <ul className="space-y-1">
+            {avulsas.map((comic) => (
+              <li key={comic.id} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-sm text-ink-200">
+                  {comicLabel(comic.title, comic.issueNumber)}
+                </span>
+                <BotaoDeTirar
+                  rotulo={`Tirar ${comic.title}`}
+                  onClick={() =>
+                    setAvulsas((atual) => atual.filter((item) => item.id !== comic.id))
+                  }
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {erro && (
+        <div className="mt-3">
+          <ErrorNote>{erro}</ErrorNote>
+        </div>
+      )}
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <Button onClick={() => void enviar()} disabled={salvando}>
+          {salvando ? 'Salvando...' : 'Salvar as aparições'}
         </Button>
+        <span className="text-xs tabular-nums text-ink-500">
+          {total} {total === 1 ? 'edição' : 'edições'} · {sagas.length}{' '}
+          {sagas.length === 1 ? 'saga' : 'sagas'}
+        </span>
         {ok && <span className="text-xs text-emerald-400">Salvo.</span>}
       </div>
     </section>
+  );
+}
+
+function LinhaDeSagaEditavel({
+  saga,
+  numero,
+  primeira,
+  ultima,
+  aberta,
+  onAbrir,
+  onNota,
+  onEdicoes,
+  onMover,
+  onRemover,
+}: {
+  saga: SagaEmEdicao;
+  numero: number;
+  primeira: boolean;
+  ultima: boolean;
+  aberta: boolean;
+  onAbrir: () => void;
+  onNota: (note: string) => void;
+  onEdicoes: (edicoes: string[]) => void;
+  onMover: (direcao: -1 | 1) => void;
+  onRemover: () => void;
+}) {
+  const vazia = saga.edicoes.length === 0;
+
+  return (
+    <div
+      className={`rounded-lg border ${vazia ? 'border-dashed border-ink-700' : 'border-ink-800'}`}
+    >
+      <div className="flex flex-wrap items-center gap-2 p-2">
+        <span className="w-6 text-xs tabular-nums text-ink-500">
+          {String(numero).padStart(2, '0')}
+        </span>
+        <span className="min-w-40 flex-1 truncate text-sm text-ink-200">{saga.name}</span>
+        <Input
+          value={saga.note}
+          onChange={(e) => onNota(e.target.value)}
+          placeholder="“leitura de contexto”"
+          className="min-w-48 flex-1"
+        />
+        <button
+          type="button"
+          onClick={onAbrir}
+          aria-expanded={aberta}
+          className="h-8 shrink-0 rounded border border-ink-700 px-2 text-xs tabular-nums text-ink-300 transition-colors hover:border-ink-500 hover:text-ink-100"
+        >
+          {vazia ? 'nenhuma edição' : `${saga.edicoes.length} ed.`} {aberta ? '▴' : '▾'}
+        </button>
+        <button
+          type="button"
+          onClick={() => onMover(-1)}
+          disabled={primeira}
+          title="Subir"
+          aria-label="Subir"
+          className="h-8 w-8 rounded border border-ink-700 text-ink-300 disabled:border-ink-800 disabled:text-ink-700"
+        >
+          ↑
+        </button>
+        <button
+          type="button"
+          onClick={() => onMover(1)}
+          disabled={ultima}
+          title="Descer"
+          aria-label="Descer"
+          className="h-8 w-8 rounded border border-ink-700 text-ink-300 disabled:border-ink-800 disabled:text-ink-700"
+        >
+          ↓
+        </button>
+        <BotaoDeTirar rotulo={`Tirar ${saga.name}`} onClick={onRemover} />
+      </div>
+
+      {vazia && (
+        <p className="px-2 pb-2 text-xs text-ink-500">
+          Sem edição marcada esta saga sai da página quando você salvar.
+        </p>
+      )}
+
+      {aberta && (
+        <EdicoesDaSaga seriesId={saga.seriesId} marcadas={saga.edicoes} onAlterar={onEdicoes} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * As edicoes da saga, uma a uma.
+ *
+ * So carrega quando alguem abre: a lista completa de cada uma das 88 sagas do
+ * acervo nao serve para quem entrou aqui so para reordenar ou escrever a nota.
+ */
+function EdicoesDaSaga({
+  seriesId,
+  marcadas,
+  onAlterar,
+}: {
+  seriesId: string;
+  marcadas: string[];
+  onAlterar: (ids: string[]) => void;
+}) {
+  const { data, isLoading, error } = useSeriesDetail(seriesId);
+
+  if (isLoading) {
+    return (
+      <p className="border-t border-ink-800 p-3 text-xs text-ink-500">Carregando edições...</p>
+    );
+  }
+  if (error || !data) {
+    return (
+      <p className="border-t border-ink-800 p-3 text-xs text-rose-400">
+        Não foi possível carregar as edições desta saga.
+      </p>
+    );
+  }
+
+  const escolhidas = new Set(marcadas);
+  const todas = data.comics.map((comic) => comic.id);
+
+  return (
+    <div className="border-t border-ink-800 p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-3 text-xs">
+        <span className="tabular-nums text-ink-500">
+          {escolhidas.size} de {todas.length} marcadas
+        </span>
+        <button
+          type="button"
+          onClick={() => onAlterar(todas)}
+          className="text-ink-300 underline-offset-2 hover:text-ink-100 hover:underline"
+        >
+          marcar todas
+        </button>
+        <button
+          type="button"
+          onClick={() => onAlterar([])}
+          className="text-ink-300 underline-offset-2 hover:text-ink-100 hover:underline"
+        >
+          desmarcar todas
+        </button>
+      </div>
+
+      <ul className="max-h-64 space-y-1 overflow-y-auto pr-1">
+        {data.comics.map((comic) => (
+          <li key={comic.id}>
+            <label className="flex items-center gap-2 text-sm text-ink-300">
+              <input
+                type="checkbox"
+                checked={escolhidas.has(comic.id)}
+                onChange={(e) =>
+                  onAlterar(
+                    e.target.checked
+                      ? [...marcadas, comic.id]
+                      : marcadas.filter((id) => id !== comic.id),
+                  )
+                }
+                className="h-3.5 w-3.5 shrink-0 rounded border-ink-600 bg-ink-850"
+              />
+              <span className="truncate">{comicLabel(comic.title, comic.issueNumber)}</span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** O × de tirar da lista. Só some da tela: o vínculo cai no Salvar. */
+function BotaoDeTirar({ rotulo, onClick }: { rotulo: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={rotulo}
+      aria-label={rotulo}
+      className="h-8 w-8 shrink-0 rounded border border-ink-700 text-ink-400 transition-colors hover:border-rose-500/60 hover:text-rose-400"
+    >
+      ×
+    </button>
   );
 }
 

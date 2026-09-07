@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import type {
   CharacterAppearanceGroup,
   CharacterDetail,
@@ -7,7 +7,8 @@ import type {
   CharacterMilestoneView,
 } from '@comicz/shared';
 import { ErrorNote, Spinner } from '../../components/ui';
-import { ComicCard } from '../comics/ComicCard';
+import { comicLabel } from '../../lib/format';
+import { fromHere } from '../../lib/navigation';
 import { mediaUrl } from '../../services/api';
 import { useCharacter } from '../comics/queries';
 import { CharacterText } from './CharacterText';
@@ -506,15 +507,31 @@ function Marco({
   );
 }
 
-/** "Onde aparece": por saga, numerado na ordem em que se le. */
+/**
+ * "Onde aparece": uma linha por saga, na ordem em que fazem sentido ler.
+ *
+ * A lista mostra a SAGA, e nao as edicoes dela. Quem aparece em quarenta
+ * edicoes enchia a secao de capas repetidas e parava de responder a unica
+ * pergunta que ela existe para responder — por onde eu entro neste
+ * personagem. As edicoes ficam onde ja ficam no resto do site: na pagina da
+ * saga, em ordem. As avulsas nao tem saga para abrir, entao cada uma vira sua
+ * propria linha, do mesmo jeito que o catalogo trata uma HQ sem serie.
+ */
 function OndeAparece({ personagem }: { personagem: CharacterDetail }) {
+  const location = useLocation();
+  // O grupo sem `slug` e o das avulsas — o unico que nao tem para onde levar.
+  const sagas = personagem.appearances.flatMap((grupo) =>
+    grupo.slug ? [{ ...grupo, slug: grupo.slug }] : [],
+  );
+  const avulsas = personagem.appearances.find((grupo) => !grupo.slug)?.comics ?? [];
+
   return (
     <section id="onde-aparece" className="scroll-mt-24">
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
         <Rotulo>Onde aparece</Rotulo>
         <p className="text-xs text-ink-500">
-          {personagem.comicCount} {personagem.comicCount === 1 ? 'edição' : 'edições'} ·{' '}
-          {personagem.appearances.length} {personagem.appearances.length === 1 ? 'saga' : 'sagas'}
+          {personagem.comicCount} {personagem.comicCount === 1 ? 'edição' : 'edições'}
+          {sagas.length > 0 && ` · ${sagas.length} ${sagas.length === 1 ? 'saga' : 'sagas'}`}
         </p>
       </div>
 
@@ -523,50 +540,110 @@ function OndeAparece({ personagem }: { personagem: CharacterDetail }) {
           Nenhuma edição do acervo está marcada com este personagem ainda.
         </p>
       ) : (
-        <div className="space-y-8">
-          <p className="text-xs text-ink-500">
-            As sagas estão na ordem em que fazem mais sentido ler.
-          </p>
-          {personagem.appearances.map((grupo, i) => (
-            <GrupoDeSaga key={grupo.seriesId ?? 'avulsas'} grupo={grupo} numero={i + 1} />
-          ))}
+        <div className="space-y-6">
+          {sagas.length > 0 && (
+            <div>
+              <p className="mb-3 text-xs text-ink-500">
+                Na ordem em que fazem mais sentido ler. Abra uma saga para ver as edições.
+              </p>
+              <ul className="personagem-borda-suave divide-y divide-ink-800 overflow-hidden rounded-xl border">
+                {sagas.map((grupo, i) => (
+                  <LinhaDaSaga key={grupo.seriesId} grupo={grupo} numero={i + 1} />
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {avulsas.length > 0 && (
+            <div>
+              <p className="mb-3 text-xs text-ink-500">
+                Edições avulsas — não fazem parte de nenhuma saga do acervo.
+              </p>
+              <ul className="personagem-borda-suave divide-y divide-ink-800 overflow-hidden rounded-xl border">
+                {avulsas.map((comic) => (
+                  <LinhaDeAparicao
+                    key={comic.id}
+                    to={`/hq/${comic.id}`}
+                    state={fromHere(location)}
+                    capa={comic.coverUrl}
+                    titulo={comicLabel(comic.title, comic.issueNumber)}
+                    detalhe={comic.publisher?.name ?? null}
+                  />
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
     </section>
   );
 }
 
-function GrupoDeSaga({ grupo, numero }: { grupo: CharacterAppearanceGroup; numero: number }) {
+function LinhaDaSaga({
+  grupo,
+  numero,
+}: {
+  grupo: CharacterAppearanceGroup & { slug: string };
+  numero: number;
+}) {
+  const quantas = `${grupo.comics.length} ${grupo.comics.length === 1 ? 'edição' : 'edições'}`;
   return (
-    <div>
-      <div className="mb-3 flex items-baseline gap-3">
-        <span className="personagem-rotulo text-sm font-semibold tabular-nums">
-          {String(numero).padStart(2, '0')}
-        </span>
-        <div className="min-w-0">
-          {grupo.slug ? (
-            <Link
-              to={`/serie/${grupo.slug}`}
-              className="text-base font-semibold text-ink-100 hover:underline"
-            >
-              {grupo.name}
-            </Link>
-          ) : (
-            <p className="text-base font-semibold text-ink-100">{grupo.name}</p>
-          )}
-          <p className="text-xs text-ink-400">
-            {grupo.comics.length} {grupo.comics.length === 1 ? 'edição' : 'edições'}
-            {grupo.note && ` · ${grupo.note}`}
-          </p>
-        </div>
-      </div>
+    <LinhaDeAparicao
+      to={`/serie/${grupo.slug}`}
+      // A capa da primeira edicao e o rosto da saga — a mesma que o catalogo usa.
+      capa={grupo.comics[0]?.coverUrl ?? null}
+      numero={numero}
+      titulo={grupo.name}
+      detalhe={grupo.note ? `${quantas} · ${grupo.note}` : quantas}
+    />
+  );
+}
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
-        {grupo.comics.map((comic) => (
-          <ComicCard key={comic.id} comic={comic} />
-        ))}
-      </div>
-    </div>
+/** Uma linha da lista: a capa pequena, o nome, e a seta de para onde ela leva. */
+function LinhaDeAparicao({
+  to,
+  state,
+  capa,
+  titulo,
+  detalhe,
+  numero,
+}: {
+  to: string;
+  state?: unknown;
+  capa: string | null;
+  titulo: string;
+  detalhe: string | null;
+  /** So as sagas sao numeradas: a ordem delas e curada, a das avulsas nao. */
+  numero?: number;
+}) {
+  const url = mediaUrl(capa);
+  return (
+    <li>
+      <Link
+        to={to}
+        state={state}
+        className="group flex items-center gap-3 px-3 py-3 transition-colors hover:bg-ink-850 sm:gap-4 sm:px-4"
+      >
+        {numero !== undefined && (
+          <span className="personagem-rotulo w-5 shrink-0 text-sm font-semibold tabular-nums">
+            {String(numero).padStart(2, '0')}
+          </span>
+        )}
+        <span className="h-14 w-10 shrink-0 overflow-hidden rounded bg-ink-850">
+          {url && <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[15px] font-semibold text-ink-100">{titulo}</span>
+          {detalhe && <span className="mt-0.5 block truncate text-xs text-ink-400">{detalhe}</span>}
+        </span>
+        <span
+          aria-hidden
+          className="shrink-0 text-ink-600 transition-colors group-hover:text-ink-300"
+        >
+          →
+        </span>
+      </Link>
+    </li>
   );
 }
 

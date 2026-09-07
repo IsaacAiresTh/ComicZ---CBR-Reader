@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AdminStats,
   ComicDetail,
+  SetCharacterComicsInput,
   SetMilestonesInput,
   SetSeriesNotesInput,
   UpdateCharacterInput,
@@ -142,6 +143,20 @@ export function useSeriesDetail(idOrSlug: string | undefined) {
   });
 }
 
+/**
+ * O detalhe de uma saga fora do render: "adicionar saga" precisa da lista de
+ * edicoes no clique, e nao no proximo ciclo. Mesma chave do useSeriesDetail,
+ * entao abrir a saga logo depois ja acha tudo em cache.
+ */
+export function useBuscarSaga() {
+  const queryClient = useQueryClient();
+  return (idOrSlug: string) =>
+    queryClient.fetchQuery({
+      queryKey: ['series-detail', idOrSlug],
+      queryFn: () => api.get<SeriesDetail>(`/series/${idOrSlug}`),
+    });
+}
+
 export function useCreateSeries() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -227,6 +242,22 @@ export function useSetSeriesNotes() {
     mutationFn: (input: { id: string; sagas: SetSeriesNotesInput['sagas'] }) =>
       api.put<void>(`/characters/${input.id}/sagas`, { sagas: input.sagas }),
     onSuccess: () => invalidarPersonagens(queryClient),
+  });
+}
+
+/**
+ * O elenco visto do lado do personagem. Muda tambem a pagina de cada HQ que
+ * entrou ou saiu — e la que o elenco aparece do outro lado do vinculo.
+ */
+export function useSetCharacterComics() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; comicIds: SetCharacterComicsInput['comicIds'] }) =>
+      api.put<void>(`/characters/${input.id}/edicoes`, { comicIds: input.comicIds }),
+    onSuccess: () => {
+      invalidarPersonagens(queryClient);
+      void queryClient.invalidateQueries({ queryKey: ['comic'] });
+    },
   });
 }
 
