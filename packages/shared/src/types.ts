@@ -148,8 +148,7 @@ export interface CatalogSeriesEntry {
 }
 
 export type CatalogEntry =
-  | { kind: 'series'; series: CatalogSeriesEntry }
-  | { kind: 'comic'; comic: ComicSummary };
+  { kind: 'series'; series: CatalogSeriesEntry } | { kind: 'comic'; comic: ComicSummary };
 
 export interface ComicDetail extends ComicSummary {
   description: string | null;
@@ -298,8 +297,7 @@ export interface LibrarySeriesGroup {
  * coleção a abrir — vem como a própria edição.
  */
 export type LibraryGroup =
-  | { kind: 'series'; series: LibrarySeriesGroup }
-  | { kind: 'comic'; entry: LibraryEntry };
+  { kind: 'series'; series: LibrarySeriesGroup } | { kind: 'comic'; entry: LibraryEntry };
 
 /**
  * Pasta criada pelo leitor dentro da própria biblioteca.
@@ -411,6 +409,31 @@ export interface CharacterAppearanceGroup {
   /** Por que ler esta: "leitura de contexto", "fecha o arco". */
   note: string | null;
   comics: ComicSummary[];
+}
+
+/**
+ * O que o import fez — ou faria, quando e simulacao.
+ *
+ * Uma linha por personagem do arquivo, e um personagem que falha nao derruba
+ * os outros: importar 189 fichas e desistir de todas porque um slug estava
+ * errado seria pior do que o problema.
+ */
+export interface CharacterImportReport {
+  slug: string;
+  /** Nome no acervo; null quando o slug nao existe. */
+  name: string | null;
+  /** Campos da ficha que entram, ja na ordem em que foram lidos. */
+  campos: string[];
+  /** Quantos marcos a lista nova tem; null quando o arquivo nao os menciona. */
+  marcos: number | null;
+  /** Quantas notas de saga entram; null quando o arquivo nao as menciona. */
+  sagas: number | null;
+  /** Nomes de saga do arquivo que ele nao tem no acervo — ignorados. */
+  sagasAusentes: string[];
+  /** Marcos que reencontraram a imagem ancorada no painel, casando pela era. */
+  ancorasMantidas: number;
+  /** Impede a gravacao deste personagem; os demais seguem. */
+  erro: string | null;
 }
 
 export interface CharacterDetail extends CharacterSummary {

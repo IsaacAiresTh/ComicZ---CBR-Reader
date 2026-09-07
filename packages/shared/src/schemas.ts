@@ -388,7 +388,66 @@ export const reorderCharacterImagesSchema = z.object({
   ids: z.array(z.string().uuid()).min(1).max(50),
 });
 
+/**
+ * Uma ficha vinda de arquivo.
+ *
+ * Tudo o que aponta para uma saga vem por NOME, e nao por id: id de saga nao
+ * atravessa ambiente — o que vale no banco local nao vale em producao, e o
+ * ponto do arquivo e justamente escrever de um lado e subir do outro.
+ *
+ * Campo AUSENTE nao e tocado; campo PRESENTE e gravado, inclusive `null`, que
+ * e como se limpa um campo. Sem essa distincao, um arquivo curto apagaria
+ * tudo o que ele nao mencionasse.
+ *
+ * `marcos` nao carrega imagem. A ancora e escolhida no painel, olhando a
+ * galeria, e nao existe jeito portavel de nomea-la num arquivo — quando a
+ * lista e substituida, o servidor devolve a ancora ao marco de mesma era.
+ */
+export const characterImportSchema = z.object({
+  slug: z.string().trim().min(1, 'Informe o slug do personagem').max(120),
+  ficha: updateCharacterSchema.omit({ startHereSeriesId: true, startHereNote: true }).optional(),
+  comecarPor: z
+    .object({
+      saga: z.string().trim().min(1).max(200),
+      nota: z.string().trim().max(160).nullish(),
+    })
+    .nullish(),
+  marcos: z
+    .array(
+      z.object({
+        era: z.string().trim().min(1, 'Informe a era').max(80),
+        headline: z.string().trim().max(200).nullish(),
+        body: z.string().trim().min(1, 'Informe o texto').max(8000),
+        spoiler: z.boolean().default(false),
+        sourceLabel: z.string().trim().max(160).nullish(),
+      }),
+    )
+    .max(30)
+    .optional(),
+  sagas: z
+    .array(
+      z.object({
+        saga: z.string().trim().min(1).max(200),
+        nota: z.string().trim().max(160).nullish(),
+      }),
+    )
+    .max(50)
+    .optional(),
+});
+
+/**
+ * O lote inteiro. Um arquivo com um personagem so e um array de um: nao ha
+ * dois formatos nem duas rotas, e importar os 189 e o mesmo caminho.
+ */
+export const importCharactersSchema = z.object({
+  personagens: z.array(characterImportSchema).min(1).max(200),
+  /** Relata sem gravar. E o mesmo codigo do import, para a previa nao mentir. */
+  simular: z.boolean().default(false),
+});
+
 export type UpdateCharacterInput = z.infer<typeof updateCharacterSchema>;
+export type CharacterImportInput = z.infer<typeof characterImportSchema>;
+export type ImportCharactersInput = z.infer<typeof importCharactersSchema>;
 export type SetMilestonesInput = z.infer<typeof setMilestonesSchema>;
 export type SetSeriesNotesInput = z.infer<typeof setSeriesNotesSchema>;
 export type SetCharacterComicsInput = z.infer<typeof setCharacterComicsSchema>;

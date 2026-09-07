@@ -18,8 +18,12 @@ export function searchTerms(query: string): string[] {
     .filter((term) => term.length > 0);
 }
 
-/** Minusculas, sem acento e sem pontuacao: a forma usada para casar apelidos. */
-function chave(texto: string): string {
+/**
+ * Minusculas, sem acento e sem pontuacao: a forma usada para casar apelidos —
+ * e tambem para casar nome de saga vindo de arquivo escrito a mao, onde o
+ * hifen, o travessao e o acento variam sem que a intencao mude.
+ */
+export function chave(texto: string): string {
   return texto
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
@@ -197,7 +201,7 @@ export function searchAlternatives(query: string): string[][] {
     grupo: number;
   }
   const trechos: Trecho[] = [];
-  for (let i = 0; i < termos.length; ) {
+  for (let i = 0; i < termos.length;) {
     let achou: Trecho | null = null;
     const maximo = Math.min(MAIOR_APELIDO, termos.length - i);
     for (let tamanho = maximo; tamanho >= 1; tamanho -= 1) {
@@ -265,12 +269,7 @@ export function searchAlternatives(query: string): string[][] {
  * que so ele ocuparia. O que nao comeca por letra vai para "#".
  */
 export function initialLetter(nome: string): string {
-  const primeira = nome
-    .trim()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .charAt(0)
-    .toUpperCase();
+  const primeira = nome.trim().normalize('NFD').replace(/[̀-ͯ]/g, '').charAt(0).toUpperCase();
   return /[A-Z]/.test(primeira) ? primeira : '#';
 }
 

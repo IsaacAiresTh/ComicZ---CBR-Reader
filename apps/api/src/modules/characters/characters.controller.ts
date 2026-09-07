@@ -8,6 +8,7 @@ import {
   Param,
   ParseUUIDPipe,
   Patch,
+  Post,
   Put,
   UploadedFile,
   UseInterceptors,
@@ -16,11 +17,13 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@comicz/database';
 import {
+  importCharactersSchema,
   reorderCharacterImagesSchema,
   setCharacterComicsSchema,
   setMilestonesSchema,
   setSeriesNotesSchema,
   updateCharacterSchema,
+  type ImportCharactersInput,
   type ReorderCharacterImagesInput,
   type SetCharacterComicsInput,
   type SetMilestonesInput,
@@ -56,6 +59,15 @@ export class CharactersController {
   })
   findOne(@Param('slug') slug: string, @CurrentUser() user: AuthenticatedUser) {
     return this.characters.findOne(slug, user.id);
+  }
+
+  @Roles(Role.ADMIN)
+  @Post('importar')
+  @ApiOperation({
+    summary: '[admin] Importa fichas de arquivo — `simular: true` so relata, sem gravar',
+  })
+  importar(@Body(new ZodValidationPipe(importCharactersSchema)) body: ImportCharactersInput) {
+    return this.characters.importar(body.personagens, body.simular);
   }
 
   @Roles(Role.ADMIN)
