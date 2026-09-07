@@ -168,7 +168,47 @@ export interface GuideItemView {
   position: number;
   note: string | null;
   optional: boolean;
+  /** Ato a que o item pertence na trilha do evento; null fica fora de bloco. */
+  chapter: string | null;
+  /** Bloco do mapa a que o item pertence; null fica so na trilha. */
+  nodeId: string | null;
   comic: ComicSummary;
+}
+
+export type GuideKind = 'GUIDE' | 'EVENT';
+
+/**
+ * Bloco do mapa de um evento: uma saga inteira, um arco, uma minisserie.
+ * O mapa liga blocos; a lista de edicoes vive dentro de cada um.
+ */
+export interface GuideNodeView {
+  id: string;
+  label: string;
+  note: string | null;
+  /** Faixa horizontal; 0 e a de cima. */
+  lane: number;
+  /** Passo no eixo do tempo, da esquerda para a direita. */
+  coluna: number;
+  /** Bloco que nao depende de nenhum outro: um ponto de partida. */
+  entry: boolean;
+  /** Ids dos blocos de onde este nasce. */
+  parents: string[];
+  itemCount: number;
+  readCount: number;
+  /** Capa do bloco: a da primeira edicao dele. */
+  coverUrl: string | null;
+}
+
+/**
+ * Rosto do elenco na pagina de evento. `imageUrl` segue a mesma rota de midia
+ * das capas — o id e UUID, entao `covers/<id>.webp` serve sem rota nova.
+ */
+export interface GuideCharacterView {
+  id: string;
+  name: string;
+  role: string | null;
+  imageUrl: string | null;
+  position: number;
 }
 
 export interface GuideSummary {
@@ -177,6 +217,9 @@ export interface GuideSummary {
   slug: string;
   summary: string | null;
   published: boolean;
+  kind: GuideKind;
+  /** Hex "#rrggbb" da saga, ou null: a UI cai no amarelo da marca. */
+  accentColor: string | null;
   itemCount: number;
   /**
    * Capa do guia: a escolhida pelo admin, ou — na falta dela — a da primeira
@@ -191,6 +234,8 @@ export interface GuideDetail extends GuideSummary {
   /** Falso quando a capa mostrada vem da primeira HQ, e não do admin. */
   hasOwnCover: boolean;
   items: GuideItemView[];
+  characters: GuideCharacterView[];
+  nodes: GuideNodeView[];
   readCount?: number;
 }
 

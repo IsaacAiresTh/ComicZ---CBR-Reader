@@ -79,6 +79,31 @@ export class CoverService {
   }
 
   /**
+   * Rosto do elenco de um guia de evento.
+   *
+   * Guarda em `covers/<characterId>.webp` como os outros tres — a rota de midia
+   * monta a chave a partir do id, e o do personagem tambem e UUID. O `updatedAt`
+   * do registro e tocado no update, que e o que muda a URL e tira a imagem
+   * antiga do cache.
+   */
+  async setGuideCharacterImage(
+    characterId: string,
+    upload: UploadedCover,
+  ): Promise<{ imagePath: string }> {
+    const character = await this.prisma.guideCharacter.findUnique({
+      where: { id: characterId },
+      select: { id: true },
+    });
+    if (!character) throw new NotFoundException('Personagem nao encontrado');
+    const key = await this.store(characterId, upload);
+    await this.prisma.guideCharacter.update({
+      where: { id: characterId },
+      data: { imagePath: key },
+    });
+    return { imagePath: key };
+  }
+
+  /**
    * Devolve a saga a capa derivada — a da primeira edicao que tiver uma.
    * O objeto e removido do storage porque nada mais aponta para ele.
    */

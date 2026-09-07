@@ -14,6 +14,8 @@ import { AdminUsersPage } from '../features/admin/AdminUsersPage';
 import { CollectionPage } from '../features/collections/CollectionPage';
 import { CatalogPage } from '../features/comics/CatalogPage';
 import { ComicDetailPage } from '../features/comics/ComicDetailPage';
+import { EventPage } from '../features/events/EventPage';
+import { EventsPage } from '../features/events/EventsPage';
 import { HomePage } from '../features/comics/HomePage';
 import { GuideDetailPage } from '../features/guides/GuideDetailPage';
 import { GuidesPage } from '../features/guides/GuidesPage';
@@ -40,6 +42,8 @@ export function AppRouter() {
           <Route path="/biblioteca/pasta/:id" element={<CollectionPage />} />
           <Route path="/guias" element={<GuidesPage />} />
           <Route path="/guias/:slug" element={<GuideDetailPage />} />
+          <Route path="/eventos" element={<EventsPage />} />
+          <Route path="/eventos/:slug" element={<EventPage />} />
           <Route path="/perfil" element={<ProfilePage />} />
         </Route>
       </Route>

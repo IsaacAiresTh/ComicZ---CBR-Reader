@@ -76,6 +76,23 @@ function capaPropriaOuHerdada(
   return `/media/covers/${dono.id}/${version}`;
 }
 
+/**
+ * Rosto do elenco de um guia de evento.
+ *
+ * Mesma rota das capas — o id do personagem tambem e UUID —, com a versao
+ * vindo do `updatedAt` dele. Sem essa versao, trocar a imagem nao tiraria a
+ * antiga do cache, que responde `immutable` por um ano.
+ */
+export function guideCharacterImageUrl(character: {
+  id: string;
+  imagePath: string | null;
+  updatedAt: Date;
+}): string | null {
+  return character.imagePath
+    ? `/media/covers/${character.id}/${character.updatedAt.getTime().toString(36)}`
+    : null;
+}
+
 export function pageUrl(comicFileId: string, index: number, version: string): string {
   return `/media/pages/${comicFileId}/${version}/${index}`;
 }

@@ -340,22 +340,86 @@ model ReadingProgress {
 
 // ---------------------------------------------------------------- guias
 
+/// Como o guia e apresentado. GUIDE e a lista enxuta de sempre; EVENT ganha a
+/// pagina de trilha em /eventos — capa grande, elenco e capitulos —, que so faz
+/// sentido para saga longa o bastante para ter atos.
+enum GuideKind {
+  GUIDE
+  EVENT
+}
+
 model Guide {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String    @id @default(uuid()) @db.Uuid
   title       String
-  slug        String   @unique
+  slug        String    @unique
   summary     String?
   description String?
-  coverPath   String?  @map("cover_path")
-  published   Boolean  @default(false)
-  createdById String?  @map("created_by_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  coverPath   String?   @map("cover_path")
+  published   Boolean   @default(false)
+  kind        GuideKind @default(GUIDE)
+  /// Cor da saga em hex ("#c2410c"). A pagina de evento a usa nos acentos —
+  /// linha do tempo, selos e barra —, nunca no fundo: o tema do site continua
+  /// mandando na leitura.
+  accentColor String?   @map("accent_color")
+  createdById String?   @map("created_by_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  createdBy User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  items     GuideItem[]
+  createdBy  User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  items      GuideItem[]
+  characters GuideCharacter[]
+  nodes      GuideNode[]
 
   @@map("guides")
+}
+
+/// Um bloco do mapa do evento: uma saga, um arco, uma minisserie — a unidade
+/// que o leitor reconhece pelo nome. O mapa liga blocos, e nao edicoes: com 138
+/// edicoes numa trilha, a lista vertical fica impossivel de ler, enquanto os
+/// mesmos 138 itens cabem em uma duzia de blocos.
+model GuideNode {
+  id      String  @id @default(uuid()) @db.Uuid
+  guideId String  @map("guide_id") @db.Uuid
+  label   String
+  /// Uma linha sobre o que este bloco e, mostrada no card do mapa.
+  note    String?
+  /// Faixa horizontal (linha do mapa). 0 e a de cima.
+  lane    Int
+  /// Passo no eixo do tempo, da esquerda para a direita.
+  coluna  Int     @map("coluna")
+  /// Bloco que nao depende de nenhum outro — comeca uma leitura por aqui.
+  entry   Boolean @default(false)
+  /// De quais blocos este nasce. Guardado como lista, e nao como tabela de
+  /// arestas: o grafo e pequeno e sempre lido inteiro junto com o guia.
+  parents String[] @db.Uuid
+
+  guide Guide       @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  items GuideItem[]
+
+  @@index([guideId, lane, coluna])
+  @@map("guide_nodes")
+}
+
+/// Rosto que a pagina do evento mostra antes da trilha. E do guia, e nao do
+/// Character do catalogo, de proposito: o mesmo personagem aparece em sagas
+/// diferentes com peso e imagem diferentes, e aqui o que importa e o papel que
+/// ele tem NESTA historia.
+model GuideCharacter {
+  id        String  @id @default(uuid()) @db.Uuid
+  guideId   String  @map("guide_id") @db.Uuid
+  name      String
+  /// "O vilao", "Quem paga a conta" — uma linha, nao uma biografia.
+  role      String?
+  imagePath String? @map("image_path")
+  position  Int
+  /// Versao da URL da imagem: sem isto, trocar o rosto nao tiraria o antigo do
+  /// cache, que responde `immutable` por um ano.
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  guide Guide @relation(fields: [guideId], references: [id], onDelete: Cascade)
+
+  @@index([guideId, position])
+  @@map("guide_characters")
 }
 
 model GuideItem {
@@ -365,9 +429,15 @@ model GuideItem {
   position Int
   note     String?
   optional Boolean @default(false)
+  /// Nome do ato a que este item pertence ("Prologo", "A guerra"). Itens
+  /// seguidos com o mesmo texto viram um bloco na trilha; null fica solto.
+  chapter  String?
+  /// Bloco do mapa a que este item pertence. Null aparece so na trilha.
+  nodeId   String? @map("node_id") @db.Uuid
 
-  guide Guide @relation(fields: [guideId], references: [id], onDelete: Cascade)
-  comic Comic @relation(fields: [comicId], references: [id], onDelete: Cascade)
+  guide Guide      @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  comic Comic      @relation(fields: [comicId], references: [id], onDelete: Cascade)
+  node  GuideNode? @relation(fields: [nodeId], references: [id], onDelete: SetNull)
 
   @@unique([guideId, comicId])
   @@index([guideId, position])

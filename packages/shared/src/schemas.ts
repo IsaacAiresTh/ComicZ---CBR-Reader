@@ -182,13 +182,43 @@ export const guideItemInputSchema = z.object({
   comicId: z.string().uuid(),
   note: z.string().trim().max(1000).nullish(),
   optional: z.boolean().optional(),
+  chapter: z.string().trim().max(120).nullish(),
+  nodeId: z.string().uuid().nullish(),
 });
+
+export const guideKindSchema = z.enum(['GUIDE', 'EVENT']);
+
+/** Hex de 6 digitos com "#". A pagina injeta isto em style inline. */
+export const hexColorSchema = z
+  .string()
+  .trim()
+  .regex(/^#[0-9a-fA-F]{6}$/, 'Use uma cor no formato #rrggbb');
 
 export const upsertGuideSchema = z.object({
   title: z.string().trim().min(1, 'Informe o titulo').max(200),
   summary: z.string().trim().max(400).nullish(),
   description: z.string().trim().max(8000).nullish(),
   published: z.boolean().optional(),
+  kind: guideKindSchema.optional(),
+  accentColor: hexColorSchema.nullish(),
+});
+
+export const guideNodeSchema = z.object({
+  label: z.string().trim().min(1, 'Informe o nome do bloco').max(120),
+  note: z.string().trim().max(300).nullish(),
+  lane: z.coerce.number().int().min(0).max(20),
+  coluna: z.coerce.number().int().min(0).max(40),
+  entry: z.boolean().optional(),
+  parents: z.array(z.string().uuid()).max(10).optional(),
+});
+
+export const guideCharacterSchema = z.object({
+  name: z.string().trim().min(1, 'Informe o nome').max(120),
+  role: z.string().trim().max(120).nullish(),
+});
+
+export const reorderGuideCharactersSchema = z.object({
+  characterIds: z.array(z.string().uuid()).min(1, 'Informe a nova ordem'),
 });
 
 export const reorderGuideItemsSchema = z.object({
@@ -224,6 +254,9 @@ export type UpdateLibraryItemInput = z.infer<typeof updateLibraryItemSchema>;
 export type UpdateProgressInput = z.infer<typeof updateProgressSchema>;
 export type UpsertGuideInput = z.infer<typeof upsertGuideSchema>;
 export type GuideItemInput = z.infer<typeof guideItemInputSchema>;
+export type GuideCharacterInput = z.infer<typeof guideCharacterSchema>;
+export type GuideNodeInput = z.infer<typeof guideNodeSchema>;
+export type ReorderGuideCharactersInput = z.infer<typeof reorderGuideCharactersSchema>;
 export type ReorderGuideItemsInput = z.infer<typeof reorderGuideItemsSchema>;
 
 export type CreateCollectionInput = z.infer<typeof createCollectionSchema>;

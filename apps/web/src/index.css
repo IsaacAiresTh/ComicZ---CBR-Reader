@@ -55,6 +55,48 @@
   }
 }
 
+@layer components {
+  /*
+   * Pagina de evento.
+   *
+   * A saga entra por UMA variavel, --accent, e so nos acentos: trilho da
+   * trilha, selo do ato, barra de progresso. O fundo continua sendo o ink do
+   * site — colorir a pagina inteira e o que deixa esse tipo de tela cansativa,
+   * e a arte das capas ja traz cor suficiente.
+   */
+  .evento {
+    --accent: var(--color-brand-500);
+  }
+  .evento-tinta {
+    background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+  .evento-trilho {
+    background-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  }
+  .evento-texto {
+    color: var(--accent);
+  }
+  .evento-borda {
+    border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+  }
+  .evento-barra {
+    background-color: var(--accent);
+  }
+  .evento-selo {
+    background-color: color-mix(in srgb, var(--accent) 16%, transparent);
+    color: var(--accent);
+  }
+  /* Vinheta sobre a arte do topo: o texto precisa de contraste sem apagar a capa. */
+  .evento-capa::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(to top, var(--color-ink-950) 4%, transparent 60%),
+      linear-gradient(to right, var(--color-ink-950) 8%, transparent 55%);
+  }
+}
+
 @layer utilities {
   .comic-shadow {
     box-shadow:
