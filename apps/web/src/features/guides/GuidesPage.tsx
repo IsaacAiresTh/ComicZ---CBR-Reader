@@ -6,7 +6,9 @@ import { useGuides } from '../comics/queries';
 
 export function GuidesPage() {
   const { isAdmin } = useAuth();
-  const { data: guides, isLoading } = useGuides();
+  const { data: todos, isLoading } = useGuides();
+  // Evento tem aba propria; listar nos dois lugares so duplicaria a mesma saga.
+  const guides = todos?.filter((guide) => guide.kind !== 'EVENT');
 
   return (
     <div className="space-y-6">

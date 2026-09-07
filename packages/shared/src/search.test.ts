@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { searchAlternatives, searchTerms } from './search';
+import { initialLetter, searchAlternatives, searchTerms } from './search';
 
 /** Todas as alternativas, cada uma como texto, para facilitar as asserções. */
 const formas = (q: string) => searchAlternatives(q).map((termos) => termos.join(' '));
@@ -72,4 +72,16 @@ test('acento nao atrapalha o reconhecimento do apelido', () => {
 test('busca vazia nao produz alternativa', () => {
   assert.deepEqual(searchAlternatives(''), []);
   assert.deepEqual(searchAlternatives('   -  '), []);
+});
+
+test('initialLetter poe acento na letra sem acento e o resto no #', () => {
+  assert.equal(initialLetter('Batman'), 'B');
+  assert.equal(initialLetter('perpetua'), 'P');
+  assert.equal(initialLetter('Perpétua'), 'P');
+  assert.equal(initialLetter('Órion'), 'O');
+  assert.equal(initialLetter('  Zatanna'), 'Z');
+  // Numero, simbolo e vazio nao ganham tecla propria.
+  assert.equal(initialLetter('3-D Man'), '#');
+  assert.equal(initialLetter('...e entao'), '#');
+  assert.equal(initialLetter(''), '#');
 });

@@ -1,7 +1,10 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import type {
+  GuideCharacterInput,
   GuideDetail,
   GuideItemInput,
+  GuideKind,
+  GuideNodeInput,
   GuideSummary,
   UpsertGuideInput,
 } from '@comicz/shared';
@@ -14,7 +17,7 @@ import {
 } from '../comics/comic-mapper';
 import { ComicsService } from '../comics/comics.service';
 import { TaxonomyService } from '../comics/taxonomy.service';
-import { guideCoverUrl } from '../files/media-urls';
+import { guideCharacterImageUrl, guideCoverUrl } from '../files/media-urls';
 
 @Injectable()
 export class GuidesService {
@@ -25,9 +28,12 @@ export class GuidesService {
   ) {}
 
   /** Usuario comum ve apenas guias publicados; admin ve todos. */
-  async list(isAdmin: boolean): Promise<GuideSummary[]> {
+  async list(isAdmin: boolean, kind?: GuideKind): Promise<GuideSummary[]> {
     const rows = await this.prisma.guide.findMany({
-      where: isAdmin ? undefined : { published: true },
+      where: {
+        ...(isAdmin ? {} : { published: true }),
+        ...(kind ? { kind } : {}),
+      },
       orderBy: [{ published: 'desc' }, { title: 'asc' }],
       include: {
         _count: { select: { items: true } },
@@ -57,6 +63,8 @@ export class GuidesService {
         slug: row.slug,
         summary: row.summary,
         published: row.published,
+        kind: row.kind,
+        accentColor: row.accentColor,
         itemCount: row._count.items,
         // A capa escolhida pelo admin; na falta dela, a da primeira HQ da ordem.
         coverUrl: guideCoverUrl(row, first ? coverUrl(first) : null),
@@ -76,6 +84,8 @@ export class GuidesService {
           orderBy: { position: 'asc' },
           include: { comic: { include: comicSummaryInclude } },
         },
+        characters: { orderBy: { position: 'asc' } },
+        nodes: { orderBy: [{ lane: 'asc' }, { coluna: 'asc' }] },
       },
     });
     if (!guide) throw new NotFoundException('Guia nao encontrado');
@@ -90,6 +100,8 @@ export class GuidesService {
       position: item.position,
       note: item.note,
       optional: item.optional,
+      chapter: item.chapter,
+      nodeId: item.nodeId,
       comic: toComicSummary(item.comic, contexts.get(item.comicId) ?? {}),
     }));
 
@@ -103,10 +115,36 @@ export class GuidesService {
       summary: guide.summary,
       description: guide.description,
       published: guide.published,
+      kind: guide.kind,
+      accentColor: guide.accentColor,
       itemCount: guide._count.items,
       coverUrl: guideCoverUrl(guide, firstCover ? coverUrl(firstCover) : null),
       hasOwnCover: Boolean(guide.coverPath),
       items,
+      characters: guide.characters.map((character) => ({
+        id: character.id,
+        name: character.name,
+        role: character.role,
+        imageUrl: guideCharacterImageUrl(character),
+        position: character.position,
+      })),
+      nodes: guide.nodes.map((node) => {
+        const doBloco = items.filter((item) => item.nodeId === node.id);
+        return {
+          id: node.id,
+          label: node.label,
+          note: node.note,
+          lane: node.lane,
+          coluna: node.coluna,
+          entry: node.entry,
+          parents: node.parents,
+          itemCount: doBloco.length,
+          readCount: doBloco.filter((item) => item.comic.progress?.completed).length,
+          // A capa do bloco e a da primeira edicao dele: e a arte que o leitor
+          // reconhece, e nao ha imagem propria de bloco para manter.
+          coverUrl: doBloco.find((item) => item.comic.coverUrl)?.comic.coverUrl ?? null,
+        };
+      }),
       readCount,
     };
   }
@@ -121,6 +159,8 @@ export class GuidesService {
         summary: input.summary ?? null,
         description: input.description ?? null,
         published: input.published ?? false,
+        kind: input.kind ?? 'GUIDE',
+        accentColor: input.accentColor ?? null,
         createdById,
       },
     });
@@ -135,6 +175,8 @@ export class GuidesService {
         summary: input.summary ?? null,
         description: input.description ?? null,
         ...(input.published !== undefined ? { published: input.published } : {}),
+        ...(input.kind !== undefined ? { kind: input.kind } : {}),
+        ...(input.accentColor !== undefined ? { accentColor: input.accentColor ?? null } : {}),
       },
     });
   }
@@ -162,13 +204,20 @@ export class GuidesService {
 
     return this.prisma.guideItem.upsert({
       where: { guideId_comicId: { guideId, comicId: input.comicId } },
-      update: { note: input.note ?? null, optional: input.optional ?? false },
+      update: {
+        note: input.note ?? null,
+        optional: input.optional ?? false,
+        chapter: input.chapter ?? null,
+        nodeId: input.nodeId ?? null,
+      },
       create: {
         guideId,
         comicId: input.comicId,
         position: (last?.position ?? 0) + 1,
         note: input.note ?? null,
         optional: input.optional ?? false,
+        chapter: input.chapter ?? null,
+        nodeId: input.nodeId ?? null,
       },
     });
   }
@@ -183,6 +232,8 @@ export class GuidesService {
       data: {
         ...(input.note !== undefined ? { note: input.note ?? null } : {}),
         ...(input.optional !== undefined ? { optional: input.optional } : {}),
+        ...(input.chapter !== undefined ? { chapter: input.chapter ?? null } : {}),
+        ...(input.nodeId !== undefined ? { nodeId: input.nodeId ?? null } : {}),
       },
     });
   }
@@ -213,6 +264,111 @@ export class GuidesService {
         this.prisma.guideItem.update({ where: { id }, data: { position: index + 1 } }),
       ),
     );
+  }
+
+  // -------------------------------------------------------- mapa (blocos)
+
+  async addNode(guideId: string, input: GuideNodeInput) {
+    await this.ensureExists(guideId);
+    return this.prisma.guideNode.create({
+      data: {
+        guideId,
+        label: input.label,
+        note: input.note ?? null,
+        lane: input.lane,
+        coluna: input.coluna,
+        entry: input.entry ?? false,
+        parents: input.parents ?? [],
+      },
+    });
+  }
+
+  async updateNode(guideId: string, nodeId: string, input: Partial<GuideNodeInput>) {
+    await this.ownedNode(guideId, nodeId);
+    return this.prisma.guideNode.update({
+      where: { id: nodeId },
+      data: {
+        ...(input.label !== undefined ? { label: input.label } : {}),
+        ...(input.note !== undefined ? { note: input.note ?? null } : {}),
+        ...(input.lane !== undefined ? { lane: input.lane } : {}),
+        ...(input.coluna !== undefined ? { coluna: input.coluna } : {}),
+        ...(input.entry !== undefined ? { entry: input.entry } : {}),
+        ...(input.parents !== undefined ? { parents: input.parents } : {}),
+      },
+    });
+  }
+
+  /** Apagar o bloco solta as edicoes dele, que voltam a aparecer so na trilha. */
+  async removeNode(guideId: string, nodeId: string): Promise<void> {
+    await this.ownedNode(guideId, nodeId);
+    await this.prisma.guideNode.delete({ where: { id: nodeId } });
+  }
+
+  private async ownedNode(guideId: string, nodeId: string) {
+    const node = await this.prisma.guideNode.findUnique({ where: { id: nodeId } });
+    if (!node) throw new NotFoundException('Bloco nao encontrado');
+    if (node.guideId !== guideId) throw new ForbiddenException('Bloco nao pertence a este guia');
+    return node;
+  }
+
+  // ------------------------------------------------------------- elenco
+
+  /** Acrescenta um rosto ao fim do elenco do guia. */
+  async addCharacter(guideId: string, input: GuideCharacterInput) {
+    await this.ensureExists(guideId);
+    const last = await this.prisma.guideCharacter.findFirst({
+      where: { guideId },
+      orderBy: { position: 'desc' },
+      select: { position: true },
+    });
+    return this.prisma.guideCharacter.create({
+      data: {
+        guideId,
+        name: input.name,
+        role: input.role ?? null,
+        position: (last?.position ?? 0) + 1,
+      },
+    });
+  }
+
+  async updateCharacter(guideId: string, characterId: string, input: GuideCharacterInput) {
+    await this.ownedCharacter(guideId, characterId);
+    return this.prisma.guideCharacter.update({
+      where: { id: characterId },
+      data: { name: input.name, role: input.role ?? null },
+    });
+  }
+
+  async removeCharacter(guideId: string, characterId: string): Promise<void> {
+    await this.ownedCharacter(guideId, characterId);
+    await this.prisma.guideCharacter.delete({ where: { id: characterId } });
+  }
+
+  async reorderCharacters(guideId: string, characterIds: string[]): Promise<void> {
+    const rows = await this.prisma.guideCharacter.findMany({
+      where: { guideId },
+      select: { id: true },
+    });
+    const owned = new Set(rows.map((row) => row.id));
+    const invalid = characterIds.filter((id) => !owned.has(id));
+    if (invalid.length) {
+      throw new ForbiddenException('Um ou mais personagens nao pertencem a este guia');
+    }
+    await this.prisma.$transaction(
+      characterIds.map((id, index) =>
+        this.prisma.guideCharacter.update({ where: { id }, data: { position: index + 1 } }),
+      ),
+    );
+  }
+
+  /** Usada pelo CoverService antes de gravar a imagem do rosto. */
+  async ownedCharacter(guideId: string, characterId: string) {
+    const character = await this.prisma.guideCharacter.findUnique({ where: { id: characterId } });
+    if (!character) throw new NotFoundException('Personagem nao encontrado');
+    if (character.guideId !== guideId) {
+      throw new ForbiddenException('Personagem nao pertence a este guia');
+    }
+    return character;
   }
 
   private async ensureExists(id: string): Promise<void> {

@@ -105,6 +105,9 @@ model Series {
   collectionItems CollectionItem[]
 
   @@index([publisherId])
+  startHereFor   Character[]
+  characterNotes CharacterSeriesNote[]
+
   @@map("series")
 }
 
@@ -137,10 +140,122 @@ model Character {
   id   String @id @default(uuid()) @db.Uuid
   name String @unique
   slug String @unique
+  /// Uma linha: quem e. Aparece na lista e sob o nome na pagina.
+  summary String?
+  /// O texto da pagina. Nomes de outros personagens viram link sozinhos.
+  description String?
+  /// Como o personagem tambem e chamado nos textos, e so para isso: sem
+  /// "Prime" aqui, uma descricao que o chame assim nao vira link.
+  aliases String[] @default([])
+  /// Hex "#rrggbb". As duas cores do personagem, e so nos acentos: titulo,
+  /// halo, filete e os links do texto. O fundo continua sendo o ink do site.
+  accentColor  String? @map("accent_color")
+  accentColor2 String? @map("accent_color_2")
+  /// Chave de uma familia carregada no index.html — lista fechada de proposito:
+  /// nome solto cai num fallback silencioso, que foi o que aconteceu com a
+  /// Bangers, referenciada no tema e nunca baixada.
+  displayFont String? @map("display_font")
 
-  comics ComicCharacter[]
+  /// A ficha rapida. Tudo opcional: sao 189 personagens vindos do metadado dos
+  /// arquivos, e a pagina precisa ficar inteira com todos os campos vazios.
+  tags                String[] @default([])
+  firstAppearance     String?  @map("first_appearance")
+  firstAppearanceYear Int?     @map("first_appearance_year")
+  affiliations        String[] @default([])
+  powers              String[] @default([])
+  powerLevel          String?  @map("power_level")
+  /// De 1 a 5, so para a barra. Nao sai da contagem de poderes: quatro poderes
+  /// fracos ficariam acima de dois devastadores.
+  powerLevelRank      Int?     @map("power_level_rank")
+  status              String?
+  /// Ressalva do status ("pos-Death Metal"), nao o estado em si.
+  statusNote          String?  @map("status_note")
+
+  /// O resumo para quem nunca leu, e o fecho da pagina.
+  primer     String?
+  whyMatters String? @map("why_matters")
+
+  /// "Se voce so vai ler uma coisa": a saga, e o motivo dela.
+  startHereSeriesId String? @map("start_here_series_id") @db.Uuid
+  startHereNote     String? @map("start_here_note")
+  startHereSeries   Series? @relation(fields: [startHereSeriesId], references: [id], onDelete: SetNull)
+
+  images      CharacterImage[]
+  milestones  CharacterMilestone[]
+  seriesNotes CharacterSeriesNote[]
+  comics      ComicCharacter[]
 
   @@map("characters")
+}
+
+/// Um marco da linha do tempo.
+///
+/// Tabela, e nao paragrafos num TEXT, porque cada marco carrega o que texto
+/// corrido nao guarda: a imagem ancorada nele, a legenda da edicao de onde ela
+/// saiu e a marca de spoiler que borra o bloco ate alguem pedir para ver.
+model CharacterMilestone {
+  id          String  @id @default(uuid()) @db.Uuid
+  characterId String  @map("character_id") @db.Uuid
+  position    Int
+  /// Titulo curto da era — e o que vai no indice fixo ("O exilio").
+  era         String
+  /// A frase de efeito, acima do corpo.
+  headline    String?
+  body        String
+  spoiler     Boolean @default(false)
+  imageId     String? @map("image_id") @db.Uuid
+  /// "Crise Infinita #1": de onde veio a arte, sob ela.
+  sourceLabel String? @map("source_label")
+
+  character Character       @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  image     CharacterImage? @relation(fields: [imageId], references: [id], onDelete: SetNull)
+
+  @@index([characterId, position])
+  @@map("character_milestones")
+}
+
+/// A ordem e o porque de cada saga em "onde aparece".
+///
+/// O agrupamento sai sozinho do vinculo que ja existe; a ordem de leitura e a
+/// nota de contexto sao curadoria, e e so isso que mora aqui.
+model CharacterSeriesNote {
+  characterId String  @map("character_id") @db.Uuid
+  seriesId    String  @map("series_id") @db.Uuid
+  position    Int
+  note        String?
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  series    Series    @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@id([characterId, seriesId])
+  @@map("character_series_notes")
+}
+
+/// Imagem da pagina do personagem.
+///
+/// Tabela, e nao uma coluna, porque a pagina usa varias: o retrato do topo e as
+/// outras distribuidas ao longo do texto. A de `position` 0 e o retrato — nao
+/// existe coluna de "principal" porque a ordem ja responde isso, e duas fontes
+/// para o mesmo fato divergem.
+model CharacterImage {
+  id          String  @id @default(uuid()) @db.Uuid
+  characterId String  @map("character_id") @db.Uuid
+  path        String
+  /// Legenda opcional, sob a imagem.
+  caption     String?
+  position    Int
+  /// Promove esta imagem a marca d'agua do topo. Sem nenhuma marcada, a pagina
+  /// usa a inicial do nome na fonte do personagem, que serve para todos.
+  emblem      Boolean @default(false)
+  /// Versao da URL da imagem: a rota de midia responde `immutable` por um ano,
+  /// entao trocar o arquivo precisa mudar a URL.
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  character  Character            @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  milestones CharacterMilestone[]
+
+  @@index([characterId, position])
+  @@map("character_images")
 }
 
 model Tag {
@@ -340,22 +455,86 @@ model ReadingProgress {
 
 // ---------------------------------------------------------------- guias
 
+/// Como o guia e apresentado. GUIDE e a lista enxuta de sempre; EVENT ganha a
+/// pagina de trilha em /eventos — capa grande, elenco e capitulos —, que so faz
+/// sentido para saga longa o bastante para ter atos.
+enum GuideKind {
+  GUIDE
+  EVENT
+}
+
 model Guide {
-  id          String   @id @default(uuid()) @db.Uuid
+  id          String    @id @default(uuid()) @db.Uuid
   title       String
-  slug        String   @unique
+  slug        String    @unique
   summary     String?
   description String?
-  coverPath   String?  @map("cover_path")
-  published   Boolean  @default(false)
-  createdById String?  @map("created_by_id") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  coverPath   String?   @map("cover_path")
+  published   Boolean   @default(false)
+  kind        GuideKind @default(GUIDE)
+  /// Cor da saga em hex ("#c2410c"). A pagina de evento a usa nos acentos —
+  /// linha do tempo, selos e barra —, nunca no fundo: o tema do site continua
+  /// mandando na leitura.
+  accentColor String?   @map("accent_color")
+  createdById String?   @map("created_by_id") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  createdBy User?       @relation(fields: [createdById], references: [id], onDelete: SetNull)
-  items     GuideItem[]
+  createdBy  User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  items      GuideItem[]
+  characters GuideCharacter[]
+  nodes      GuideNode[]
 
   @@map("guides")
+}
+
+/// Um bloco do mapa do evento: uma saga, um arco, uma minisserie — a unidade
+/// que o leitor reconhece pelo nome. O mapa liga blocos, e nao edicoes: com 138
+/// edicoes numa trilha, a lista vertical fica impossivel de ler, enquanto os
+/// mesmos 138 itens cabem em uma duzia de blocos.
+model GuideNode {
+  id      String  @id @default(uuid()) @db.Uuid
+  guideId String  @map("guide_id") @db.Uuid
+  label   String
+  /// Uma linha sobre o que este bloco e, mostrada no card do mapa.
+  note    String?
+  /// Faixa horizontal (linha do mapa). 0 e a de cima.
+  lane    Int
+  /// Passo no eixo do tempo, da esquerda para a direita.
+  coluna  Int     @map("coluna")
+  /// Bloco que nao depende de nenhum outro — comeca uma leitura por aqui.
+  entry   Boolean @default(false)
+  /// De quais blocos este nasce. Guardado como lista, e nao como tabela de
+  /// arestas: o grafo e pequeno e sempre lido inteiro junto com o guia.
+  parents String[] @db.Uuid
+
+  guide Guide       @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  items GuideItem[]
+
+  @@index([guideId, lane, coluna])
+  @@map("guide_nodes")
+}
+
+/// Rosto que a pagina do evento mostra antes da trilha. E do guia, e nao do
+/// Character do catalogo, de proposito: o mesmo personagem aparece em sagas
+/// diferentes com peso e imagem diferentes, e aqui o que importa e o papel que
+/// ele tem NESTA historia.
+model GuideCharacter {
+  id        String  @id @default(uuid()) @db.Uuid
+  guideId   String  @map("guide_id") @db.Uuid
+  name      String
+  /// "O vilao", "Quem paga a conta" — uma linha, nao uma biografia.
+  role      String?
+  imagePath String? @map("image_path")
+  position  Int
+  /// Versao da URL da imagem: sem isto, trocar o rosto nao tiraria o antigo do
+  /// cache, que responde `immutable` por um ano.
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  guide Guide @relation(fields: [guideId], references: [id], onDelete: Cascade)
+
+  @@index([guideId, position])
+  @@map("guide_characters")
 }
 
 model GuideItem {
@@ -365,9 +544,15 @@ model GuideItem {
   position Int
   note     String?
   optional Boolean @default(false)
+  /// Nome do ato a que este item pertence ("Prologo", "A guerra"). Itens
+  /// seguidos com o mesmo texto viram um bloco na trilha; null fica solto.
+  chapter  String?
+  /// Bloco do mapa a que este item pertence. Null aparece so na trilha.
+  nodeId   String? @map("node_id") @db.Uuid
 
-  guide Guide @relation(fields: [guideId], references: [id], onDelete: Cascade)
-  comic Comic @relation(fields: [comicId], references: [id], onDelete: Cascade)
+  guide Guide      @relation(fields: [guideId], references: [id], onDelete: Cascade)
+  comic Comic      @relation(fields: [comicId], references: [id], onDelete: Cascade)
+  node  GuideNode? @relation(fields: [nodeId], references: [id], onDelete: SetNull)
 
   @@unique([guideId, comicId])
   @@index([guideId, position])

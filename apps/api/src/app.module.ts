@@ -9,6 +9,7 @@ import { AppConfigModule } from './config/app-config.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CharactersModule } from './modules/characters/characters.module';
 import { ComicsModule } from './modules/comics/comics.module';
 import { FilesModule } from './modules/files/files.module';
 import { GuidesModule } from './modules/guides/guides.module';
@@ -31,6 +32,7 @@ import { UsersModule } from './modules/users/users.module';
     AuthModule,
     UsersModule,
     ComicsModule,
+    CharactersModule,
     SeriesModule,
     PublishersModule,
     LibraryModule,

@@ -27,6 +27,18 @@ export interface Paginated<T> {
   totalPages: number;
 }
 
+/**
+ * O catalogo devolve, alem da pagina, quantos titulos existem por inicial.
+ *
+ * Vem junto porque a contagem depende dos OUTROS filtros — busca e editora — e
+ * porque a lista de titulos ja esta montada na memoria do servidor na hora de
+ * paginar. Calcular no cliente exigiria baixar o catalogo inteiro so para
+ * saber quais teclas apagar.
+ */
+export interface CatalogResult extends Paginated<CatalogEntry> {
+  letters: Record<string, number>;
+}
+
 export interface SeriesSummary {
   id: string;
   name: string;
@@ -168,7 +180,47 @@ export interface GuideItemView {
   position: number;
   note: string | null;
   optional: boolean;
+  /** Ato a que o item pertence na trilha do evento; null fica fora de bloco. */
+  chapter: string | null;
+  /** Bloco do mapa a que o item pertence; null fica so na trilha. */
+  nodeId: string | null;
   comic: ComicSummary;
+}
+
+export type GuideKind = 'GUIDE' | 'EVENT';
+
+/**
+ * Bloco do mapa de um evento: uma saga inteira, um arco, uma minisserie.
+ * O mapa liga blocos; a lista de edicoes vive dentro de cada um.
+ */
+export interface GuideNodeView {
+  id: string;
+  label: string;
+  note: string | null;
+  /** Faixa horizontal; 0 e a de cima. */
+  lane: number;
+  /** Passo no eixo do tempo, da esquerda para a direita. */
+  coluna: number;
+  /** Bloco que nao depende de nenhum outro: um ponto de partida. */
+  entry: boolean;
+  /** Ids dos blocos de onde este nasce. */
+  parents: string[];
+  itemCount: number;
+  readCount: number;
+  /** Capa do bloco: a da primeira edicao dele. */
+  coverUrl: string | null;
+}
+
+/**
+ * Rosto do elenco na pagina de evento. `imageUrl` segue a mesma rota de midia
+ * das capas — o id e UUID, entao `covers/<id>.webp` serve sem rota nova.
+ */
+export interface GuideCharacterView {
+  id: string;
+  name: string;
+  role: string | null;
+  imageUrl: string | null;
+  position: number;
 }
 
 export interface GuideSummary {
@@ -177,6 +229,9 @@ export interface GuideSummary {
   slug: string;
   summary: string | null;
   published: boolean;
+  kind: GuideKind;
+  /** Hex "#rrggbb" da saga, ou null: a UI cai no amarelo da marca. */
+  accentColor: string | null;
   itemCount: number;
   /**
    * Capa do guia: a escolhida pelo admin, ou — na falta dela — a da primeira
@@ -191,6 +246,8 @@ export interface GuideDetail extends GuideSummary {
   /** Falso quando a capa mostrada vem da primeira HQ, e não do admin. */
   hasOwnCover: boolean;
   items: GuideItemView[];
+  characters: GuideCharacterView[];
+  nodes: GuideNodeView[];
   readCount?: number;
 }
 
@@ -291,4 +348,120 @@ export interface AdminStats {
   files: Record<FileStatus, number>;
   jobs: { queued: number; running: number; failed: number };
   storageBytes: string;
+}
+
+export interface CharacterImageView {
+  id: string;
+  url: string;
+  caption: string | null;
+  position: number;
+  /** Marca d'agua do topo. No maximo uma por personagem. */
+  emblem: boolean;
+}
+
+/** As familias carregadas no index.html. Nome fora daqui cai em fallback. */
+export type CharacterFont = 'bangers' | 'cinzel' | 'orbitron' | 'metal' | 'maquina';
+
+/**
+ * O personagem numa lista — e tambem o indice que o auto-link usa.
+ *
+ * `aliases` viaja junto de proposito: sem ele, o cliente teria de pedir o
+ * detalhe de cada um dos 189 personagens para saber que "Prime" tambem aponta
+ * para o Superboy-Prime.
+ */
+export interface CharacterSummary {
+  id: string;
+  name: string;
+  slug: string;
+  summary: string | null;
+  aliases: string[];
+  /** Retrato: a imagem de `position` 0, quando existe. */
+  portraitUrl: string | null;
+  comicCount: number;
+  /**
+   * As duas cores do personagem, hex "#rrggbb". A UI cai no amarelo da marca
+   * quando faltam — mesma regra do accentColor da saga.
+   */
+  accentColor: string | null;
+  accentColor2: string | null;
+  displayFont: CharacterFont | null;
+}
+
+/** Um marco da linha do tempo. */
+export interface CharacterMilestoneView {
+  id: string;
+  position: number;
+  /** Titulo curto da era — e o que vai no indice fixo. */
+  era: string;
+  headline: string | null;
+  body: string;
+  /** Borra o bloco ate alguem pedir para ver. */
+  spoiler: boolean;
+  imageUrl: string | null;
+  /** De onde veio a arte: "Crise Infinita #1". */
+  sourceLabel: string | null;
+}
+
+/** Um grupo de "onde aparece": uma saga, ou as edicoes soltas. */
+export interface CharacterAppearanceGroup {
+  /** Nulo no grupo das edicoes que nao pertencem a saga nenhuma. */
+  seriesId: string | null;
+  name: string;
+  slug: string | null;
+  /** Por que ler esta: "leitura de contexto", "fecha o arco". */
+  note: string | null;
+  comics: ComicSummary[];
+}
+
+export interface CharacterDetail extends CharacterSummary {
+  description: string | null;
+  images: CharacterImageView[];
+  comics: ComicSummary[];
+  /** Guias em que ele esta no elenco — o caminho de volta para o evento. */
+  guides: CharacterGuideAppearance[];
+
+  /** A ficha rapida. Tudo pode vir vazio. */
+  tags: string[];
+  firstAppearance: string | null;
+  firstAppearanceYear: number | null;
+  affiliations: string[];
+  powers: string[];
+  powerLevel: string | null;
+  /** De 1 a 5, so para a barra. Null nao desenha barra nenhuma. */
+  powerLevelRank: number | null;
+  status: string | null;
+  statusNote: string | null;
+
+  primer: string | null;
+  whyMatters: string | null;
+
+  /** "Se voce so vai ler uma coisa." */
+  startHere: {
+    seriesId: string;
+    name: string;
+    slug: string;
+    issueCount: number;
+    note: string | null;
+  } | null;
+
+  milestones: CharacterMilestoneView[];
+  /** "Onde aparece", ja agrupado e na ordem de leitura. */
+  appearances: CharacterAppearanceGroup[];
+  /**
+   * Quem mais aparece nas mesmas edicoes. E derivado, e nao curado: vale para
+   * os 189 sem ninguem preencher nada, e so lista quem existe no acervo e tem
+   * pagina para onde ir.
+   */
+  related: CharacterSummary[];
+  /** Editora que mais publica as edicoes dele — a migalha do topo. */
+  publisher: string | null;
+}
+
+export interface CharacterGuideAppearance {
+  id: string;
+  title: string;
+  slug: string;
+  kind: GuideKind;
+  /** O papel dado no elenco daquele guia: "Quem roubou os dez anos". */
+  role: string | null;
 }

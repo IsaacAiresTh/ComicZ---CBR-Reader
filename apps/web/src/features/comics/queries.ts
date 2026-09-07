@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   BulkLibraryResult,
-  CatalogEntry,
+  CatalogResult,
+  CharacterDetail,
+  CharacterSummary,
   ComicDetail,
   ComicSummary,
   GuideDetail,
@@ -60,7 +62,7 @@ export function useComics(filters: CatalogFilters) {
 export function useCatalog(filters: CatalogEntryFilters) {
   return useQuery({
     queryKey: ['catalog', filters],
-    queryFn: () => api.get<Paginated<CatalogEntry>>(`/comics/catalog${toQueryString(filters)}`),
+    queryFn: () => api.get<CatalogResult>(`/comics/catalog${toQueryString(filters)}`),
   });
 }
 
@@ -105,6 +107,29 @@ export function useGuide(idOrSlug: string | undefined) {
     queryKey: ['guide', idOrSlug],
     queryFn: () => api.get<GuideDetail>(`/guides/${idOrSlug}`),
     enabled: Boolean(idOrSlug),
+  });
+}
+
+/**
+ * O indice de personagens.
+ *
+ * Pedido por toda pagina que tenha texto, porque e ele que decide quais nomes
+ * viram link. Muda quando alguem cria ou renomeia um personagem, o que e raro:
+ * sem um stale longo, cada navegacao refaria a mesma lista de 189 nomes.
+ */
+export function useCharacters() {
+  return useQuery({
+    queryKey: ['characters'],
+    queryFn: () => api.get<CharacterSummary[]>('/characters'),
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
+export function useCharacter(slug: string | undefined) {
+  return useQuery({
+    queryKey: ['character', slug],
+    queryFn: () => api.get<CharacterDetail>(`/characters/${slug}`),
+    enabled: Boolean(slug),
   });
 }
 
@@ -163,8 +188,7 @@ export function useRemoveFromLibrary() {
 export function useAddSeriesToLibrary() {
   const invalidate = useInvalidateComicState();
   return useMutation({
-    mutationFn: (seriesId: string) =>
-      api.post<BulkLibraryResult>(`/library/series/${seriesId}`),
+    mutationFn: (seriesId: string) => api.post<BulkLibraryResult>(`/library/series/${seriesId}`),
     onSuccess: invalidate,
   });
 }
@@ -172,8 +196,7 @@ export function useAddSeriesToLibrary() {
 export function useRemoveSeriesFromLibrary() {
   const invalidate = useInvalidateComicState();
   return useMutation({
-    mutationFn: (seriesId: string) =>
-      api.delete<BulkLibraryResult>(`/library/series/${seriesId}`),
+    mutationFn: (seriesId: string) => api.delete<BulkLibraryResult>(`/library/series/${seriesId}`),
     onSuccess: invalidate,
   });
 }

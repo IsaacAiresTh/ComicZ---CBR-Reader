@@ -81,6 +81,13 @@ export const catalogQuerySchema = z.object({
   publisherId: z.string().uuid().optional(),
   tag: z.string().trim().max(60).optional(),
   sort: z.enum(['recent', 'title']).default('recent'),
+  /** Inicial do titulo, ou "#" para o que nao comeca por letra. */
+  letter: z
+    .string()
+    .trim()
+    .max(1)
+    .transform((valor) => valor.toUpperCase())
+    .optional(),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(60).default(24),
   /** O painel precisa enxergar tudo; a navegacao publica, nao. */
@@ -182,13 +189,43 @@ export const guideItemInputSchema = z.object({
   comicId: z.string().uuid(),
   note: z.string().trim().max(1000).nullish(),
   optional: z.boolean().optional(),
+  chapter: z.string().trim().max(120).nullish(),
+  nodeId: z.string().uuid().nullish(),
 });
+
+export const guideKindSchema = z.enum(['GUIDE', 'EVENT']);
+
+/** Hex de 6 digitos com "#". A pagina injeta isto em style inline. */
+export const hexColorSchema = z
+  .string()
+  .trim()
+  .regex(/^#[0-9a-fA-F]{6}$/, 'Use uma cor no formato #rrggbb');
 
 export const upsertGuideSchema = z.object({
   title: z.string().trim().min(1, 'Informe o titulo').max(200),
   summary: z.string().trim().max(400).nullish(),
   description: z.string().trim().max(8000).nullish(),
   published: z.boolean().optional(),
+  kind: guideKindSchema.optional(),
+  accentColor: hexColorSchema.nullish(),
+});
+
+export const guideNodeSchema = z.object({
+  label: z.string().trim().min(1, 'Informe o nome do bloco').max(120),
+  note: z.string().trim().max(300).nullish(),
+  lane: z.coerce.number().int().min(0).max(20),
+  coluna: z.coerce.number().int().min(0).max(40),
+  entry: z.boolean().optional(),
+  parents: z.array(z.string().uuid()).max(10).optional(),
+});
+
+export const guideCharacterSchema = z.object({
+  name: z.string().trim().min(1, 'Informe o nome').max(120),
+  role: z.string().trim().max(120).nullish(),
+});
+
+export const reorderGuideCharactersSchema = z.object({
+  characterIds: z.array(z.string().uuid()).min(1, 'Informe a nova ordem'),
 });
 
 export const reorderGuideItemsSchema = z.object({
@@ -224,8 +261,118 @@ export type UpdateLibraryItemInput = z.infer<typeof updateLibraryItemSchema>;
 export type UpdateProgressInput = z.infer<typeof updateProgressSchema>;
 export type UpsertGuideInput = z.infer<typeof upsertGuideSchema>;
 export type GuideItemInput = z.infer<typeof guideItemInputSchema>;
+export type GuideCharacterInput = z.infer<typeof guideCharacterSchema>;
+export type GuideNodeInput = z.infer<typeof guideNodeSchema>;
+export type ReorderGuideCharactersInput = z.infer<typeof reorderGuideCharactersSchema>;
 export type ReorderGuideItemsInput = z.infer<typeof reorderGuideItemsSchema>;
 
 export type CreateCollectionInput = z.infer<typeof createCollectionSchema>;
 export type RenameCollectionInput = z.infer<typeof renameCollectionSchema>;
 export type ReorderCollectionInput = z.infer<typeof reorderCollectionSchema>;
+
+// ----------------------------------------------------------------- personagens
+
+/**
+ * Edicao do personagem pelo painel.
+ *
+ * Mesma regra do upsert de saga: campo ausente MANTEM, `null` limpa. O nome nao
+ * entra aqui de proposito — ele e unico, e a chave por onde o auto-link casa o
+ * texto; renomear e uma operacao com consequencia, nao um campo de formulario.
+ */
+/**
+ * Lista de textos curtos vinda de um campo separado por virgula.
+ *
+ * Vazios e repetidos saem aqui, e nao na tela: quatro campos usam a mesma
+ * regra, e limpar em cada um seria quatro lugares para esquecer.
+ */
+const listaDeTextos = z
+  .array(z.string().trim().min(1).max(80))
+  .max(20)
+  .transform((lista) => [...new Set(lista)])
+  .optional();
+
+export const updateCharacterSchema = z.object({
+  summary: z.string().trim().max(300).nullish(),
+  description: z.string().trim().max(20000).nullish(),
+  /**
+   * Apelidos usados no auto-link. Vazios e repetidos saem aqui para o indice do
+   * cliente nao carregar lixo, e um apelido de uma letra so casaria com meio
+   * texto — dai o minimo de dois.
+   */
+  aliases: z
+    .array(z.string().trim().min(2).max(80))
+    .max(20)
+    .transform((lista) => [...new Set(lista)])
+    .optional(),
+  /** Mesmo formato do accentColor da saga: hex de seis digitos, com "#". */
+  accentColor: hexColorSchema.nullish(),
+  accentColor2: hexColorSchema.nullish(),
+  displayFont: z.enum(['bangers', 'cinzel', 'orbitron', 'metal', 'maquina']).nullish(),
+
+  /** A ficha rapida. Tudo opcional, tudo limpavel com null. */
+  tags: listaDeTextos,
+  firstAppearance: z.string().trim().max(160).nullish(),
+  firstAppearanceYear: z.coerce.number().int().min(1900).max(2200).nullish(),
+  affiliations: listaDeTextos,
+  powers: listaDeTextos,
+  powerLevel: z.string().trim().max(80).nullish(),
+  /** Escala fechada: o mesmo 1..5 que o CHECK do banco exige. */
+  powerLevelRank: z.coerce.number().int().min(1).max(5).nullish(),
+  status: z.string().trim().max(120).nullish(),
+  statusNote: z.string().trim().max(120).nullish(),
+  primer: z.string().trim().max(2000).nullish(),
+  whyMatters: z.string().trim().max(2000).nullish(),
+  startHereSeriesId: z.string().uuid().nullish(),
+  startHereNote: z.string().trim().max(160).nullish(),
+});
+
+/**
+ * Os marcos, a lista inteira de uma vez.
+ *
+ * Mesma razao do reordenamento das imagens: a posicao e o indice no array, e
+ * mandar a lista completa dispensa "insira aqui", "mova aquele" e o estado
+ * intermediario em que dois marcos disputam a mesma posicao.
+ */
+export const setMilestonesSchema = z.object({
+  marcos: z
+    .array(
+      z.object({
+        era: z.string().trim().min(1, 'Informe a era').max(80),
+        headline: z.string().trim().max(200).nullish(),
+        body: z.string().trim().min(1, 'Informe o texto').max(8000),
+        spoiler: z.boolean().default(false),
+        imageId: z.string().uuid().nullish(),
+        sourceLabel: z.string().trim().max(160).nullish(),
+      }),
+    )
+    .max(30),
+});
+
+/** A ordem e a nota de cada saga em "onde aparece". */
+export const setSeriesNotesSchema = z.object({
+  sagas: z
+    .array(
+      z.object({
+        seriesId: z.string().uuid(),
+        note: z.string().trim().max(160).nullish(),
+      }),
+    )
+    .max(50),
+});
+
+/**
+ * A ordem das imagens, inteira.
+ *
+ * Manda a lista toda, e nao "mova esta para o indice 2": a posicao aqui decide
+ * quem e retrato, quem e a arte do topo e a ordem no texto, e um "mova" exige
+ * empurrar as vizinhas — tres cliques rapidos e duas fotos acabam na mesma
+ * posicao. Com a lista inteira o servidor so numera de novo, do zero.
+ */
+export const reorderCharacterImagesSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(50),
+});
+
+export type UpdateCharacterInput = z.infer<typeof updateCharacterSchema>;
+export type SetMilestonesInput = z.infer<typeof setMilestonesSchema>;
+export type SetSeriesNotesInput = z.infer<typeof setSeriesNotesSchema>;
+export type ReorderCharacterImagesInput = z.infer<typeof reorderCharacterImagesSchema>;

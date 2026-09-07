@@ -10,6 +10,7 @@
   --color-ink-500: #5b6478;
   --color-ink-400: #8b95a9;
   --color-ink-300: #b8c0d0;
+  --color-ink-200: #d6dbe6;
   --color-ink-100: #eef1f7;
 
   --color-brand-400: #ffd23f;
@@ -30,7 +31,13 @@
   body {
     @apply bg-ink-900 text-ink-100 antialiased;
     font-family:
-      ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      Roboto,
+      'Helvetica Neue',
+      sans-serif;
   }
 
   /* Scrollbar discreta, importante no modo de leitura continua */
@@ -55,10 +62,200 @@
   }
 }
 
+@layer components {
+  /*
+   * Pagina de evento.
+   *
+   * A saga entra por UMA variavel, --accent, e so nos acentos: trilho da
+   * trilha, selo do ato, barra de progresso. O fundo continua sendo o ink do
+   * site — colorir a pagina inteira e o que deixa esse tipo de tela cansativa,
+   * e a arte das capas ja traz cor suficiente.
+   */
+  .evento {
+    --accent: var(--color-brand-500);
+  }
+}
+
+/*
+ * Os acentos sao @utility, e nao @layer components, porque so utility aceita
+ * variante: `hover:evento-texto` e `hover:evento-borda` nao geram uma linha de
+ * CSS sequer quando a classe mora em components.
+ */
+@utility evento-tinta {
+  background-color: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+@utility evento-trilho {
+  background-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+@utility evento-texto {
+  color: var(--accent);
+}
+@utility evento-borda {
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+@utility evento-barra {
+  background-color: var(--accent);
+}
+@utility evento-selo {
+  background-color: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+
+/*
+ * Vinheta sobre a arte do topo. A faixa da esquerda e mais fechada que a de
+ * baixo de proposito: e nela que o titulo e a apresentacao se apoiam, e capa
+ * clara com texto por cima nao se resolve so com cor de fonte.
+ */
+@utility evento-capa {
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(to top, var(--color-ink-950) 12%, transparent 70%),
+      linear-gradient(
+        to right,
+        var(--color-ink-950) 26%,
+        color-mix(in srgb, var(--color-ink-950) 45%, transparent) 68%,
+        transparent 100%
+      );
+  }
+}
+
+/* Ultimo reforco do texto do topo, para a capa que escapa da vinheta. */
+@utility evento-capa-texto {
+  text-shadow: 0 1px 14px var(--color-ink-950);
+}
+
 @layer utilities {
   .comic-shadow {
     box-shadow:
       0 1px 2px rgb(0 0 0 / 0.4),
       0 8px 24px -8px rgb(0 0 0 / 0.6);
   }
+}
+
+@layer components {
+  /*
+   * Pagina de personagem.
+   *
+   * As duas cores e a fonte entram por variaveis, escritas uma unica vez no
+   * container — nenhum componente abaixo conhece o valor. Mesma regra da saga:
+   * so acentos, o fundo continua ink.
+   */
+  .personagem {
+    --accent: var(--color-brand-500);
+    --accent-2: var(--accent);
+    --fonte-personagem: var(--font-display);
+  }
+}
+
+@utility personagem-titulo {
+  font-family: var(--fonte-personagem);
+}
+
+/*
+ * As duas cores do personagem entram de verdade, e nao como filete: no
+ * Superboy-Prime a pagina tem que ser o azul e o vermelho do Superman.
+ *
+ * O que segura isso e a divisao de trabalho: COR no topo e nos cromados, INK
+ * embaixo da coluna de leitura. Um paragrafo de mil caracteres sobre azul
+ * cansa a vista em duas linhas — e foi por texto apagado que esta pagina
+ * comecou a ser mexida.
+ */
+
+/* O chao: uma lavagem da cor 1 que morre antes da coluna de texto comecar. */
+@utility personagem-chao {
+  background-image: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--accent) 26%, var(--color-ink-900)),
+    var(--color-ink-900) 560px
+  );
+}
+
+/*
+ * O painel do topo. As duas cores escurecidas contra o ink-950 ate darem
+ * contraste de sobra para o texto branco: o azul fica em torno de 8:1 e o
+ * vermelho passa de 10:1.
+ */
+@utility personagem-painel {
+  background-image: linear-gradient(
+    115deg,
+    color-mix(in srgb, var(--accent) 62%, var(--color-ink-950)) 0%,
+    color-mix(in srgb, var(--accent) 38%, var(--color-ink-950)) 48%,
+    color-mix(in srgb, var(--accent-2) 44%, var(--color-ink-950)) 100%
+  );
+}
+
+/* A faixa da segunda cor, cruzando por tras da figura. */
+@utility personagem-faixa {
+  background-image: linear-gradient(
+    100deg,
+    transparent 38%,
+    color-mix(in srgb, var(--accent-2) 60%, transparent) 56%,
+    transparent 74%
+  );
+}
+
+/*
+ * Reticula: o ponto de impressao. Vive so no topo — no corpo do texto o mesmo
+ * ponto vira sujeira atras da letra.
+ */
+@utility personagem-reticula {
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--color-ink-950) 50%, transparent) 1px,
+    transparent 1.2px
+  );
+  background-size: 6px 6px;
+}
+
+/*
+ * O nome: branco com a sombra deslocada na segunda cor. E como letreiro de
+ * quadrinho poe cor no tipo sem tirar contraste dele — degrade dentro da letra
+ * faria o oposto, comendo a legibilidade justamente no que e maior na pagina.
+ */
+@utility personagem-nome {
+  font-family: var(--fonte-personagem);
+  color: var(--color-ink-100);
+  text-shadow:
+    3px 3px 0 color-mix(in srgb, var(--accent-2) 88%, var(--color-ink-950)),
+    7px 7px 0 color-mix(in srgb, var(--color-ink-950) 55%, transparent);
+}
+
+@utility personagem-filete {
+  background-image: linear-gradient(to right, var(--accent), var(--accent-2));
+}
+
+/* Segmento aceso da barra de nivel. */
+@utility personagem-nivel {
+  background-color: color-mix(in srgb, var(--accent-2) 92%, transparent);
+}
+
+/* Borda discreta na cor do personagem, para caixas de destaque. */
+@utility personagem-borda-suave {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--color-ink-800));
+}
+
+/* Rotulo de secao na cor do personagem, forte o bastante para se ler. */
+@utility personagem-rotulo {
+  color: color-mix(in srgb, var(--accent) 55%, var(--color-ink-100));
+}
+
+/*
+ * Link de personagem dentro de um texto. O fallback importa: este mesmo link
+ * aparece na ficha da HQ, que nao tem container de acento nenhum — e
+ * `color: var(--accent)` sem fallback nao pinta nada.
+ */
+@utility personagem-texto {
+  color: color-mix(in srgb, var(--accent, var(--color-brand-500)) 72%, var(--color-ink-100));
+}
+
+/* Halo atras do recorte, para a figura nao boiar sobre o ink liso. */
+@utility personagem-halo {
+  background: radial-gradient(
+    58% 52% at 58% 45%,
+    color-mix(in srgb, var(--accent) 20%, transparent),
+    color-mix(in srgb, var(--accent-2) 8%, transparent) 55%,
+    transparent 72%
+  );
 }

@@ -1,5 +1,6 @@
-import { Link, useLocation, useParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom';
 import { Badge, ErrorNote, Spinner } from '../../components/ui';
+import { CharacterText } from '../characters/CharacterText';
 import { comicLabel, fileStatusLabel, percent } from '../../lib/format';
 import { fromHere } from '../../lib/navigation';
 import { mediaUrl } from '../../services/api';
@@ -12,6 +13,9 @@ export function GuideDetailPage() {
 
   if (isLoading) return <Spinner label="Carregando guia..." />;
   if (error || !guide) return <ErrorNote>Não foi possível carregar este guia.</ErrorNote>;
+
+  // Link antigo para uma saga que virou evento continua valendo.
+  if (guide.kind === 'EVENT') return <Navigate to={`/eventos/${guide.slug}`} replace />;
 
   const readCount = guide.readCount ?? 0;
   const progressPercent = percent(readCount, guide.itemCount);
@@ -28,10 +32,14 @@ export function GuideDetailPage() {
         </div>
 
         <h1 className="mt-2 text-3xl font-semibold text-ink-100">{guide.title}</h1>
-        {guide.summary && <p className="mt-2 text-ink-300">{guide.summary}</p>}
+        {guide.summary && (
+          <p className="mt-2 text-ink-300">
+            <CharacterText texto={guide.summary} />
+          </p>
+        )}
         {guide.description && (
           <p className="mt-4 whitespace-pre-line text-sm leading-relaxed text-ink-400">
-            {guide.description}
+            <CharacterText texto={guide.description} />
           </p>
         )}
 

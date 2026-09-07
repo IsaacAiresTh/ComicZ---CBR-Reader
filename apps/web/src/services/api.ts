@@ -134,6 +134,7 @@ export const api = {
   get: <T>(path: string) => apiFetch<T>(path),
   post: <T>(path: string, body?: unknown) => apiFetch<T>(path, { method: 'POST', body }),
   patch: <T>(path: string, body?: unknown) => apiFetch<T>(path, { method: 'PATCH', body }),
+  put: <T>(path: string, body?: unknown) => apiFetch<T>(path, { method: 'PUT', body }),
   delete: <T>(path: string) => apiFetch<T>(path, { method: 'DELETE' }),
 };
 
@@ -163,6 +164,29 @@ export async function uploadCover(
   });
   if (!res.ok) throw await parseError(res);
   return res.json() as Promise<{ coverPath: string }>;
+}
+
+/**
+ * Acrescenta uma imagem a galeria do personagem.
+ *
+ * Rota propria, e nao `uploadCover`: la o alvo tem UMA capa e o PUT substitui,
+ * aqui cada envio cria mais uma imagem na fila. O verbo e o mesmo por causa do
+ * interceptor de arquivo do Nest, mas a semantica nao.
+ */
+export async function uploadCharacterImage(
+  characterId: string,
+  imagem: Blob,
+): Promise<{ id: string; path: string }> {
+  const form = new FormData();
+  form.append('file', imagem, 'personagem.webp');
+  const res = await fetch(`${API_BASE}/characters/${characterId}/imagens`, {
+    method: 'PUT',
+    body: form,
+    credentials: 'include',
+    headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
+  });
+  if (!res.ok) throw await parseError(res);
+  return res.json() as Promise<{ id: string; path: string }>;
 }
 
 export function uploadComicFile(

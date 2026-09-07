@@ -1,19 +1,15 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import {
-  ComicFormat,
-  FileStatus,
-  Prisma,
-  SeriesStatus,
-  enqueueJob,
-} from '@comicz/database';
+import { ComicFormat, FileStatus, Prisma, SeriesStatus, enqueueJob } from '@comicz/database';
 import {
   formatComicLabel,
+  initialLetter,
   JOB_TYPES,
   parseComicFilename,
   searchAlternatives,
   slugify,
   type CatalogEntry,
   type CatalogQuery,
+  type CatalogResult,
   type ComicDetail,
   type ComicSummary,
   type ListComicsQuery,
@@ -93,7 +89,7 @@ export class ComicsService {
    * subconjunto que casou com a busca: um card que diz "6 edicoes" leva a uma
    * pagina com 6 edicoes, independente do filtro que o trouxe ate aqui.
    */
-  async catalog(query: CatalogQuery, userId: string): Promise<Paginated<CatalogEntry>> {
+  async catalog(query: CatalogQuery, userId: string): Promise<CatalogResult> {
     const where = await this.buildWhere(query);
 
     const grouped = await this.prisma.comic.groupBy({
@@ -157,14 +153,33 @@ export class ComicsService {
       })),
     ];
 
-    keys.sort((a, b) =>
+    /*
+     * A contagem por inicial sai daqui, antes do filtro de letra: ela precisa
+     * refletir a busca e a editora ativas, mas NAO a letra escolhida — senao a
+     * fila do alfabeto apagaria todas as outras teclas assim que uma fosse
+     * clicada, e nao haveria como trocar de letra sem limpar antes.
+     */
+    const letters: Record<string, number> = {};
+    for (const key of keys) {
+      const inicial = initialLetter(key.name);
+      letters[inicial] = (letters[inicial] ?? 0) + 1;
+    }
+
+    // O filtro casa com o NOME EXIBIDO — o da saga, e nao o da edicao solta
+    // que mora dentro dela. E o unico jeito de a tecla concordar com o que a
+    // grade mostra depois do clique.
+    const filtradas = query.letter
+      ? keys.filter((key) => initialLetter(key.name) === query.letter)
+      : keys;
+
+    filtradas.sort((a, b) =>
       query.sort === 'title'
         ? a.name.localeCompare(b.name, 'pt-BR')
         : b.recentAt.getTime() - a.recentAt.getTime(),
     );
 
     const { skip, take } = toSkipTake(query);
-    const pageKeys = keys.slice(skip, skip + take);
+    const pageKeys = filtradas.slice(skip, skip + take);
     const pageSeriesIds = pageKeys.filter((key) => key.kind === 'series').map((key) => key.id);
     const pageComicIds = pageKeys.filter((key) => key.kind === 'comic').map((key) => key.id);
 
@@ -207,10 +222,10 @@ export class ComicsService {
        */
       const hasSagaInfo = Boolean(
         series &&
-          (series.description ||
-            series.status !== SeriesStatus.UNKNOWN ||
-            series._count.creators > 0 ||
-            (series.totalIssues !== null && series.totalIssues > issueList.length)),
+        (series.description ||
+          series.status !== SeriesStatus.UNKNOWN ||
+          series._count.creators > 0 ||
+          (series.totalIssues !== null && series.totalIssues > issueList.length)),
       );
 
       // Sem nada a dizer alem da propria edicao, mostramos a HQ direto.
@@ -242,13 +257,14 @@ export class ComicsService {
           totalIssues: series.totalIssues,
           issueCount: issueList.length,
           readyCount: issueList.filter((issue) => issue.file?.status === FileStatus.READY).length,
-          readCount: issueList.filter((issue) => contexts.get(issue.id)?.progress?.completed).length,
+          readCount: issueList.filter((issue) => contexts.get(issue.id)?.progress?.completed)
+            .length,
           inLibraryCount: issueList.filter((issue) => contexts.get(issue.id)?.library).length,
         },
       });
     }
 
-    return paginate(items, keys.length, query);
+    return { ...paginate(items, filtradas.length, query), letters };
   }
 
   async findOne(idOrSlug: string, userId: string): Promise<ComicDetail> {
@@ -540,9 +556,9 @@ export class ComicsService {
   }
 
   private detectFormat(filename: string): ComicFormat {
-    const lower = filename.toLowerCase().replace(/(\.(cbr|cbz))+$/, (match) =>
-      match.slice(match.lastIndexOf('.')),
-    );
+    const lower = filename
+      .toLowerCase()
+      .replace(/(\.(cbr|cbz))+$/, (match) => match.slice(match.lastIndexOf('.')));
     if (lower.endsWith('.cbz')) return ComicFormat.CBZ;
     if (lower.endsWith('.cbr')) return ComicFormat.CBR;
     throw new BadRequestException('Formato nao suportado: envie um arquivo .cbr ou .cbz');
@@ -601,10 +617,7 @@ export class ComicsService {
    * Busca biblioteca e progresso do usuario em duas queries, evitando N+1
    * ao montar uma listagem.
    */
-  async userContexts(
-    userId: string,
-    comicIds: string[],
-  ): Promise<Map<string, UserComicContext>> {
+  async userContexts(userId: string, comicIds: string[]): Promise<Map<string, UserComicContext>> {
     const result = new Map<string, UserComicContext>();
     if (!userId || comicIds.length === 0) return result;
 

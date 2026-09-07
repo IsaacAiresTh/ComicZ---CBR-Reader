@@ -35,7 +35,9 @@ export function coverUrl(comic: {
   coverPath: string | null;
   updatedAt: Date;
 }): string | null {
-  return comic.coverPath ? `/media/covers/${comic.id}/${comic.updatedAt.getTime().toString(36)}` : null;
+  return comic.coverPath
+    ? `/media/covers/${comic.id}/${comic.updatedAt.getTime().toString(36)}`
+    : null;
 }
 
 /**
@@ -76,6 +78,35 @@ function capaPropriaOuHerdada(
   return `/media/covers/${dono.id}/${version}`;
 }
 
+/**
+ * Rosto do elenco de um guia de evento.
+ *
+ * Mesma rota das capas — o id do personagem tambem e UUID —, com a versao
+ * vindo do `updatedAt` dele. Sem essa versao, trocar a imagem nao tiraria a
+ * antiga do cache, que responde `immutable` por um ano.
+ */
+export function guideCharacterImageUrl(character: {
+  id: string;
+  imagePath: string | null;
+  updatedAt: Date;
+}): string | null {
+  return character.imagePath
+    ? `/media/covers/${character.id}/${character.updatedAt.getTime().toString(36)}`
+    : null;
+}
+
 export function pageUrl(comicFileId: string, index: number, version: string): string {
   return `/media/pages/${comicFileId}/${version}/${index}`;
+}
+
+/**
+ * Imagem da pagina de personagem.
+ *
+ * Mesma rota das capas: o id da imagem tambem e UUID, e o servidor monta a
+ * chave de storage a partir dele. A versao vem do `updatedAt` da propria
+ * imagem, e nao do personagem — trocar uma foto da galeria nao deve derrubar
+ * do cache as outras que nao mudaram.
+ */
+export function characterImageUrl(image: { id: string; updatedAt: Date }): string {
+  return `/media/covers/${image.id}/${image.updatedAt.getTime().toString(36)}`;
 }

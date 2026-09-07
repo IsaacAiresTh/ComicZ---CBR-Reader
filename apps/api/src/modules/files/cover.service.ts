@@ -55,7 +55,10 @@ export class CoverService {
   ) {}
 
   async setComicCover(comicId: string, upload: UploadedCover): Promise<{ coverPath: string }> {
-    const comic = await this.prisma.comic.findUnique({ where: { id: comicId }, select: { id: true } });
+    const comic = await this.prisma.comic.findUnique({
+      where: { id: comicId },
+      select: { id: true },
+    });
     if (!comic) throw new NotFoundException('HQ nao encontrada');
     const key = await this.store(comicId, upload);
     await this.prisma.comic.update({ where: { id: comicId }, data: { coverPath: key } });
@@ -63,7 +66,10 @@ export class CoverService {
   }
 
   async setSeriesCover(seriesId: string, upload: UploadedCover): Promise<{ coverPath: string }> {
-    const series = await this.prisma.series.findUnique({ where: { id: seriesId }, select: { id: true } });
+    const series = await this.prisma.series.findUnique({
+      where: { id: seriesId },
+      select: { id: true },
+    });
     if (!series) throw new NotFoundException('Saga nao encontrada');
     const key = await this.store(seriesId, upload);
     await this.prisma.series.update({ where: { id: seriesId }, data: { coverPath: key } });
@@ -71,11 +77,83 @@ export class CoverService {
   }
 
   async setGuideCover(guideId: string, upload: UploadedCover): Promise<{ coverPath: string }> {
-    const guide = await this.prisma.guide.findUnique({ where: { id: guideId }, select: { id: true } });
+    const guide = await this.prisma.guide.findUnique({
+      where: { id: guideId },
+      select: { id: true },
+    });
     if (!guide) throw new NotFoundException('Guia nao encontrado');
     const key = await this.store(guideId, upload);
     await this.prisma.guide.update({ where: { id: guideId }, data: { coverPath: key } });
     return { coverPath: key };
+  }
+
+  /**
+   * Rosto do elenco de um guia de evento.
+   *
+   * Guarda em `covers/<characterId>.webp` como os outros tres — a rota de midia
+   * monta a chave a partir do id, e o do personagem tambem e UUID. O `updatedAt`
+   * do registro e tocado no update, que e o que muda a URL e tira a imagem
+   * antiga do cache.
+   */
+  async setGuideCharacterImage(
+    characterId: string,
+    upload: UploadedCover,
+  ): Promise<{ imagePath: string }> {
+    const character = await this.prisma.guideCharacter.findUnique({
+      where: { id: characterId },
+      select: { id: true },
+    });
+    if (!character) throw new NotFoundException('Personagem nao encontrado');
+    const key = await this.store(characterId, upload);
+    await this.prisma.guideCharacter.update({
+      where: { id: characterId },
+      data: { imagePath: key },
+    });
+    return { imagePath: key };
+  }
+
+  /**
+   * Adiciona uma imagem a galeria do personagem.
+   *
+   * A linha nasce antes do upload porque e o id DELA que vira a chave em
+   * storage: assim cada foto tem sua propria URL versionada, e trocar uma nao
+   * derruba as outras do cache. A posicao vai para o fim da fila; a de posicao
+   * 0 e o retrato, entao a primeira que entra ja fica sendo o retrato.
+   */
+  async addCharacterImage(
+    characterId: string,
+    upload: UploadedCover,
+  ): Promise<{ id: string; path: string }> {
+    const character = await this.prisma.character.findUnique({
+      where: { id: characterId },
+      select: { id: true },
+    });
+    if (!character) throw new NotFoundException('Personagem nao encontrado');
+
+    const ultima = await this.prisma.characterImage.findFirst({
+      where: { characterId },
+      orderBy: { position: 'desc' },
+      select: { position: true },
+    });
+
+    const image = await this.prisma.characterImage.create({
+      data: { characterId, path: '', position: (ultima?.position ?? -1) + 1 },
+    });
+    const key = await this.store(image.id, upload);
+    await this.prisma.characterImage.update({ where: { id: image.id }, data: { path: key } });
+    return { id: image.id, path: key };
+  }
+
+  /** Tira a imagem da galeria e do storage: nada mais aponta para o objeto. */
+  async removeCharacterImage(imageId: string): Promise<void> {
+    const image = await this.prisma.characterImage.findUnique({
+      where: { id: imageId },
+      select: { id: true, path: true },
+    });
+    if (!image) throw new NotFoundException('Imagem nao encontrada');
+
+    await this.prisma.characterImage.delete({ where: { id: imageId } });
+    if (image.path) await this.storage.remove(image.path);
   }
 
   /**

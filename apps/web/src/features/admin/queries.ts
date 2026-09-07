@@ -2,12 +2,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AdminStats,
   ComicDetail,
+  SetMilestonesInput,
+  SetSeriesNotesInput,
+  UpdateCharacterInput,
   GuideDetail,
   SeriesDetail,
   UpsertComicPayload,
   UpsertSeriesPayload,
 } from '@comicz/shared';
-import { api, uploadCover, type AlvoDeCapa } from '../../services/api';
+import { api, uploadCharacterImage, uploadCover, type AlvoDeCapa } from '../../services/api';
 
 export interface AdminJob {
   id: string;
@@ -191,6 +194,69 @@ export function useDetachComicFromSeries() {
  * saga, indice de guias. Por isso invalida todos os grupos — sai mais barato
  * que acertar quais listas mostram aquele card.
  */
+export function useUpdateCharacter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; dados: UpdateCharacterInput }) =>
+      api.patch<unknown>(`/characters/${input.id}`, input.dados),
+    onSuccess: () => invalidarPersonagens(queryClient),
+  });
+}
+
+export function useAddCharacterImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; imagem: Blob }) =>
+      uploadCharacterImage(input.id, input.imagem),
+    onSuccess: () => invalidarPersonagens(queryClient),
+  });
+}
+
+export function useSetMilestones() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; marcos: SetMilestonesInput['marcos'] }) =>
+      api.put<void>(`/characters/${input.id}/marcos`, { marcos: input.marcos }),
+    onSuccess: () => invalidarPersonagens(queryClient),
+  });
+}
+
+export function useSetSeriesNotes() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; sagas: SetSeriesNotesInput['sagas'] }) =>
+      api.put<void>(`/characters/${input.id}/sagas`, { sagas: input.sagas }),
+    onSuccess: () => invalidarPersonagens(queryClient),
+  });
+}
+
+export function useReorderCharacterImages() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; ids: string[] }) =>
+      api.put<void>(`/characters/${input.id}/imagens/ordem`, { ids: input.ids }),
+    onSuccess: () => invalidarPersonagens(queryClient),
+  });
+}
+
+export function useRemoveCharacterImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (imageId: string) => api.delete<void>(`/characters/imagens/${imageId}`),
+    onSuccess: () => invalidarPersonagens(queryClient),
+  });
+}
+
+/**
+ * O indice e o detalhe saem juntos: o indice carrega o retrato e os apelidos,
+ * entao editar um personagem muda as duas respostas — e o indice ainda decide
+ * quais nomes viram link em toda pagina com texto.
+ */
+function invalidarPersonagens(queryClient: ReturnType<typeof useQueryClient>): void {
+  void queryClient.invalidateQueries({ queryKey: ['characters'] });
+  void queryClient.invalidateQueries({ queryKey: ['character'] });
+}
+
 export function useSetCover() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -238,8 +304,12 @@ function invalidateGuides(queryClient: ReturnType<typeof useQueryClient>) {
 export function useCreateGuide() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { title: string; summary?: string; description?: string; published?: boolean }) =>
-      api.post<GuideDetail>('/guides', input),
+    mutationFn: (input: {
+      title: string;
+      summary?: string;
+      description?: string;
+      published?: boolean;
+    }) => api.post<GuideDetail>('/guides', input),
     onSuccess: () => invalidateGuides(queryClient),
   });
 }
@@ -249,7 +319,12 @@ export function useUpdateGuide() {
   return useMutation({
     mutationFn: (input: {
       id: string;
-      data: { title: string; summary?: string | null; description?: string | null; published?: boolean };
+      data: {
+        title: string;
+        summary?: string | null;
+        description?: string | null;
+        published?: boolean;
+      };
     }) => api.patch(`/guides/${input.id}`, input.data),
     onSuccess: () => invalidateGuides(queryClient),
   });
@@ -284,7 +359,12 @@ export function useRemoveGuideItem() {
 export function useUpdateGuideItem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { guideId: string; itemId: string; note?: string | null; optional?: boolean }) =>
+    mutationFn: (input: {
+      guideId: string;
+      itemId: string;
+      note?: string | null;
+      optional?: boolean;
+    }) =>
       api.patch(`/guides/${input.guideId}/items/${input.itemId}`, {
         note: input.note,
         optional: input.optional,

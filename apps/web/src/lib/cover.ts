@@ -16,9 +16,9 @@ const QUALIDADE = 0.8;
 export class CoverError extends Error {}
 
 /** Redimensiona e converte para WebP. Devolve o arquivo pronto para envio. */
-export async function prepararCapa(origem: Blob): Promise<Blob> {
+export async function prepararCapa(origem: Blob, larguraAlvo = LARGURA): Promise<Blob> {
   const bitmap = await carregar(origem);
-  const escala = Math.min(1, LARGURA / bitmap.width);
+  const escala = Math.min(1, larguraAlvo / bitmap.width);
   const largura = Math.round(bitmap.width * escala);
   const altura = Math.round(bitmap.height * escala);
 
