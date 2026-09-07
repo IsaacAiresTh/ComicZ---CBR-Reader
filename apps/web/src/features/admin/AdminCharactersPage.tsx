@@ -5,7 +5,12 @@ import { CoverError, prepararCapa } from '../../lib/cover';
 import { ApiError, mediaUrl } from '../../services/api';
 import { useCharacter, useCharacters } from '../comics/queries';
 import { FONTES } from '../characters/estilo';
-import { useAddCharacterImage, useRemoveCharacterImage, useUpdateCharacter } from './queries';
+import {
+  useAddCharacterImage,
+  useRemoveCharacterImage,
+  useReorderCharacterImages,
+  useUpdateCharacter,
+} from './queries';
 
 /** A foto ocupa a coluna inteira do texto; 500px como a capa sairia borrada. */
 const LARGURA_DA_FOTO = 900;
@@ -96,6 +101,7 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
   const salvar = useUpdateCharacter();
   const adicionar = useAddCharacterImage();
   const remover = useRemoveCharacterImage();
+  const reordenar = useReorderCharacterImages();
 
   const [summary, setSummary] = useState(personagem.summary ?? '');
   const [description, setDescription] = useState(personagem.description ?? '');
@@ -190,6 +196,31 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
       }
     }
     setEnviando(null);
+  }
+
+  /**
+   * Troca de lugar com a vizinha e manda a lista inteira.
+   *
+   * Trocar com a vizinha, e nao "mover para o inicio": duas trocas ja levam
+   * qualquer foto ao retrato, e o movimento e reversivel na hora — clicar a
+   * seta oposta desfaz. Com "mover para o inicio" nao existe o desfazer, e a
+   * ordem das outras muda sem que ninguem tenha pedido.
+   */
+  function trocar(indice: number, direcao: -1 | 1) {
+    const alvo = indice + direcao;
+    if (alvo < 0 || alvo >= personagem.images.length) return;
+
+    const ordem = personagem.images.map((imagem) => imagem.id);
+    const atual = ordem[indice];
+    const vizinho = ordem[alvo];
+    if (!atual || !vizinho) return;
+    ordem[indice] = vizinho;
+    ordem[alvo] = atual;
+
+    reordenar.mutate(
+      { id: personagem.id, ids: ordem },
+      { onError: () => setErro('Não foi possível mudar a ordem') },
+    );
   }
 
   return (
@@ -326,15 +357,29 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
                 alt=""
                 className="h-32 w-32 rounded-lg border border-ink-800 object-cover"
               />
-              <figcaption className="mt-1 flex items-center justify-between text-[11px] text-ink-500">
-                <span>{i === 0 ? 'retrato' : i === 1 ? 'topo' : `no texto ${i - 1}`}</span>
-                <button
-                  type="button"
-                  onClick={() => remover.mutate(imagem.id)}
-                  className="text-accent-400 hover:underline"
-                >
-                  remover
-                </button>
+              <figcaption className="mt-1 space-y-1 text-[11px] text-ink-500">
+                <div className="flex items-center justify-between">
+                  <span>{i === 0 ? 'retrato' : i === 1 ? 'topo' : `no texto ${i - 1}`}</span>
+                  <button
+                    type="button"
+                    onClick={() => remover.mutate(imagem.id)}
+                    className="text-accent-400 hover:underline"
+                  >
+                    remover
+                  </button>
+                </div>
+                <div className="flex gap-1">
+                  <SetaDeOrdem
+                    direcao="esquerda"
+                    desabilitada={i === 0 || reordenar.isPending}
+                    onClick={() => trocar(i, -1)}
+                  />
+                  <SetaDeOrdem
+                    direcao="direita"
+                    desabilitada={i === personagem.images.length - 1 || reordenar.isPending}
+                    onClick={() => trocar(i, 1)}
+                  />
+                </div>
               </figcaption>
             </figure>
           ))}
@@ -367,5 +412,29 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
         </div>
       </section>
     </div>
+  );
+}
+
+/** Uma seta da ordem. O titulo diz o efeito, que e o que importa: a 1ª e o retrato. */
+function SetaDeOrdem({
+  direcao,
+  desabilitada,
+  onClick,
+}: {
+  direcao: 'esquerda' | 'direita';
+  desabilitada: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={desabilitada}
+      onClick={onClick}
+      title={direcao === 'esquerda' ? 'Mover para trás' : 'Mover para frente'}
+      aria-label={direcao === 'esquerda' ? 'Mover para trás' : 'Mover para frente'}
+      className="h-6 flex-1 rounded border border-ink-700 text-ink-300 transition-colors hover:border-ink-500 hover:text-ink-100 disabled:cursor-default disabled:border-ink-800 disabled:text-ink-700"
+    >
+      {direcao === 'esquerda' ? '←' : '→'}
+    </button>
   );
 }

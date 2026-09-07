@@ -298,4 +298,17 @@ export const updateCharacterSchema = z.object({
   displayFont: z.enum(['bangers', 'cinzel', 'orbitron', 'metal', 'maquina']).nullish(),
 });
 
+/**
+ * A ordem das imagens, inteira.
+ *
+ * Manda a lista toda, e nao "mova esta para o indice 2": a posicao aqui decide
+ * quem e retrato, quem e a arte do topo e a ordem no texto, e um "mova" exige
+ * empurrar as vizinhas — tres cliques rapidos e duas fotos acabam na mesma
+ * posicao. Com a lista inteira o servidor so numera de novo, do zero.
+ */
+export const reorderCharacterImagesSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(50),
+});
+
 export type UpdateCharacterInput = z.infer<typeof updateCharacterSchema>;
+export type ReorderCharacterImagesInput = z.infer<typeof reorderCharacterImagesSchema>;

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { CharacterDetail, CharacterSummary, UpdateCharacterInput } from '@comicz/shared';
 import { PrismaService } from '../../prisma/prisma.service';
 import { comicSummaryInclude, toComicSummary } from '../comics/comic-mapper';
@@ -111,6 +111,35 @@ export class CharactersService {
         ...(input.displayFont !== undefined ? { displayFont: input.displayFont } : {}),
       },
     });
+  }
+
+  /**
+   * Renumera as imagens na ordem recebida.
+   *
+   * Exige a lista COMPLETA e exata: mesmo tamanho e mesmos ids. Aceitar uma
+   * lista parcial deixaria as de fora com a posicao antiga, colidindo com as
+   * novas — e posicao aqui nao e enfeite, e quem decide o retrato. Falhar aqui
+   * e melhor do que gravar uma ordem que ninguem pediu.
+   */
+  async reorderImages(characterId: string, ids: string[]): Promise<void> {
+    const atuais = await this.prisma.characterImage.findMany({
+      where: { characterId },
+      select: { id: true },
+    });
+
+    const esperados = new Set(atuais.map((imagem) => imagem.id));
+    const recebidos = new Set(ids);
+    const mesmoConjunto =
+      esperados.size === recebidos.size && [...recebidos].every((id) => esperados.has(id));
+    if (!mesmoConjunto) {
+      throw new BadRequestException('Envie todas as imagens do personagem, sem repetir');
+    }
+
+    await this.prisma.$transaction(
+      ids.map((id, posicao) =>
+        this.prisma.characterImage.update({ where: { id }, data: { position: posicao } }),
+      ),
+    );
   }
 
   private toSummary(row: {

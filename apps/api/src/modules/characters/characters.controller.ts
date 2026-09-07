@@ -15,7 +15,12 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@comicz/database';
-import { updateCharacterSchema, type UpdateCharacterInput } from '@comicz/shared';
+import {
+  reorderCharacterImagesSchema,
+  updateCharacterSchema,
+  type ReorderCharacterImagesInput,
+  type UpdateCharacterInput,
+} from '@comicz/shared';
 import {
   CurrentUser,
   type AuthenticatedUser,
@@ -68,6 +73,17 @@ export class CharactersController {
   ) {
     if (!file) throw new BadRequestException('Envie a imagem no campo "file"');
     return this.covers.addCharacterImage(id, file);
+  }
+
+  @Roles(Role.ADMIN)
+  @Put(':id/imagens/ordem')
+  @HttpCode(204)
+  @ApiOperation({ summary: '[admin] Reordena a galeria — a 1ª vira o retrato' })
+  reorderImages(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(reorderCharacterImagesSchema)) body: ReorderCharacterImagesInput,
+  ) {
+    return this.characters.reorderImages(id, body.ids);
   }
 
   @Roles(Role.ADMIN)

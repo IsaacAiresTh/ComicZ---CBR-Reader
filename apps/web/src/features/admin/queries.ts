@@ -210,6 +210,15 @@ export function useAddCharacterImage() {
   });
 }
 
+export function useReorderCharacterImages() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { id: string; ids: string[] }) =>
+      api.put<void>(`/characters/${input.id}/imagens/ordem`, { ids: input.ids }),
+    onSuccess: () => invalidarPersonagens(queryClient),
+  });
+}
+
 export function useRemoveCharacterImage() {
   const queryClient = useQueryClient();
   return useMutation({
