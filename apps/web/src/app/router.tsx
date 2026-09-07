@@ -4,6 +4,7 @@ import { LoginPage } from '../features/auth/LoginPage';
 import { ProfilePage } from '../features/auth/ProfilePage';
 import { ProtectedRoute } from '../features/auth/ProtectedRoute';
 import { RegisterPage } from '../features/auth/RegisterPage';
+import { AdminCharactersPage } from '../features/admin/AdminCharactersPage';
 import { AdminComicsPage } from '../features/admin/AdminComicsPage';
 import { AdminDashboard } from '../features/admin/AdminDashboard';
 import { AdminGuidesPage } from '../features/admin/AdminGuidesPage';
@@ -59,6 +60,7 @@ export function AppRouter() {
             <Route path="hqs" element={<AdminComicsPage />} />
             <Route path="series" element={<AdminSeriesPage />} />
             <Route path="guias" element={<AdminGuidesPage />} />
+            <Route path="personagens" element={<AdminCharactersPage />} />
             <Route path="fila" element={<AdminJobsPage />} />
             <Route path="usuarios" element={<AdminUsersPage />} />
           </Route>

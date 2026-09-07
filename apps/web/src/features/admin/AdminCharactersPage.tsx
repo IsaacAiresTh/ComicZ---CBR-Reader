@@ -1,0 +1,229 @@
+import { useMemo, useState } from 'react';
+import type { CharacterDetail, CharacterSummary } from '@comicz/shared';
+import { Button, ErrorNote, Field, Input, Spinner, Textarea } from '../../components/ui';
+import { CoverError, prepararCapa } from '../../lib/cover';
+import { ApiError, mediaUrl } from '../../services/api';
+import { useCharacter, useCharacters } from '../comics/queries';
+import { useAddCharacterImage, useRemoveCharacterImage, useUpdateCharacter } from './queries';
+
+/** A foto ocupa a coluna inteira do texto; 500px como a capa sairia borrada. */
+const LARGURA_DA_FOTO = 900;
+
+export function AdminCharactersPage() {
+  const { data: personagens, isLoading } = useCharacters();
+  const [escolhido, setEscolhido] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
+
+  const lista = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    const todos = personagens ?? [];
+    const filtrados = termo
+      ? todos.filter((p) => p.name.toLowerCase().includes(termo))
+      : [...todos].sort((a, b) => b.comicCount - a.comicCount || a.name.localeCompare(b.name));
+    return filtrados.slice(0, 60);
+  }, [personagens, busca]);
+
+  if (isLoading) return <Spinner />;
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+      <div className="space-y-3">
+        <Input
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          placeholder="Buscar personagem"
+        />
+        <ul className="max-h-[70vh] space-y-1 overflow-y-auto pr-1">
+          {lista.map((personagem) => (
+            <li key={personagem.id}>
+              <ItemDaLista
+                personagem={personagem}
+                ativo={personagem.slug === escolhido}
+                onEscolher={() => setEscolhido(personagem.slug)}
+              />
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {escolhido ? (
+        <Editor slug={escolhido} />
+      ) : (
+        <p className="rounded-xl border border-dashed border-ink-700 px-6 py-12 text-center text-sm text-ink-400">
+          Escolha um personagem para escrever a história dele.
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ItemDaLista({
+  personagem,
+  ativo,
+  onEscolher,
+}: {
+  personagem: CharacterSummary;
+  ativo: boolean;
+  onEscolher: () => void;
+}) {
+  const retrato = mediaUrl(personagem.portraitUrl);
+  return (
+    <button
+      type="button"
+      onClick={onEscolher}
+      className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${
+        ativo ? 'bg-ink-800 text-ink-100' : 'text-ink-300 hover:bg-ink-850'
+      }`}
+    >
+      <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full bg-ink-850">
+        {retrato && <img src={retrato} alt="" className="h-full w-full object-cover" />}
+      </span>
+      <span className="min-w-0 flex-1 truncate text-sm">{personagem.name}</span>
+      {/* Sem texto, o personagem nao tem pagina de verdade — vale ver de longe. */}
+      {!personagem.summary && <span className="text-[10px] text-ink-600">vazio</span>}
+    </button>
+  );
+}
+
+function Editor({ slug }: { slug: string }) {
+  const { data: personagem, isLoading } = useCharacter(slug);
+  if (isLoading || !personagem) return <Spinner />;
+  return <Formulario key={personagem.id} personagem={personagem} />;
+}
+
+function Formulario({ personagem }: { personagem: CharacterDetail }) {
+  const salvar = useUpdateCharacter();
+  const adicionar = useAddCharacterImage();
+  const remover = useRemoveCharacterImage();
+
+  const [summary, setSummary] = useState(personagem.summary ?? '');
+  const [description, setDescription] = useState(personagem.description ?? '');
+  const [aliases, setAliases] = useState(personagem.aliases.join(', '));
+  const [erro, setErro] = useState<string | null>(null);
+  const [ok, setOk] = useState(false);
+
+  async function enviar() {
+    setErro(null);
+    setOk(false);
+    try {
+      await salvar.mutateAsync({
+        id: personagem.id,
+        dados: {
+          summary: summary.trim() || null,
+          description: description.trim() || null,
+          // Campo de texto separado por virgula, como o de criadores da saga.
+          aliases: aliases
+            .split(',')
+            .map((alias) => alias.trim())
+            .filter(Boolean),
+        },
+      });
+      setOk(true);
+    } catch (e) {
+      setErro(e instanceof ApiError ? e.message : 'Não foi possível salvar');
+    }
+  }
+
+  async function subir(arquivo: File) {
+    setErro(null);
+    try {
+      const imagem = await prepararCapa(arquivo, LARGURA_DA_FOTO);
+      await adicionar.mutateAsync({ id: personagem.id, imagem });
+    } catch (e) {
+      setErro(
+        e instanceof CoverError || e instanceof ApiError
+          ? e.message
+          : 'Não foi possível enviar a imagem',
+      );
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="font-display text-2xl tracking-wide text-ink-100">{personagem.name}</h2>
+        <p className="mt-1 text-xs text-ink-500">
+          {personagem.comicCount} {personagem.comicCount === 1 ? 'edição' : 'edições'} no acervo ·
+          /personagens/{personagem.slug}
+        </p>
+      </div>
+
+      {erro && <ErrorNote>{erro}</ErrorNote>}
+
+      <Field label="Resumo" hint="Uma linha, mostrada sob o nome.">
+        <Input value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={300} />
+      </Field>
+
+      <Field
+        label="A história"
+        hint="Parágrafos separados por linha em branco. As imagens entram entre eles."
+      >
+        <Textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={14}
+          className="font-normal"
+        />
+      </Field>
+
+      <Field
+        label="Apelidos"
+        hint="Separados por vírgula. Servem só para o nome virar link no texto: sem “Prime” aqui, uma descrição que o chame assim não vira link."
+      >
+        <Input value={aliases} onChange={(e) => setAliases(e.target.value)} />
+      </Field>
+
+      <div className="flex items-center gap-3">
+        <Button onClick={enviar} disabled={salvar.isPending}>
+          {salvar.isPending ? 'Salvando...' : 'Salvar'}
+        </Button>
+        {ok && <span className="text-xs text-emerald-400">Salvo.</span>}
+      </div>
+
+      <section>
+        <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">
+          Imagens
+        </h3>
+        <p className="mb-3 text-xs text-ink-500">
+          A primeira é o retrato do topo; as seguintes aparecem entre os parágrafos, na ordem.
+        </p>
+
+        <div className="flex flex-wrap gap-3">
+          {personagem.images.map((imagem, i) => (
+            <figure key={imagem.id} className="w-32">
+              <img
+                src={mediaUrl(imagem.url) ?? ''}
+                alt=""
+                className="h-32 w-32 rounded-lg border border-ink-800 object-cover"
+              />
+              <figcaption className="mt-1 flex items-center justify-between text-[11px] text-ink-500">
+                <span>{i === 0 ? 'retrato' : `no texto ${i}`}</span>
+                <button
+                  type="button"
+                  onClick={() => remover.mutate(imagem.id)}
+                  className="text-accent-400 hover:underline"
+                >
+                  remover
+                </button>
+              </figcaption>
+            </figure>
+          ))}
+
+          <label className="grid h-32 w-32 cursor-pointer place-items-center rounded-lg border border-dashed border-ink-700 text-xs text-ink-400 hover:border-ink-500">
+            {adicionar.isPending ? 'enviando...' : '+ imagem'}
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const arquivo = e.target.files?.[0];
+                if (arquivo) void subir(arquivo);
+                e.target.value = '';
+              }}
+            />
+          </label>
+        </div>
+      </section>
+    </div>
+  );
+}

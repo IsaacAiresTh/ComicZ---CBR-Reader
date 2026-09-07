@@ -5,6 +5,7 @@ const TABS = [
   { to: '/admin/hqs', label: 'HQs' },
   { to: '/admin/series', label: 'Sagas' },
   { to: '/admin/guias', label: 'Guias' },
+  { to: '/admin/personagens', label: 'Personagens' },
   { to: '/admin/fila', label: 'Fila' },
   { to: '/admin/usuarios', label: 'Usuários' },
 ];
