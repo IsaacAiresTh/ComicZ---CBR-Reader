@@ -50,23 +50,33 @@ export function EventMap({ blocos, selecionado, onSelecionar }: Props) {
   const altura = colunas * A + (colunas - 1) * GY;
   const porId = new Map(blocos.map((b) => [b.id, b]));
 
-  const curvas = blocos.flatMap((filho) =>
-    filho.parents
+  const curvas = blocos.flatMap((filho) => {
+    /*
+     * Cada pai chega num ponto proprio da borda de cima, repartida em partes
+     * iguais. O bloco final de um evento costuma ter tres ou quatro pais, e
+     * mirando todos o centro as pontas de seta se cobriam: viravam um risco so,
+     * justo onde o mapa precisa dizer que ali varios fios se encontram.
+     * Ordenar por ramo faz a aresta que vem da esquerda chegar pela esquerda,
+     * em vez de cruzar as vizinhas de graca.
+     */
+    const pais = filho.parents
       .map((paiId) => porId.get(paiId))
       .filter((pai): pai is GuideNodeView => Boolean(pai))
-      .map((pai) => {
-        const xi = x0(pai.lane) + L / 2;
-        const yi = y0(pai.coluna) + A;
-        const xf = x0(filho.lane) + L / 2;
-        const yf = y0(filho.coluna) - PONTA;
-        const dobra = Math.max(20, (yf - yi) / 2);
-        return {
-          chave: `${pai.id}-${filho.id}`,
-          d: `M ${xi} ${yi} C ${xi} ${yi + dobra}, ${xf} ${yf - dobra}, ${xf} ${yf}`,
-          aceso: selecionado === pai.id || selecionado === filho.id,
-        };
-      }),
-  );
+      .sort((a, b) => a.lane - b.lane || a.coluna - b.coluna);
+
+    return pais.map((pai, i) => {
+      const xi = x0(pai.lane) + L / 2;
+      const yi = y0(pai.coluna) + A;
+      const xf = x0(filho.lane) + (L * (i + 1)) / (pais.length + 1);
+      const yf = y0(filho.coluna) - PONTA;
+      const dobra = Math.max(20, (yf - yi) / 2);
+      return {
+        chave: `${pai.id}-${filho.id}`,
+        d: `M ${xi} ${yi} C ${xi} ${yi + dobra}, ${xf} ${yf - dobra}, ${xf} ${yf}`,
+        aceso: selecionado === pai.id || selecionado === filho.id,
+      };
+    });
+  });
 
   return (
     <div className="-mx-4 overflow-x-auto px-4 pb-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
