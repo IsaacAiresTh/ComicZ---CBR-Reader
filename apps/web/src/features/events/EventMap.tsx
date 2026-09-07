@@ -25,7 +25,7 @@ import { mediaUrl } from '../../services/api';
  * nada do que se ve.
  */
 const L = 200; // largura do card
-const A = 116; // altura do card
+const A = 134; // altura do card — cabe a linha do ato acima do titulo
 const GX = 36; // vao entre ramos paralelos
 const GY = 56; // vao entre passos — e por onde a curva desce
 
@@ -35,13 +35,25 @@ const y0 = (coluna: number) => coluna * (A + GY);
 /** Folga entre a ponta da seta e a borda do card, para uma nao comer a outra. */
 const PONTA = 3;
 
+/**
+ * "Ato 5 · A conta do Wally" -> ["Ato 5", "A conta do Wally"]. O numero e o
+ * nome ganham peso diferente no card: o numero diz a ordem, o nome diz o que e.
+ * Sem o separador, o texto inteiro vira nome — o ato e campo livre.
+ */
+function partesDoAto(ato: string): [string | null, string] {
+  const corte = ato.indexOf(' · ');
+  return corte === -1 ? [null, ato] : [ato.slice(0, corte), ato.slice(corte + 3)];
+}
+
 interface Props {
   blocos: GuideNodeView[];
+  /** Ato de cada bloco, por id. Vem dos itens, que sao quem carrega o capitulo. */
+  atos: Map<string, string>;
   selecionado: string | null;
   onSelecionar: (id: string) => void;
 }
 
-export function EventMap({ blocos, selecionado, onSelecionar }: Props) {
+export function EventMap({ blocos, atos, selecionado, onSelecionar }: Props) {
   if (blocos.length === 0) return null;
 
   const colunas = Math.max(...blocos.map((b) => b.coluna)) + 1;
@@ -134,6 +146,7 @@ export function EventMap({ blocos, selecionado, onSelecionar }: Props) {
           <NodeCard
             key={bloco.id}
             bloco={bloco}
+            ato={atos.get(bloco.id) ?? null}
             ativo={selecionado === bloco.id}
             onSelecionar={onSelecionar}
           />
@@ -145,10 +158,12 @@ export function EventMap({ blocos, selecionado, onSelecionar }: Props) {
 
 function NodeCard({
   bloco,
+  ato,
   ativo,
   onSelecionar,
 }: {
   bloco: GuideNodeView;
+  ato: string | null;
   ativo: boolean;
   onSelecionar: (id: string) => void;
 }) {
@@ -177,6 +192,7 @@ function NodeCard({
               comece aqui
             </span>
           )}
+          {ato && <LinhaDoAto ato={ato} />}
           <p className="line-clamp-2 text-xs font-semibold leading-snug text-ink-100">
             {bloco.label}
           </p>
@@ -201,5 +217,21 @@ function NodeCard({
         </div>
       </div>
     </button>
+  );
+}
+
+/**
+ * O ato, no alto do card. Repetido em todos os blocos do mesmo ato de
+ * proposito: tres cards seguidos dizendo "ATO 4" e o que mostra, sem clique
+ * nenhum, que aquela coluna inteira e uma coisa so.
+ */
+function LinhaDoAto({ ato }: { ato: string }) {
+  const [numero, nome] = partesDoAto(ato);
+  return (
+    <p className="mb-1 truncate text-[9px] font-semibold uppercase tracking-wider text-ink-500">
+      {numero && <span className="evento-texto">{numero}</span>}
+      {numero && ' · '}
+      {nome}
+    </p>
   );
 }

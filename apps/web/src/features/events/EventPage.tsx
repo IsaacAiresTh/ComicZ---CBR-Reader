@@ -28,6 +28,22 @@ export function EventPage() {
     return nodes.find((node) => node.entry)?.id ?? nodes[0]?.id ?? null;
   }, [guia?.nodes]);
 
+  /*
+   * O ato mora no item, e nao no bloco — mas quem olha o mapa precisa saber a
+   * que ato cada historia pertence SEM clicar nela, que era o furo: o nome do
+   * ato so aparecia na trilha, depois de escolher o bloco. Todos os itens de um
+   * bloco caem no mesmo ato, entao o primeiro ja responde.
+   */
+  const atoPorBloco = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const item of guia?.items ?? []) {
+      if (item.nodeId && item.chapter && !mapa.has(item.nodeId)) {
+        mapa.set(item.nodeId, item.chapter);
+      }
+    }
+    return mapa;
+  }, [guia?.items]);
+
   if (isLoading) return <Spinner label="Carregando evento..." />;
   if (error || !guia) return <ErrorNote>Não foi possível carregar este evento.</ErrorNote>;
 
@@ -160,6 +176,7 @@ export function EventPage() {
           </p>
           <EventMap
             blocos={guia.nodes}
+            atos={atoPorBloco}
             selecionado={selecionado}
             onSelecionar={(id) => {
               setBloco(id);
