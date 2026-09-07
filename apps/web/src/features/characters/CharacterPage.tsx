@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import type { CharacterDetail, CharacterImageView } from '@comicz/shared';
+import { variaveisDoPersonagem } from './estilo';
 import { ErrorNote, Spinner } from '../../components/ui';
 import { CARD_GRID_CLASS, ComicCard } from '../comics/ComicCard';
 import { mediaUrl } from '../../services/api';
@@ -23,12 +24,20 @@ export function CharacterPage() {
   if (error || !personagem)
     return <ErrorNote>Não foi possível carregar este personagem.</ErrorNote>;
 
-  const arteDoTopo = personagem.images[1] ?? personagem.images[0] ?? null;
-  const noTexto = personagem.images.slice(2);
+  const emblema = personagem.images.find((imagem) => imagem.emblem) ?? null;
+  // O emblema sai da fila do topo e do texto: ele tem lugar proprio.
+  const semEmblema = personagem.images.filter((imagem) => !imagem.emblem);
+  const arteDoTopo = semEmblema[1] ?? semEmblema[0] ?? null;
+  const noTexto = semEmblema.slice(2);
 
   return (
-    <div className="space-y-12">
-      <Topo personagem={personagem} arte={arteDoTopo} />
+    <div
+      className="personagem space-y-12"
+      // As duas cores e a fonte entram por aqui e so daqui: nenhum componente
+      // abaixo conhece o valor, todos leem as variaveis.
+      style={variaveisDoPersonagem(personagem)}
+    >
+      <Topo personagem={personagem} arte={arteDoTopo} emblema={emblema} />
 
       {personagem.description ? (
         <Historia personagem={personagem} imagens={noTexto} />
@@ -89,23 +98,21 @@ export function CharacterPage() {
 function Topo({
   personagem,
   arte,
+  emblema,
 }: {
   personagem: CharacterDetail;
   arte: CharacterImageView | null;
+  emblema: CharacterImageView | null;
 }) {
   return (
     <header className="relative -mx-4 -mt-6 overflow-hidden border-b border-ink-800 sm:-mx-6 lg:-mx-8">
+      <Emblema personagem={personagem} imagem={emblema} />
+
       {arte && (
         <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/2 sm:block">
           {/* O halo nasce atras da figura e morre antes da borda: sem ele, o
               recorte fica boiando sobre o ink liso. */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background:
-                'radial-gradient(60% 55% at 60% 45%, color-mix(in srgb, var(--color-brand-500) 14%, transparent), transparent 70%)',
-            }}
-          />
+          <div className="personagem-halo absolute inset-0" />
           <img
             src={mediaUrl(arte.url) ?? ''}
             alt={personagem.name}
@@ -119,12 +126,14 @@ function Topo({
           Personagens
         </Link>
 
-        <h1 className="mt-3 max-w-[15ch] font-display text-5xl leading-[0.95] tracking-wide text-ink-100 sm:text-6xl lg:text-7xl">
+        <h1 className="personagem-nome mt-3 max-w-[15ch] text-5xl leading-[0.95] tracking-wide sm:text-6xl lg:text-7xl">
           {personagem.name}
         </h1>
 
+        <div className="personagem-filete mt-4 h-1 w-24 rounded-full" />
+
         {personagem.summary && (
-          <p className="mt-4 max-w-md text-[15px] leading-relaxed text-ink-200 sm:max-w-sm lg:max-w-md">
+          <p className="mt-5 max-w-md text-[15px] leading-relaxed text-ink-200 sm:max-w-sm lg:max-w-md">
             {personagem.summary}
           </p>
         )}
@@ -135,6 +144,42 @@ function Topo({
         </p>
       </div>
     </header>
+  );
+}
+
+/**
+ * O emblema: a marca d'agua atras do nome.
+ *
+ * Uma imagem da galeria marcada como emblema, quando existe. Sem ela, a
+ * inicial do nome na fonte e na cor do personagem — que resolve para os 189,
+ * e nao so para quem tem um simbolo recortado. Fica em opacidade baixa e
+ * sangrando pela esquerda: e textura, nao ilustracao. Se competir com o nome,
+ * virou outra coisa.
+ */
+function Emblema({
+  personagem,
+  imagem,
+}: {
+  personagem: CharacterDetail;
+  imagem: CharacterImageView | null;
+}) {
+  return (
+    <div className="pointer-events-none absolute -left-10 top-1/2 -translate-y-1/2 select-none sm:-left-6">
+      {imagem ? (
+        <img
+          src={mediaUrl(imagem.url) ?? ''}
+          alt=""
+          className="h-64 w-64 object-contain opacity-[0.07] sm:h-80 sm:w-80"
+        />
+      ) : (
+        <span
+          aria-hidden
+          className="personagem-titulo personagem-texto block text-[16rem] leading-none opacity-[0.08] sm:text-[22rem]"
+        >
+          {personagem.name.slice(0, 1)}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -197,13 +242,7 @@ function Arte({ imagem, lado }: { imagem: CharacterImageView; lado: 'esquerda' |
         lado === 'direita' ? 'sm:float-right sm:ml-6' : 'sm:float-left sm:mr-6'
       }`}
     >
-      <div
-        className="absolute inset-0"
-        style={{
-          background:
-            'radial-gradient(55% 50% at 50% 45%, color-mix(in srgb, var(--color-brand-500) 12%, transparent), transparent 72%)',
-        }}
-      />
+      <div className="personagem-halo absolute inset-0 opacity-70" />
       <img
         src={mediaUrl(imagem.url) ?? ''}
         alt={imagem.caption ?? ''}

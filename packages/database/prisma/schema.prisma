@@ -144,6 +144,14 @@ model Character {
   /// Como o personagem tambem e chamado nos textos, e so para isso: sem
   /// "Prime" aqui, uma descricao que o chame assim nao vira link.
   aliases String[] @default([])
+  /// Hex "#rrggbb". As duas cores do personagem, e so nos acentos: titulo,
+  /// halo, filete e os links do texto. O fundo continua sendo o ink do site.
+  accentColor  String? @map("accent_color")
+  accentColor2 String? @map("accent_color_2")
+  /// Chave de uma familia carregada no index.html — lista fechada de proposito:
+  /// nome solto cai num fallback silencioso, que foi o que aconteceu com a
+  /// Bangers, referenciada no tema e nunca baixada.
+  displayFont String? @map("display_font")
 
   images CharacterImage[]
   comics ComicCharacter[]
@@ -164,6 +172,9 @@ model CharacterImage {
   /// Legenda opcional, sob a imagem.
   caption     String?
   position    Int
+  /// Promove esta imagem a marca d'agua do topo. Sem nenhuma marcada, a pagina
+  /// usa a inicial do nome na fonte do personagem, que serve para todos.
+  emblem      Boolean @default(false)
   /// Versao da URL da imagem: a rota de midia responde `immutable` por um ano,
   /// entao trocar o arquivo precisa mudar a URL.
   updatedAt   DateTime @updatedAt @map("updated_at")

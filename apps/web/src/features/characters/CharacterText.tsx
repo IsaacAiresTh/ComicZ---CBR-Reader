@@ -46,7 +46,7 @@ export function CharacterText({
           <Link
             key={i}
             to={`/personagens/${parte.slug}`}
-            className="evento-texto underline decoration-dotted underline-offset-2 hover:decoration-solid"
+            className="personagem-texto underline decoration-dotted underline-offset-2 hover:decoration-solid"
           >
             {parte.texto}
           </Link>

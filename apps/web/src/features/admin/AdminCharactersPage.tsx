@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react';
-import type { CharacterDetail, CharacterSummary } from '@comicz/shared';
-import { Button, ErrorNote, Field, Input, Spinner, Textarea } from '../../components/ui';
+import { useMemo, useState, type CSSProperties } from 'react';
+import type { CharacterDetail, CharacterFont, CharacterSummary } from '@comicz/shared';
+import { Button, ErrorNote, Field, Input, Select, Spinner, Textarea } from '../../components/ui';
 import { CoverError, prepararCapa } from '../../lib/cover';
 import { ApiError, mediaUrl } from '../../services/api';
 import { useCharacter, useCharacters } from '../comics/queries';
+import { FONTES } from '../characters/estilo';
 import { useAddCharacterImage, useRemoveCharacterImage, useUpdateCharacter } from './queries';
 
 /** A foto ocupa a coluna inteira do texto; 500px como a capa sairia borrada. */
@@ -99,6 +100,9 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
   const [summary, setSummary] = useState(personagem.summary ?? '');
   const [description, setDescription] = useState(personagem.description ?? '');
   const [aliases, setAliases] = useState(personagem.aliases.join(', '));
+  const [cor1, setCor1] = useState(personagem.accentColor ?? '#f5b301');
+  const [cor2, setCor2] = useState(personagem.accentColor2 ?? '#f5b301');
+  const [fonte, setFonte] = useState<CharacterFont>(personagem.displayFont ?? 'bangers');
   const [erro, setErro] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
 
@@ -116,6 +120,9 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
             .split(',')
             .map((alias) => alias.trim())
             .filter(Boolean),
+          accentColor: cor1,
+          accentColor2: cor2,
+          displayFont: fonte,
         },
       });
       setOk(true);
@@ -172,6 +179,60 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
       >
         <Input value={aliases} onChange={(e) => setAliases(e.target.value)} />
       </Field>
+
+      <section className="rounded-xl border border-ink-800 p-4">
+        <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">
+          Estilo
+        </h3>
+        <p className="mb-4 text-xs text-ink-500">
+          Entram só nos acentos — nome, filete, halo e os links do texto. O fundo continua o do
+          site: pintar a página inteira cansa em dois parágrafos.
+        </p>
+
+        <div className="flex flex-wrap items-end gap-4">
+          <Field label="Cor 1">
+            <input
+              type="color"
+              value={cor1}
+              onChange={(e) => setCor1(e.target.value)}
+              className="h-10 w-20 cursor-pointer rounded border border-ink-700 bg-ink-850"
+            />
+          </Field>
+          <Field label="Cor 2">
+            <input
+              type="color"
+              value={cor2}
+              onChange={(e) => setCor2(e.target.value)}
+              className="h-10 w-20 cursor-pointer rounded border border-ink-700 bg-ink-850"
+            />
+          </Field>
+          <Field label="Fonte do nome">
+            <Select value={fonte} onChange={(e) => setFonte(e.target.value as CharacterFont)}>
+              {Object.entries(FONTES).map(([chave, { nome }]) => (
+                <option key={chave} value={chave}>
+                  {nome}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+
+        {/* Previa com as variaveis aplicadas: escolher cor no escuro sem ver o
+            resultado e adivinhar duas vezes. */}
+        <div
+          className="personagem mt-4 rounded-lg bg-ink-950 px-4 py-5"
+          style={
+            {
+              '--accent': cor1,
+              '--accent-2': cor2,
+              '--fonte-personagem': FONTES[fonte].familia,
+            } as CSSProperties
+          }
+        >
+          <p className="personagem-nome text-4xl leading-none tracking-wide">{personagem.name}</p>
+          <div className="personagem-filete mt-3 h-1 w-20 rounded-full" />
+        </div>
+      </section>
 
       <div className="flex items-center gap-3">
         <Button onClick={enviar} disabled={salvar.isPending}>

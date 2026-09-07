@@ -343,7 +343,12 @@ export interface CharacterImageView {
   url: string;
   caption: string | null;
   position: number;
+  /** Marca d'agua do topo. No maximo uma por personagem. */
+  emblem: boolean;
 }
+
+/** As familias carregadas no index.html. Nome fora daqui cai em fallback. */
+export type CharacterFont = 'bangers' | 'cinzel' | 'orbitron' | 'metal' | 'maquina';
 
 /**
  * O personagem numa lista — e tambem o indice que o auto-link usa.
@@ -361,6 +366,13 @@ export interface CharacterSummary {
   /** Retrato: a imagem de `position` 0, quando existe. */
   portraitUrl: string | null;
   comicCount: number;
+  /**
+   * As duas cores do personagem, hex "#rrggbb". A UI cai no amarelo da marca
+   * quando faltam — mesma regra do accentColor da saga.
+   */
+  accentColor: string | null;
+  accentColor2: string | null;
+  displayFont: CharacterFont | null;
 }
 
 export interface CharacterDetail extends CharacterSummary {

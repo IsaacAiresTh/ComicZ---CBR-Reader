@@ -77,6 +77,7 @@ export class CharactersService {
         url: characterImageUrl(image),
         caption: image.caption,
         position: image.position,
+        emblem: image.emblem,
       })),
       comics: comics.map((comic) => toComicSummary(comic, contexts.get(comic.id) ?? {})),
       guides: noElenco
@@ -105,6 +106,9 @@ export class CharactersService {
         ...(input.summary !== undefined ? { summary: input.summary } : {}),
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.aliases !== undefined ? { aliases: input.aliases } : {}),
+        ...(input.accentColor !== undefined ? { accentColor: input.accentColor } : {}),
+        ...(input.accentColor2 !== undefined ? { accentColor2: input.accentColor2 } : {}),
+        ...(input.displayFont !== undefined ? { displayFont: input.displayFont } : {}),
       },
     });
   }
@@ -115,6 +119,9 @@ export class CharactersService {
     slug: string;
     summary: string | null;
     aliases: string[];
+    accentColor: string | null;
+    accentColor2: string | null;
+    displayFont: string | null;
     images: { id: string; updatedAt: Date }[];
     _count: { comics: number };
   }): CharacterSummary {
@@ -127,6 +134,10 @@ export class CharactersService {
       aliases: row.aliases,
       portraitUrl: retrato ? characterImageUrl(retrato) : null,
       comicCount: row._count.comics,
+      accentColor: row.accentColor,
+      accentColor2: row.accentColor2,
+      // O CHECK do banco ja garante que so entra chave conhecida.
+      displayFont: row.displayFont as CharacterSummary['displayFont'],
     };
   }
 }

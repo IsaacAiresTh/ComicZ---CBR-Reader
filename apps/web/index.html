@@ -5,6 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0b0d12" />
     <title>ComicZ — leia HQs sem saber por onde começar</title>
+
+    <!--
+      As familias de display. A Bangers ja era o --font-display do tema e nunca
+      foi carregada: caia no Impact sem avisar ninguem. As outras quatro sao as
+      escolhas de estilo por personagem, e vem no mesmo pedido — sao fontes de
+      titulo, usadas em uma linha por pagina.
+
+      preconnect antes do link porque o arquivo .woff2 mora em outro dominio
+      (gstatic) que so e descoberto depois do CSS chegar; sem ele o texto pisca
+      na fonte de sistema por um tempo a mais.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bangers&family=Cinzel:wght@700&family=Metal+Mania&family=Orbitron:wght@700&family=Special+Elite&display=swap"
+    />
   </head>
   <body>
     <div id="root"></div>

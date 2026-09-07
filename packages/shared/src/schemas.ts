@@ -285,6 +285,10 @@ export const updateCharacterSchema = z.object({
     .max(20)
     .transform((lista) => [...new Set(lista)])
     .optional(),
+  /** Mesmo formato do accentColor da saga: hex de seis digitos, com "#". */
+  accentColor: hexColorSchema.nullish(),
+  accentColor2: hexColorSchema.nullish(),
+  displayFont: z.enum(['bangers', 'cinzel', 'orbitron', 'metal', 'maquina']).nullish(),
 });
 
 export type UpdateCharacterInput = z.infer<typeof updateCharacterSchema>;

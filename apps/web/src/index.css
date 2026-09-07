@@ -134,3 +134,61 @@
       0 8px 24px -8px rgb(0 0 0 / 0.6);
   }
 }
+
+@layer components {
+  /*
+   * Pagina de personagem.
+   *
+   * As duas cores e a fonte entram por variaveis, escritas uma unica vez no
+   * container — nenhum componente abaixo conhece o valor. Mesma regra da saga:
+   * so acentos, o fundo continua ink.
+   */
+  .personagem {
+    --accent: var(--color-brand-500);
+    --accent-2: var(--accent);
+    --fonte-personagem: var(--font-display);
+  }
+}
+
+@utility personagem-titulo {
+  font-family: var(--fonte-personagem);
+}
+
+/*
+ * O nome recebe as duas cores. Fica em background-clip porque um degrade so
+ * existe como fundo: e o texto que vira janela dele.
+ */
+@utility personagem-nome {
+  font-family: var(--fonte-personagem);
+  background-image: linear-gradient(
+    100deg,
+    var(--color-ink-100) 18%,
+    color-mix(in srgb, var(--accent) 65%, var(--color-ink-100)) 55%,
+    color-mix(in srgb, var(--accent-2) 70%, var(--color-ink-100)) 92%
+  );
+  background-clip: text;
+  color: transparent;
+}
+
+@utility personagem-filete {
+  background-image: linear-gradient(to right, var(--accent), var(--accent-2));
+}
+
+/*
+ * Link de personagem dentro de um texto. O fallback importa: este mesmo link
+ * aparece na ficha da HQ, que nao tem container de acento nenhum — e
+ * `color: var(--accent)` sem fallback nao pinta nada.
+ */
+@utility personagem-texto {
+  color: color-mix(in srgb, var(--accent, var(--color-brand-500)) 72%, var(--color-ink-100));
+}
+
+/* Halo atras do recorte, para a figura nao boiar sobre o ink liso. */
+@utility personagem-halo {
+  background: radial-gradient(
+    58% 52% at 58% 45%,
+    color-mix(in srgb, var(--accent) 20%, transparent),
+    color-mix(in srgb, var(--accent-2) 8%, transparent) 55%,
+    transparent 72%
+  );
+}
