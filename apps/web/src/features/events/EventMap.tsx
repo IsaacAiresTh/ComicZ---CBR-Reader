@@ -5,20 +5,35 @@ import { mediaUrl } from '../../services/api';
  * O mapa do evento.
  *
  * Uma saga de 138 edicoes nao cabe numa lista vertical — mas cabe em uma duzia
- * de blocos ligados entre si. O mapa mostra de onde se pode COMECAR e o que
- * cada comeco desdobra; a lista de edicoes vive dentro do bloco escolhido.
+ * de blocos ligados entre si. O mapa mostra por onde COMECAR e o que cada
+ * historia desdobra; a lista de edicoes vive dentro do bloco escolhido.
+ *
+ * O mapa desce, e nao anda para o lado, porque os dois eixos passam a dizer
+ * coisas diferentes: a ALTURA e quando ler, a LINHA e de onde a historia vem.
+ * Para quem esta chegando, isso e o que separa "posso comecar aqui?" de "isto
+ * nasce daquilo": um bloco pode herdar de algo tres niveis acima sem que a
+ * seta o convide a ler fora de ordem. No horizontal os dois eixos competiam, e
+ * duas historias lado a lado pareciam dois comecos igualmente validos.
  *
  * As celulas tem tamanho fixo de proposito: com isso a posicao de cada bloco e
  * aritmetica, e as curvas saem sem medir o DOM — nada de ResizeObserver, nada
  * de recalcular no scroll.
+ *
+ * `coluna` e `lane` vem do banco com o nome de quando o mapa era horizontal:
+ * `coluna` e o passo cronologico (hoje a linha na tela) e `lane` e o ramo
+ * paralelo (hoje a coluna). Renomear custaria uma migration para nao mudar
+ * nada do que se ve.
  */
-const L = 190; // largura do card
+const L = 200; // largura do card
 const A = 116; // altura do card
-const GX = 58; // vao horizontal (onde a curva passa)
-const GY = 18; // vao vertical
+const GX = 36; // vao entre ramos paralelos
+const GY = 56; // vao entre passos — e por onde a curva desce
 
-const x0 = (coluna: number) => coluna * (L + GX);
-const y0 = (lane: number) => lane * (A + GY);
+const x0 = (lane: number) => lane * (L + GX);
+const y0 = (coluna: number) => coluna * (A + GY);
+
+/** Folga entre a ponta da seta e a borda do card, para uma nao comer a outra. */
+const PONTA = 3;
 
 interface Props {
   blocos: GuideNodeView[];
@@ -31,8 +46,8 @@ export function EventMap({ blocos, selecionado, onSelecionar }: Props) {
 
   const colunas = Math.max(...blocos.map((b) => b.coluna)) + 1;
   const lanes = Math.max(...blocos.map((b) => b.lane)) + 1;
-  const largura = colunas * L + (colunas - 1) * GX;
-  const altura = lanes * A + (lanes - 1) * GY;
+  const largura = lanes * L + (lanes - 1) * GX;
+  const altura = colunas * A + (colunas - 1) * GY;
   const porId = new Map(blocos.map((b) => [b.id, b]));
 
   const curvas = blocos.flatMap((filho) =>
@@ -40,14 +55,14 @@ export function EventMap({ blocos, selecionado, onSelecionar }: Props) {
       .map((paiId) => porId.get(paiId))
       .filter((pai): pai is GuideNodeView => Boolean(pai))
       .map((pai) => {
-        const xi = x0(pai.coluna) + L;
-        const yi = y0(pai.lane) + A / 2;
-        const xf = x0(filho.coluna);
-        const yf = y0(filho.lane) + A / 2;
-        const dobra = Math.max(24, (xf - xi) / 2);
+        const xi = x0(pai.lane) + L / 2;
+        const yi = y0(pai.coluna) + A;
+        const xf = x0(filho.lane) + L / 2;
+        const yf = y0(filho.coluna) - PONTA;
+        const dobra = Math.max(20, (yf - yi) / 2);
         return {
           chave: `${pai.id}-${filho.id}`,
-          d: `M ${xi} ${yi} C ${xi + dobra} ${yi}, ${xf - dobra} ${yf}, ${xf} ${yf}`,
+          d: `M ${xi} ${yi} C ${xi} ${yi + dobra}, ${xf} ${yf - dobra}, ${xf} ${yf}`,
           aceso: selecionado === pai.id || selecionado === filho.id,
         };
       }),
@@ -62,12 +77,44 @@ export function EventMap({ blocos, selecionado, onSelecionar }: Props) {
           height={altura}
           aria-hidden
         >
+          {/*
+            A seta e o que torna a direcao explicita quando a linha sobe tres
+            niveis: sem ela, "de onde isto vem" e "para onde isto leva" tem o
+            mesmo desenho. markerUnits fixo para a ponta nao engordar junto com
+            o traco da curva acesa.
+          */}
+          <defs>
+            <marker
+              id="evento-seta"
+              markerUnits="userSpaceOnUse"
+              markerWidth="9"
+              markerHeight="9"
+              refX="6"
+              refY="4.5"
+              orient="auto"
+            >
+              <path d="M1 1 L7 4.5 L1 8 Z" className="fill-ink-700" />
+            </marker>
+            <marker
+              id="evento-seta-acesa"
+              markerUnits="userSpaceOnUse"
+              markerWidth="9"
+              markerHeight="9"
+              refX="6"
+              refY="4.5"
+              orient="auto"
+            >
+              <path d="M1 1 L7 4.5 L1 8 Z" fill="var(--accent)" />
+            </marker>
+          </defs>
+
           {curvas.map((curva) => (
             <path
               key={curva.chave}
               d={curva.d}
               fill="none"
               strokeWidth={curva.aceso ? 2 : 1.5}
+              markerEnd={`url(#${curva.aceso ? 'evento-seta-acesa' : 'evento-seta'})`}
               className={curva.aceso ? 'stroke-[var(--accent)]' : 'stroke-ink-700'}
             />
           ))}
@@ -107,7 +154,7 @@ function NodeCard({
       className={`absolute flex overflow-hidden rounded-lg border bg-ink-900 text-left transition-colors ${
         ativo ? 'evento-borda evento-tinta' : 'border-ink-800 hover:border-ink-600'
       }`}
-      style={{ left: x0(bloco.coluna), top: y0(bloco.lane), width: L, height: A }}
+      style={{ left: x0(bloco.lane), top: y0(bloco.coluna), width: L, height: A }}
     >
       <div className="h-full w-[46px] shrink-0 bg-ink-850">
         {capa && <img src={capa} alt="" loading="lazy" className="h-full w-full object-cover" />}

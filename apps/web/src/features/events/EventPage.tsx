@@ -153,9 +153,10 @@ export function EventPage() {
             <p className="text-xs text-ink-400">Clique numa história para ver as edições dela</p>
           </div>
           <p className="mb-4 max-w-2xl text-[13px] text-ink-300">
-            Cada bloco é uma história inteira. Os marcados com{' '}
-            <span className="evento-texto">comece aqui</span> não dependem de nada anterior — as
-            setas mostram o que nasce de cada um.
+            Cada bloco é uma história inteira, e a leitura{' '}
+            <strong className="font-semibold text-ink-100">desce</strong>: o que está mais embaixo
+            se lê depois. Os marcados com <span className="evento-texto">comece aqui</span> não
+            dependem de nada anterior — as setas mostram o que nasce de cada um.
           </p>
           <EventMap
             blocos={guia.nodes}
