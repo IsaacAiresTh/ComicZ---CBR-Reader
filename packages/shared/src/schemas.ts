@@ -262,3 +262,29 @@ export type ReorderGuideItemsInput = z.infer<typeof reorderGuideItemsSchema>;
 export type CreateCollectionInput = z.infer<typeof createCollectionSchema>;
 export type RenameCollectionInput = z.infer<typeof renameCollectionSchema>;
 export type ReorderCollectionInput = z.infer<typeof reorderCollectionSchema>;
+
+// ----------------------------------------------------------------- personagens
+
+/**
+ * Edicao do personagem pelo painel.
+ *
+ * Mesma regra do upsert de saga: campo ausente MANTEM, `null` limpa. O nome nao
+ * entra aqui de proposito — ele e unico, e a chave por onde o auto-link casa o
+ * texto; renomear e uma operacao com consequencia, nao um campo de formulario.
+ */
+export const updateCharacterSchema = z.object({
+  summary: z.string().trim().max(300).nullish(),
+  description: z.string().trim().max(20000).nullish(),
+  /**
+   * Apelidos usados no auto-link. Vazios e repetidos saem aqui para o indice do
+   * cliente nao carregar lixo, e um apelido de uma letra so casaria com meio
+   * texto — dai o minimo de dois.
+   */
+  aliases: z
+    .array(z.string().trim().min(2).max(80))
+    .max(20)
+    .transform((lista) => [...new Set(lista)])
+    .optional(),
+});
+
+export type UpdateCharacterInput = z.infer<typeof updateCharacterSchema>;

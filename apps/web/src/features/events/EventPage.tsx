@@ -4,6 +4,7 @@ import { Badge, ErrorNote, Spinner } from '../../components/ui';
 import { percent } from '../../lib/format';
 import { mediaUrl } from '../../services/api';
 import { useGuide } from '../comics/queries';
+import { CharacterText } from '../characters/CharacterText';
 import { EventCast } from './EventCast';
 import { EventMap } from './EventMap';
 import { agruparEmAtos, EventTrail } from './EventTrail';
@@ -98,7 +99,7 @@ export function EventPage() {
           </h1>
           {guia.summary && (
             <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-ink-200">
-              {guia.summary}
+              <CharacterText texto={guia.summary} />
             </p>
           )}
 
@@ -147,7 +148,9 @@ export function EventPage() {
             caracteres, e abrir a pagina num muro de texto e o que faz alguem
             desistir antes de chegar no mapa.
           */}
-          <p className="whitespace-pre-line text-[15px] leading-7 text-ink-200">{previa}</p>
+          <p className="whitespace-pre-line text-[15px] leading-7 text-ink-200">
+            <CharacterText texto={previa} />
+          </p>
           {longo && (
             <button
               type="button"

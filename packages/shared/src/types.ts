@@ -337,3 +337,45 @@ export interface AdminStats {
   jobs: { queued: number; running: number; failed: number };
   storageBytes: string;
 }
+
+export interface CharacterImageView {
+  id: string;
+  url: string;
+  caption: string | null;
+  position: number;
+}
+
+/**
+ * O personagem numa lista — e tambem o indice que o auto-link usa.
+ *
+ * `aliases` viaja junto de proposito: sem ele, o cliente teria de pedir o
+ * detalhe de cada um dos 189 personagens para saber que "Prime" tambem aponta
+ * para o Superboy-Prime.
+ */
+export interface CharacterSummary {
+  id: string;
+  name: string;
+  slug: string;
+  summary: string | null;
+  aliases: string[];
+  /** Retrato: a imagem de `position` 0, quando existe. */
+  portraitUrl: string | null;
+  comicCount: number;
+}
+
+export interface CharacterDetail extends CharacterSummary {
+  description: string | null;
+  images: CharacterImageView[];
+  comics: ComicSummary[];
+  /** Guias em que ele esta no elenco — o caminho de volta para o evento. */
+  guides: CharacterGuideAppearance[];
+}
+
+export interface CharacterGuideAppearance {
+  id: string;
+  title: string;
+  slug: string;
+  kind: GuideKind;
+  /** O papel dado no elenco daquele guia: "Quem roubou os dez anos". */
+  role: string | null;
+}

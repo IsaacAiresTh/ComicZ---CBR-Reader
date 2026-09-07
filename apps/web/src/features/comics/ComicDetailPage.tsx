@@ -2,14 +2,10 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { Badge, Button, ErrorNote, LinkButton, Spinner } from '../../components/ui';
 import { comicLabel, fileStatusLabel, percent } from '../../lib/format';
 import { keepFrom, readFrom } from '../../lib/navigation';
+import { CharacterText } from '../characters/CharacterText';
 import { mediaUrl } from '../../services/api';
 import { AddToCollectionMenu } from '../collections/AddToCollectionMenu';
-import {
-  useAddToLibrary,
-  useComic,
-  useRemoveFromLibrary,
-  useUpdateLibraryItem,
-} from './queries';
+import { useAddToLibrary, useComic, useRemoveFromLibrary, useUpdateLibraryItem } from './queries';
 
 export function ComicDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -31,8 +27,7 @@ export function ComicDetailPage() {
    * veio, a serie a que a edicao pertence, e o catalogo. Nunca o historico —
    * depois de ler a HQ, a entrada anterior e o proprio leitor.
    */
-  const backTo =
-    readFrom(location) ?? (comic.series ? `/serie/${comic.series.slug}` : '/catalogo');
+  const backTo = readFrom(location) ?? (comic.series ? `/serie/${comic.series.slug}` : '/catalogo');
   const progress = comic.progress;
   const hasStarted = Boolean(progress && progress.currentPage > 1 && !progress.completed);
 
@@ -87,7 +82,9 @@ export function ComicDetailPage() {
           </div>
 
           {comic.description && (
-            <p className="max-w-2xl text-sm leading-relaxed text-ink-300">{comic.description}</p>
+            <p className="max-w-2xl text-sm leading-relaxed text-ink-300">
+              <CharacterText texto={comic.description} />
+            </p>
           )}
 
           {progress && progress.pageCount > 0 && (
@@ -112,7 +109,11 @@ export function ComicDetailPage() {
           <div className="flex flex-wrap gap-3">
             {readable ? (
               <LinkButton to={`/ler/${comic.id}`} state={keepFrom(location)}>
-                {hasStarted ? 'Continuar leitura' : progress?.completed ? 'Ler de novo' : 'Ler agora'}
+                {hasStarted
+                  ? 'Continuar leitura'
+                  : progress?.completed
+                    ? 'Ler de novo'
+                    : 'Ler agora'}
               </LinkButton>
             ) : (
               <Button disabled title={fileStatusLabel(comic.file?.status)}>

@@ -137,10 +137,41 @@ model Character {
   id   String @id @default(uuid()) @db.Uuid
   name String @unique
   slug String @unique
+  /// Uma linha: quem e. Aparece na lista e sob o nome na pagina.
+  summary String?
+  /// O texto da pagina. Nomes de outros personagens viram link sozinhos.
+  description String?
+  /// Como o personagem tambem e chamado nos textos, e so para isso: sem
+  /// "Prime" aqui, uma descricao que o chame assim nao vira link.
+  aliases String[] @default([])
 
+  images CharacterImage[]
   comics ComicCharacter[]
 
   @@map("characters")
+}
+
+/// Imagem da pagina do personagem.
+///
+/// Tabela, e nao uma coluna, porque a pagina usa varias: o retrato do topo e as
+/// outras distribuidas ao longo do texto. A de `position` 0 e o retrato — nao
+/// existe coluna de "principal" porque a ordem ja responde isso, e duas fontes
+/// para o mesmo fato divergem.
+model CharacterImage {
+  id          String  @id @default(uuid()) @db.Uuid
+  characterId String  @map("character_id") @db.Uuid
+  path        String
+  /// Legenda opcional, sob a imagem.
+  caption     String?
+  position    Int
+  /// Versao da URL da imagem: a rota de midia responde `immutable` por um ano,
+  /// entao trocar o arquivo precisa mudar a URL.
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  character Character @relation(fields: [characterId], references: [id], onDelete: Cascade)
+
+  @@index([characterId, position])
+  @@map("character_images")
 }
 
 model Tag {

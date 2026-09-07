@@ -1,0 +1,80 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Put,
+  UploadedFile,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Role } from '@comicz/database';
+import { updateCharacterSchema, type UpdateCharacterInput } from '@comicz/shared';
+import {
+  CurrentUser,
+  type AuthenticatedUser,
+} from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
+import { CoverService, OPCOES_CAPA, type UploadedCover } from '../files/cover.service';
+import { CharactersService } from './characters.service';
+
+@ApiTags('characters')
+@Controller('characters')
+export class CharactersController {
+  constructor(
+    private readonly characters: CharactersService,
+    private readonly covers: CoverService,
+  ) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Todos os personagens — tambem serve de indice para os links no texto' })
+  list() {
+    return this.characters.list();
+  }
+
+  @Get(':slug')
+  @ApiOperation({
+    summary: 'Personagem, com as HQs em que aparece e os eventos em que esta no elenco',
+  })
+  findOne(@Param('slug') slug: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.characters.findOne(slug, user.id);
+  }
+
+  @Roles(Role.ADMIN)
+  @Patch(':id')
+  @ApiOperation({ summary: '[admin] Atualiza resumo, texto e apelidos' })
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(updateCharacterSchema)) body: UpdateCharacterInput,
+  ) {
+    return this.characters.update(id, body);
+  }
+
+  @Roles(Role.ADMIN)
+  @Put(':id/imagens')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: '[admin] Acrescenta uma imagem a galeria (ja redimensionada)' })
+  @UseInterceptors(FileInterceptor('file', OPCOES_CAPA))
+  addImage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: UploadedCover | undefined,
+  ) {
+    if (!file) throw new BadRequestException('Envie a imagem no campo "file"');
+    return this.covers.addCharacterImage(id, file);
+  }
+
+  @Roles(Role.ADMIN)
+  @Delete('imagens/:imageId')
+  @HttpCode(204)
+  @ApiOperation({ summary: '[admin] Remove uma imagem da galeria' })
+  removeImage(@Param('imageId', ParseUUIDPipe) imageId: string) {
+    return this.covers.removeCharacterImage(imageId);
+  }
+}

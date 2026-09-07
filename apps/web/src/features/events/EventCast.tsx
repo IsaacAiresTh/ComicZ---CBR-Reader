@@ -1,5 +1,7 @@
+import { Link } from 'react-router-dom';
 import type { GuideCharacterView } from '@comicz/shared';
 import { mediaUrl } from '../../services/api';
+import { useCharacters } from '../comics/queries';
 
 /**
  * O elenco do evento.
@@ -10,6 +12,18 @@ import { mediaUrl } from '../../services/api';
  * a mesma altura mesmo em um guia recem-criado.
  */
 export function EventCast({ elenco }: { elenco: GuideCharacterView[] }) {
+  const { data: personagens } = useCharacters();
+
+  /*
+   * O elenco do guia e uma tabela a parte, com o nome escrito a mao, e nao tem
+   * chave estrangeira para o personagem do acervo. Casar por nome e o que
+   * existe hoje e resolve os oito deste evento; quem nao casar continua
+   * aparecendo, so nao vira link — melhor do que um rosto sumir da fila.
+   */
+  const slugPorNome = new Map(
+    (personagens ?? []).map((personagem) => [personagem.name.toLowerCase(), personagem.slug]),
+  );
+
   if (elenco.length === 0) return null;
 
   return (
@@ -21,9 +35,10 @@ export function EventCast({ elenco }: { elenco: GuideCharacterView[] }) {
       <ul className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-2">
         {elenco.map((personagem) => {
           const imagem = mediaUrl(personagem.imageUrl);
-          return (
-            <li key={personagem.id} className="w-20 shrink-0 text-center">
-              <div className="mx-auto h-20 w-20 overflow-hidden rounded-full border evento-borda bg-ink-850">
+          const slug = slugPorNome.get(personagem.name.toLowerCase());
+          const rosto = (
+            <>
+              <div className="mx-auto h-20 w-20 overflow-hidden rounded-full border evento-borda bg-ink-850 transition-transform group-hover:scale-105">
                 {imagem ? (
                   <img
                     src={imagem}
@@ -47,6 +62,17 @@ export function EventCast({ elenco }: { elenco: GuideCharacterView[] }) {
                 <p className="truncate text-[11px] text-ink-400" title={personagem.role}>
                   {personagem.role}
                 </p>
+              )}
+            </>
+          );
+          return (
+            <li key={personagem.id} className="w-20 shrink-0 text-center">
+              {slug ? (
+                <Link to={`/personagens/${slug}`} className="group block">
+                  {rosto}
+                </Link>
+              ) : (
+                <div className="group block">{rosto}</div>
               )}
             </li>
           );

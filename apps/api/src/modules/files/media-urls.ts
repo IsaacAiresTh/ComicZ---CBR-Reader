@@ -35,7 +35,9 @@ export function coverUrl(comic: {
   coverPath: string | null;
   updatedAt: Date;
 }): string | null {
-  return comic.coverPath ? `/media/covers/${comic.id}/${comic.updatedAt.getTime().toString(36)}` : null;
+  return comic.coverPath
+    ? `/media/covers/${comic.id}/${comic.updatedAt.getTime().toString(36)}`
+    : null;
 }
 
 /**
@@ -95,4 +97,16 @@ export function guideCharacterImageUrl(character: {
 
 export function pageUrl(comicFileId: string, index: number, version: string): string {
   return `/media/pages/${comicFileId}/${version}/${index}`;
+}
+
+/**
+ * Imagem da pagina de personagem.
+ *
+ * Mesma rota das capas: o id da imagem tambem e UUID, e o servidor monta a
+ * chave de storage a partir dele. A versao vem do `updatedAt` da propria
+ * imagem, e nao do personagem — trocar uma foto da galeria nao deve derrubar
+ * do cache as outras que nao mudaram.
+ */
+export function characterImageUrl(image: { id: string; updatedAt: Date }): string {
+  return `/media/covers/${image.id}/${image.updatedAt.getTime().toString(36)}`;
 }

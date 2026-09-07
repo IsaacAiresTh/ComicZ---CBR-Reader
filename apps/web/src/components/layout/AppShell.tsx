@@ -6,6 +6,7 @@ const NAV = [
   { to: '/', label: 'Início' },
   { to: '/catalogo', label: 'Catálogo' },
   { to: '/eventos', label: 'Grandes sagas' },
+  { to: '/personagens', label: 'Personagens' },
   { to: '/guias', label: 'Guias' },
   { to: '/biblioteca', label: 'Minha biblioteca' },
 ];
