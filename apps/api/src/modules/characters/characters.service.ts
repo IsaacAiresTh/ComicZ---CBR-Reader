@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { chave } from '@comicz/shared';
+import { chave, distanciaDeEdicao } from '@comicz/shared';
 import type {
   CharacterAppearanceGroup,
   CharacterDetail,
@@ -325,7 +325,9 @@ export class CharactersService {
       marcos: null,
       sagas: null,
       sagasAusentes: [],
+      sagasDisponiveis: [],
       ancorasMantidas: 0,
+      sugestao: null,
       erro: null,
     };
 
@@ -333,7 +335,13 @@ export class CharactersService {
       where: { slug: entrada.slug },
       include: { milestones: { select: { era: true, imageId: true, sourceLabel: true } } },
     });
-    if (!character) return { ...relatorio, erro: 'Nao existe personagem com este slug' };
+    if (!character) {
+      return {
+        ...relatorio,
+        sugestao: await this.slugParecido(entrada.slug),
+        erro: 'Nao existe personagem com este slug',
+      };
+    }
     relatorio.name = character.name;
 
     /*
@@ -430,6 +438,16 @@ export class CharactersService {
       relatorio.sagas = notas.length;
     }
 
+    /*
+     * A lista de sagas dele so viaja quando alguma do arquivo errou: e ai que
+     * ela serve, e mandar 22 nomes em toda resposta seria barulho.
+     */
+    if (relatorio.sagasAusentes.length > 0) {
+      relatorio.sagasDisponiveis = sagas
+        .map((saga) => saga.name)
+        .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    }
+
     if (simular) return relatorio;
 
     await this.prisma.$transaction(async (tx) => {
@@ -447,6 +465,26 @@ export class CharactersService {
     });
 
     return relatorio;
+  }
+
+  /**
+   * O slug mais parecido do acervo, para o erro nao ser um beco.
+   *
+   * Tres edicoes de folga cobre o caso que motivou isto — "illyana" contra
+   * "ilyana" — e ainda erro de acento ou de hifen, sem chegar perto de sugerir
+   * um personagem que nao tem nada a ver.
+   */
+  private async slugParecido(procurado: string): Promise<string | null> {
+    const todos = await this.prisma.character.findMany({ select: { slug: true } });
+    const alvo = chave(procurado);
+    let melhor: { slug: string; distancia: number } | null = null;
+    for (const { slug } of todos) {
+      const distancia = distanciaDeEdicao(alvo, chave(slug));
+      if (distancia <= 3 && (melhor === null || distancia < melhor.distancia)) {
+        melhor = { slug, distancia };
+      }
+    }
+    return melhor?.slug ?? null;
   }
 
   /**
