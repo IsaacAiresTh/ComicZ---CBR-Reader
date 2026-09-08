@@ -245,8 +245,24 @@ function BotaoDeExportar({ personagem }: { personagem: CharacterDetail }) {
  * MESMO codigo da gravacao, a previa nao tem como prometer o que o import nao
  * faz. So depois dela aparece o botao que grava.
  */
-function ImportarFichas({ onFechar }: { onFechar?: () => void }) {
+function ImportarFichas({
+  personagem,
+  onFechar,
+}: {
+  /**
+   * Quando vem, ELE manda: o slug do arquivo e substituido pelo dele.
+   *
+   * Saber o slug era um pre-requisito escondido — "illyana-rasputina", na
+   * grafia da Marvel, contra "ilyana-rasputina" no acervo derruba o import
+   * inteiro por uma letra. Nao e quem escreve a ficha que tem que descobrir
+   * como o banco chama o personagem; escolhendo antes, a pergunta some.
+   */
+  personagem?: CharacterDetail;
+  onFechar?: () => void;
+}) {
   const importar = useImportCharacters();
+  const [trocaDeSlug, setTrocaDeSlug] = useState<string | null>(null);
+  const [sobrando, setSobrando] = useState(0);
   const [fichas, setFichas] = useState<ImportCharactersInput['personagens'] | null>(null);
   const [rotulo, setRotulo] = useState<string | null>(null);
   const [previa, setPrevia] = useState<CharacterImportReport[] | null>(null);
@@ -261,15 +277,26 @@ function ImportarFichas({ onFechar }: { onFechar?: () => void }) {
     setGravado(false);
     setFichas(null);
     setRotulo(null);
+    setTrocaDeSlug(null);
+    setSobrando(0);
     try {
       const bruto: unknown = JSON.parse(await arquivo.text());
-      const lista = (
-        Array.isArray(bruto) ? bruto : [bruto]
-      ) as ImportCharactersInput['personagens'];
-      if (lista.length === 0) {
+      const lida = (Array.isArray(bruto) ? bruto : [bruto]) as ImportCharactersInput['personagens'];
+      const primeira = lida[0];
+      if (!primeira) {
         setErro('O arquivo não tem nenhuma ficha.');
         return;
       }
+
+      let lista = lida;
+      if (personagem) {
+        if (primeira.slug && primeira.slug !== personagem.slug) setTrocaDeSlug(primeira.slug);
+        // Numa ficha especifica so a primeira entra: as outras iriam para o
+        // personagem errado, que e o oposto de ter escolhido antes.
+        setSobrando(lida.length - 1);
+        lista = [{ ...primeira, slug: personagem.slug }];
+      }
+
       setFichas(lista);
       setRotulo(`${arquivo.name} — ${lista.length} ${lista.length === 1 ? 'ficha' : 'fichas'}`);
       setPrevia(await importar.mutateAsync({ personagens: lista, simular: true }));
@@ -313,11 +340,28 @@ function ImportarFichas({ onFechar }: { onFechar?: () => void }) {
           </button>
         )}
       </div>
-      <p className="mb-4 text-xs text-ink-500">
-        Um JSON com uma ficha ou com várias. O arquivo manda: campo que estiver lá é gravado por
-        cima, campo que não estiver não é tocado — e <code>null</code> limpa. Vínculo de edição não
-        entra aqui; isso continua saindo de “Onde aparece”.
+      <p className="mb-3 text-xs text-ink-500">
+        {personagem ? (
+          <>
+            O arquivo vai para <strong className="text-ink-300">{personagem.name}</strong>, que você
+            escolheu aqui — o <code>slug</code> que estiver dentro dele é ignorado. Campo presente
+            grava por cima, campo ausente não é tocado, <code>null</code> limpa.
+          </>
+        ) : (
+          <>
+            Um JSON com uma ficha ou com várias, cada uma com o <code>slug</code> do personagem.
+            Campo presente grava por cima, campo ausente não é tocado, <code>null</code> limpa.
+            Vínculo de edição não entra aqui; isso continua saindo de “Onde aparece”.
+          </>
+        )}
       </p>
+
+      {personagem && (
+        <p className="mb-4 text-xs text-ink-500">
+          Não sabe o formato? Use o <strong className="text-ink-300">baixar JSON</strong> aí em
+          cima: ele sai com os nomes de saga exatamente como o acervo os tem.
+        </p>
+      )}
 
       <label
         onDragEnter={(e) => {
@@ -352,6 +396,19 @@ function ImportarFichas({ onFechar }: { onFechar?: () => void }) {
           }}
         />
       </label>
+
+      {trocaDeSlug && personagem && (
+        <p className="mt-3 text-xs text-amber-400">
+          O arquivo dizia <code>{trocaDeSlug}</code>; vai para <strong>{personagem.name}</strong> (
+          <code>{personagem.slug}</code>).
+        </p>
+      )}
+      {sobrando > 0 && (
+        <p className="mt-2 text-xs text-amber-400">
+          O arquivo tem mais {sobrando} {sobrando === 1 ? 'ficha' : 'fichas'} — só a primeira entra
+          aqui. Para as outras, use o “importar JSON” da lista.
+        </p>
+      )}
 
       {erro && (
         <div className="mt-3">
@@ -395,6 +452,11 @@ function LinhaDoRelatorio({ linha }: { linha: CharacterImportReport }) {
       <li className="rounded border border-rose-500/40 px-3 py-2 text-sm">
         <span className="text-ink-200">{linha.slug}</span>{' '}
         <span className="text-rose-400">— {linha.erro}</span>
+        {linha.sugestao && (
+          <p className="mt-0.5 text-xs text-ink-400">
+            O mais parecido no acervo é <code className="text-ink-200">{linha.sugestao}</code>.
+          </p>
+        )}
       </li>
     );
   }
@@ -409,9 +471,16 @@ function LinhaDoRelatorio({ linha }: { linha: CharacterImportReport }) {
       <span className="text-ink-100">{linha.name}</span>{' '}
       <span className="text-xs text-ink-400">— {partes.join(' · ')}</span>
       {linha.sagasAusentes.length > 0 && (
-        <p className="mt-0.5 text-xs text-amber-400">
-          saga não encontrada entre as aparições dele: {linha.sagasAusentes.join(', ')}
-        </p>
+        <>
+          <p className="mt-0.5 text-xs text-amber-400">
+            saga não encontrada entre as aparições dele: {linha.sagasAusentes.join(', ')}
+          </p>
+          {linha.sagasDisponiveis.length > 0 && (
+            <p className="mt-0.5 text-xs text-ink-500">
+              as que ele tem: {linha.sagasDisponiveis.join(' · ')}
+            </p>
+          )}
+        </>
       )}
     </li>
   );
@@ -450,6 +519,7 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
   const [fonte, setFonte] = useState<CharacterFont>(personagem.displayFont ?? 'bangers');
   const [erro, setErro] = useState<string | null>(null);
   const [ok, setOk] = useState(false);
+  const [subindoJson, setSubindoJson] = useState(false);
   const [enviando, setEnviando] = useState<{ atual: number; total: number } | null>(null);
   /*
    * Contador, e nao booleano: dragleave dispara toda vez que o ponteiro passa
@@ -585,8 +655,25 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
             /personagens/{personagem.slug}
           </p>
         </div>
-        <BotaoDeExportar personagem={personagem} />
+        <div className="flex shrink-0 items-center gap-2">
+          <BotaoDeExportar personagem={personagem} />
+          <button
+            type="button"
+            onClick={() => setSubindoJson((valor) => !valor)}
+            className={`rounded-lg border px-3 py-1.5 text-xs transition-colors ${
+              subindoJson
+                ? 'border-brand-500 text-ink-100'
+                : 'border-ink-700 text-ink-300 hover:border-ink-500 hover:text-ink-100'
+            }`}
+          >
+            subir JSON
+          </button>
+        </div>
       </div>
+
+      {subindoJson && (
+        <ImportarFichas personagem={personagem} onFechar={() => setSubindoJson(false)} />
+      )}
 
       {erro && <ErrorNote>{erro}</ErrorNote>}
 

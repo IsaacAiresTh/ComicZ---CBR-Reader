@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { chave, initialLetter, searchAlternatives, searchTerms } from './search';
+import { chave, distanciaDeEdicao, initialLetter, searchAlternatives, searchTerms } from './search';
 
 /** Todas as alternativas, cada uma como texto, para facilitar as asserções. */
 const formas = (q: string) => searchAlternatives(q).map((termos) => termos.join(' '));
@@ -103,4 +103,15 @@ test('chave nao junta sagas diferentes', () => {
   assert.notEqual(chave('Noite de Trevas: Metal'), chave('Noite de Trevas: Death Metal'));
   assert.notEqual(chave('Crise Final'), chave('Crise Final - Revelações'));
   assert.notEqual(chave('Batman - Ano Um'), chave('Batman e Espantalho - Ano Um'));
+});
+
+test('distanciaDeEdicao acha o slug errado por uma letra', () => {
+  // O caso real: a grafia da Marvel contra a que o acervo tem.
+  assert.equal(distanciaDeEdicao('illyana-rasputina', 'ilyana-rasputina'), 1);
+  assert.equal(distanciaDeEdicao('batman', 'batman'), 0);
+  assert.equal(distanciaDeEdicao('', 'batman'), 6);
+  assert.equal(distanciaDeEdicao('batman', ''), 6);
+  // Longe o bastante para nao virar sugestao.
+  assert.ok(distanciaDeEdicao('batman', 'superman') > 2);
+  assert.ok(distanciaDeEdicao('ilyana-rasputina', 'mulher-maravilha') > 2);
 });

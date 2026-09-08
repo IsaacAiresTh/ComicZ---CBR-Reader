@@ -32,6 +32,34 @@ export function chave(texto: string): string {
 }
 
 /**
+ * Distancia de edicao entre dois textos.
+ *
+ * Existe para o import de fichas. "illyana-rasputina" e "ilyana-rasputina"
+ * diferem por uma letra — a grafia da Marvel contra a que o acervo tem —, e um
+ * erro que so diz "nao existe" manda a pessoa procurar o nome no banco, que e
+ * exatamente o trabalho que o arquivo deveria dispensar.
+ */
+export function distanciaDeEdicao(a: string, b: string): number {
+  if (a === b) return 0;
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  // Uma linha so da matriz: a anterior e a unica que a proxima celula precisa.
+  const linha = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i += 1) {
+    let diagonal = linha[0] ?? 0;
+    linha[0] = i;
+    for (let j = 1; j <= b.length; j += 1) {
+      const guardado = linha[j] ?? 0;
+      const troca = diagonal + (a[i - 1] === b[j - 1] ? 0 : 1);
+      linha[j] = Math.min(guardado + 1, (linha[j - 1] ?? 0) + 1, troca);
+      diagonal = guardado;
+    }
+  }
+  return linha[b.length] ?? 0;
+}
+
+/**
  * Nomes que significam a mesma coisa em portugues e em ingles.
  *
  * O acervo e todo em portugues, mas muita gente procura pelo nome original —

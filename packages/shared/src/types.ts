@@ -430,6 +430,14 @@ export interface CharacterImportReport {
   sagas: number | null;
   /** Nomes de saga do arquivo que ele nao tem no acervo — ignorados. */
   sagasAusentes: string[];
+  /**
+   * As sagas que ele TEM, mandadas junto so quando alguma do arquivo nao casou.
+   * Sem isso o erro obriga a ir procurar o nome no banco — que e o trabalho que
+   * o arquivo existe para dispensar.
+   */
+  sagasDisponiveis: string[];
+  /** Slug parecido no acervo, quando o do arquivo nao existe. */
+  sugestao: string | null;
   /** Marcos que reencontraram a imagem ancorada no painel, casando pela era. */
   ancorasMantidas: number;
   /** Impede a gravacao deste personagem; os demais seguem. */
