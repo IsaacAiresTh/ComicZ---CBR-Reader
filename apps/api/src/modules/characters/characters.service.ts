@@ -450,19 +450,28 @@ export class CharactersService {
 
     if (simular) return relatorio;
 
-    await this.prisma.$transaction(async (tx) => {
-      if (Object.keys(dados).length > 0) {
-        await tx.character.update({ where: { id: character.id }, data: dados });
-      }
-      if (marcos) {
-        await tx.characterMilestone.deleteMany({ where: { characterId: character.id } });
-        if (marcos.length > 0) await tx.characterMilestone.createMany({ data: marcos });
-      }
-      if (mexeNasSagas) {
-        await tx.characterSeriesNote.deleteMany({ where: { characterId: character.id } });
-        if (notas.length > 0) await tx.characterSeriesNote.createMany({ data: notas });
-      }
-    });
+    await this.prisma.$transaction(
+      async (tx) => {
+        if (Object.keys(dados).length > 0) {
+          await tx.character.update({ where: { id: character.id }, data: dados });
+        }
+        if (marcos) {
+          await tx.characterMilestone.deleteMany({ where: { characterId: character.id } });
+          if (marcos.length > 0) await tx.characterMilestone.createMany({ data: marcos });
+        }
+        if (mexeNasSagas) {
+          await tx.characterSeriesNote.deleteMany({ where: { characterId: character.id } });
+          if (notas.length > 0) await tx.characterSeriesNote.createMany({ data: notas });
+        }
+        /*
+         * O teto de 5s do Prisma para transacao interativa nao serve aqui: sao
+         * ate cinco idas ao banco, e uma ficha cheia contra um Postgres remoto
+         * passa disso com folga. Uma ficha grande abortando pela METADE do
+         * caminho seria pior do que demorar.
+         */
+      },
+      { timeout: 120_000, maxWait: 30_000 },
+    );
 
     return relatorio;
   }
