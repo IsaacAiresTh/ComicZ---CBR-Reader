@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   AdminStats,
   CharacterImportReport,
+  GuideNodeView,
   ComicDetail,
   ImportCharactersInput,
   SetCharacterComicsInput,
@@ -13,7 +14,13 @@ import type {
   UpsertComicPayload,
   UpsertSeriesPayload,
 } from '@comicz/shared';
-import { api, uploadCharacterImage, uploadCover, type AlvoDeCapa } from '../../services/api';
+import {
+  api,
+  uploadCharacterImage,
+  uploadCover,
+  uploadGuideCharacterImage,
+  type AlvoDeCapa,
+} from '../../services/api';
 
 export interface AdminJob {
   id: string;
@@ -375,6 +382,9 @@ export function useUpdateGuide() {
         summary?: string | null;
         description?: string | null;
         published?: boolean;
+        /** GUIDE e uma trilha; EVENT ganha o mapa de blocos. */
+        kind?: 'GUIDE' | 'EVENT';
+        accentColor?: string | null;
       };
     }) => api.patch(`/guides/${input.id}`, input.data),
     onSuccess: () => invalidateGuides(queryClient),
@@ -392,8 +402,12 @@ export function useDeleteGuide() {
 export function useAddGuideItem() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { guideId: string; comicId: string; note?: string }) =>
-      api.post(`/guides/${input.guideId}/items`, { comicId: input.comicId, note: input.note }),
+    mutationFn: (input: { guideId: string; comicId: string; note?: string; nodeId?: string }) =>
+      api.post(`/guides/${input.guideId}/items`, {
+        comicId: input.comicId,
+        note: input.note,
+        nodeId: input.nodeId,
+      }),
     onSuccess: () => invalidateGuides(queryClient),
   });
 }
@@ -415,11 +429,98 @@ export function useUpdateGuideItem() {
       itemId: string;
       note?: string | null;
       optional?: boolean;
+      /** Bloco do mapa. `null` tira o item do mapa e o deixa so na trilha. */
+      nodeId?: string | null;
     }) =>
       api.patch(`/guides/${input.guideId}/items/${input.itemId}`, {
         note: input.note,
         optional: input.optional,
+        nodeId: input.nodeId,
       }),
+    onSuccess: () => invalidateGuides(queryClient),
+  });
+}
+
+// ------------------------------------------------- mapa e elenco do evento
+
+/** Um bloco do mapa. `parents` sao ids de outros blocos deste mesmo guia. */
+export interface GuideNodePayload {
+  label: string;
+  note?: string | null;
+  lane: number;
+  coluna: number;
+  entry?: boolean;
+  parents?: string[];
+}
+
+export function useAddGuideNode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { guideId: string; dados: GuideNodePayload }) =>
+      api.post<GuideNodeView>(`/guides/${input.guideId}/blocos`, input.dados),
+    onSuccess: () => invalidateGuides(queryClient),
+  });
+}
+
+export function useUpdateGuideNode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { guideId: string; nodeId: string; dados: Partial<GuideNodePayload> }) =>
+      api.patch(`/guides/${input.guideId}/blocos/${input.nodeId}`, input.dados),
+    onSuccess: () => invalidateGuides(queryClient),
+  });
+}
+
+/** As edicoes continuam no guia; so perdem o bloco. */
+export function useRemoveGuideNode() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { guideId: string; nodeId: string }) =>
+      api.delete(`/guides/${input.guideId}/blocos/${input.nodeId}`),
+    onSuccess: () => invalidateGuides(queryClient),
+  });
+}
+
+export function useAddGuideCharacter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { guideId: string; name: string; role?: string | null }) =>
+      api.post(`/guides/${input.guideId}/personagens`, { name: input.name, role: input.role }),
+    onSuccess: () => invalidateGuides(queryClient),
+  });
+}
+
+export function useUpdateGuideCharacter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: {
+      guideId: string;
+      characterId: string;
+      name?: string;
+      role?: string | null;
+    }) =>
+      api.patch(`/guides/${input.guideId}/personagens/${input.characterId}`, {
+        name: input.name,
+        role: input.role,
+      }),
+    onSuccess: () => invalidateGuides(queryClient),
+  });
+}
+
+export function useSetGuideCharacterImage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { guideId: string; characterId: string; imagem: Blob }) =>
+      uploadGuideCharacterImage(input.guideId, input.characterId, input.imagem),
+    onSuccess: () => invalidateGuides(queryClient),
+  });
+}
+
+export function useRemoveGuideCharacter() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { guideId: string; characterId: string }) =>
+      api.delete(`/guides/${input.guideId}/personagens/${input.characterId}`),
     onSuccess: () => invalidateGuides(queryClient),
   });
 }
