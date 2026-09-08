@@ -6,10 +6,10 @@ import type {
   CharacterImageView,
   CharacterMilestoneView,
 } from '@comicz/shared';
-import { ErrorNote, Spinner } from '../../components/ui';
+import { Spinner } from '../../components/ui';
 import { comicLabel } from '../../lib/format';
 import { fromHere } from '../../lib/navigation';
-import { mediaUrl } from '../../services/api';
+import { ApiError, mediaUrl } from '../../services/api';
 import { useCharacter } from '../comics/queries';
 import { CharacterText } from './CharacterText';
 import { variaveisDoPersonagem } from './estilo';
@@ -31,8 +31,7 @@ export function CharacterPage() {
   const [revelarSpoilers, setRevelarSpoilers] = useState(false);
 
   if (isLoading) return <Spinner label="Carregando personagem..." />;
-  if (error || !personagem)
-    return <ErrorNote>Não foi possível carregar este personagem.</ErrorNote>;
+  if (error || !personagem) return <NaoAchei erro={error} slug={slug} />;
 
   const semEmblema = personagem.images.filter((imagem) => !imagem.emblem);
   const emblema = personagem.images.find((imagem) => imagem.emblem) ?? null;
@@ -138,6 +137,53 @@ export function CharacterPage() {
           </ul>
         </section>
       )}
+    </div>
+  );
+}
+
+/**
+ * O beco sem saida de antes dizia so "nao foi possivel carregar", o que
+ * confunde dois casos bem diferentes: a rede caiu, ou este personagem deixou
+ * de existir. O segundo acontece de proposito — juntar dois registros
+ * duplicados apaga um slug —, e quem chega por um link velho precisa de uma
+ * saida, e nao de um aviso.
+ */
+function NaoAchei({ erro, slug }: { erro: unknown; slug: string | undefined }) {
+  const sumiu = erro instanceof ApiError && erro.status === 404;
+
+  return (
+    <div className="mx-auto max-w-lg py-16 text-center">
+      <h1 className="font-display text-2xl tracking-wide text-ink-100">
+        {sumiu ? 'Este personagem não existe mais' : 'Não foi possível carregar'}
+      </h1>
+      <p className="mt-3 text-sm leading-6 text-ink-400">
+        {sumiu ? (
+          <>
+            O endereço <code className="text-ink-300">{slug}</code> não aponta para ninguém. Em
+            geral é um link antigo: quando dois registros do mesmo personagem são juntados, um dos
+            dois endereços deixa de existir.
+          </>
+        ) : (
+          'A página não respondeu. Pode ser a conexão — tentar de novo costuma resolver.'
+        )}
+      </p>
+      <div className="mt-6 flex flex-wrap justify-center gap-3">
+        <Link
+          to="/personagens"
+          className="rounded-lg bg-ink-100 px-4 py-2 text-sm font-semibold text-ink-950 transition-opacity hover:opacity-90"
+        >
+          Ver todos os personagens
+        </Link>
+        {!sumiu && (
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="rounded-lg border border-ink-700 px-4 py-2 text-sm text-ink-300 transition-colors hover:border-ink-500 hover:text-ink-100"
+          >
+            Tentar de novo
+          </button>
+        )}
+      </div>
     </div>
   );
 }
