@@ -4,6 +4,7 @@ import { comicLabel } from '../../lib/format';
 import { ApiError, mediaUrl } from '../../services/api';
 import { useComics, useGuide } from '../comics/queries';
 import { CoverPicker } from './CoverPicker';
+import { EditorDoElenco, EditorDoMapa } from './GuideEventEditor';
 import {
   useAddGuideItem,
   useRemoveGuideItem,
@@ -20,7 +21,16 @@ export function GuideEditor({ guideId, onBack }: { guideId: string; onBack: () =
   const reorder = useReorderGuideItems();
   const updateItem = useUpdateGuideItem();
 
-  const [meta, setMeta] = useState({ title: '', summary: '', description: '', published: false });
+  const [meta, setMeta] = useState({
+    title: '',
+    summary: '',
+    description: '',
+    published: false,
+    kind: 'GUIDE' as 'GUIDE' | 'EVENT',
+    accentColor: '',
+  });
+  /** Bloco que recebe as proximas HQs adicionadas — poupa reatribuir uma a uma. */
+  const [blocoDestino, setBlocoDestino] = useState('');
   const [search, setSearch] = useState('');
   const [error, setError] = useState<string | null>(null);
 
@@ -34,6 +44,8 @@ export function GuideEditor({ guideId, onBack }: { guideId: string; onBack: () =
         summary: guide.summary ?? '',
         description: guide.description ?? '',
         published: guide.published,
+        kind: guide.kind,
+        accentColor: guide.accentColor ?? '',
       });
     }
   }, [guide]);
@@ -41,6 +53,8 @@ export function GuideEditor({ guideId, onBack }: { guideId: string; onBack: () =
   if (isLoading || !guide) return <Spinner />;
 
   const itemIds = guide.items.map((item) => item.id);
+  // Mesma ordem em que o mapa desenha: desce por passo, e depois por faixa.
+  const blocosEmOrdem = [...guide.nodes].sort((a, b) => a.coluna - b.coluna || a.lane - b.lane);
   const inGuide = new Set(guide.items.map((item) => item.comic.id));
 
   async function saveMeta() {
@@ -53,6 +67,8 @@ export function GuideEditor({ guideId, onBack }: { guideId: string; onBack: () =
           summary: meta.summary.trim() || null,
           description: meta.description.trim() || null,
           published: meta.published,
+          kind: meta.kind,
+          accentColor: meta.accentColor.trim() || null,
         },
       });
     } catch (caught) {
@@ -107,6 +123,40 @@ export function GuideEditor({ guideId, onBack }: { guideId: string; onBack: () =
           />
         </Field>
 
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Formato">
+            <select
+              value={meta.kind}
+              onChange={(event) =>
+                setMeta((c) => ({ ...c, kind: event.target.value as 'GUIDE' | 'EVENT' }))
+              }
+              className="w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-ink-100 focus:border-brand-500 focus:outline-none"
+            >
+              <option value="GUIDE">Guia — trilha simples, uma HQ atrás da outra</option>
+              <option value="EVENT">Grande saga — mapa de blocos, com ramos paralelos</option>
+            </select>
+          </Field>
+
+          {/* A cor so pinta os acentos da pagina de evento; guia simples ignora. */}
+          <Field label="Cor do evento">
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={/^#[0-9a-fA-F]{6}$/.test(meta.accentColor) ? meta.accentColor : '#d4a017'}
+                onChange={(event) => setMeta((c) => ({ ...c, accentColor: event.target.value }))}
+                disabled={meta.kind !== 'EVENT'}
+                className="h-9 w-12 shrink-0 cursor-pointer rounded border border-ink-700 bg-ink-900 disabled:opacity-40"
+              />
+              <Input
+                value={meta.accentColor}
+                onChange={(event) => setMeta((c) => ({ ...c, accentColor: event.target.value }))}
+                placeholder="#d4a017"
+                disabled={meta.kind !== 'EVENT'}
+              />
+            </div>
+          </Field>
+        </div>
+
         <label className="flex cursor-pointer items-center gap-2 text-sm text-ink-300">
           <input
             type="checkbox"
@@ -134,6 +184,13 @@ export function GuideEditor({ guideId, onBack }: { guideId: string; onBack: () =
         edicoes={guide.items.map((item) => item.comic)}
       />
 
+      {guide.kind === 'EVENT' && (
+        <>
+          <EditorDoMapa guia={guide} />
+          <EditorDoElenco guia={guide} />
+        </>
+      )}
+
       <section className="space-y-4 rounded-xl border border-ink-800 bg-ink-900 p-6">
         <h2 className="font-medium text-ink-100">Ordem de leitura ({guide.items.length})</h2>
 
@@ -146,10 +203,7 @@ export function GuideEditor({ guideId, onBack }: { guideId: string; onBack: () =
             {guide.items.map((item, index) => {
               const cover = mediaUrl(item.comic.coverUrl);
               return (
-                <li
-                  key={item.id}
-                  className="flex items-center gap-3 rounded-lg bg-ink-850 p-3"
-                >
+                <li key={item.id} className="flex items-center gap-3 rounded-lg bg-ink-850 p-3">
                   <span className="w-6 shrink-0 text-center text-sm font-semibold text-ink-400">
                     {item.position}
                   </span>
@@ -176,6 +230,27 @@ export function GuideEditor({ guideId, onBack }: { guideId: string; onBack: () =
                       }}
                       className="mt-1 w-full rounded border border-ink-700 bg-ink-900 px-2 py-1 text-xs text-ink-300 placeholder:text-ink-600 focus:border-brand-500 focus:outline-none"
                     />
+
+                    {guide.kind === 'EVENT' && (
+                      <select
+                        value={item.nodeId ?? ''}
+                        onChange={(event) =>
+                          updateItem.mutate({
+                            guideId,
+                            itemId: item.id,
+                            nodeId: event.target.value || null,
+                          })
+                        }
+                        className="mt-1 w-full rounded border border-ink-700 bg-ink-900 px-2 py-1 text-xs text-ink-300 focus:border-brand-500 focus:outline-none"
+                      >
+                        <option value="">— fora do mapa —</option>
+                        {blocosEmOrdem.map((bloco) => (
+                          <option key={bloco.id} value={bloco.id}>
+                            {bloco.coluna}.{bloco.lane} · {bloco.label}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
                   <div className="flex shrink-0 flex-col gap-0.5">
@@ -221,6 +296,23 @@ export function GuideEditor({ guideId, onBack }: { guideId: string; onBack: () =
           placeholder="Buscar no catálogo por título ou série"
         />
 
+        {guide.kind === 'EVENT' && blocosEmOrdem.length > 0 && (
+          <Field label="As próximas entram no bloco">
+            <select
+              value={blocoDestino}
+              onChange={(event) => setBlocoDestino(event.target.value)}
+              className="w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-ink-100 focus:border-brand-500 focus:outline-none"
+            >
+              <option value="">— fora do mapa —</option>
+              {blocosEmOrdem.map((bloco) => (
+                <option key={bloco.id} value={bloco.id}>
+                  {bloco.coluna}.{bloco.lane} · {bloco.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+
         {search && (
           <ul className="max-h-80 space-y-1 overflow-y-auto">
             {(searchResults.data?.items ?? []).map((comic) => (
@@ -239,7 +331,13 @@ export function GuideEditor({ guideId, onBack }: { guideId: string; onBack: () =
                 ) : (
                   <Button
                     variant="secondary"
-                    onClick={() => addItem.mutate({ guideId, comicId: comic.id })}
+                    onClick={() =>
+                      addItem.mutate({
+                        guideId,
+                        comicId: comic.id,
+                        nodeId: blocoDestino || undefined,
+                      })
+                    }
                     disabled={addItem.isPending}
                   >
                     Adicionar

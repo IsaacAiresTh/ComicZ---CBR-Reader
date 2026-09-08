@@ -189,6 +189,30 @@ export async function uploadCharacterImage(
   return res.json() as Promise<{ id: string; path: string }>;
 }
 
+/**
+ * Define o rosto de alguem do elenco de um evento.
+ *
+ * Rota propria porque o alvo nao e o guia, e sim uma linha do elenco dele — e
+ * o PUT substitui, ao contrario da galeria de personagem, onde cada envio
+ * acrescenta.
+ */
+export async function uploadGuideCharacterImage(
+  guideId: string,
+  characterId: string,
+  imagem: Blob,
+): Promise<{ imagePath: string }> {
+  const form = new FormData();
+  form.append('file', imagem, 'rosto.webp');
+  const res = await fetch(`${API_BASE}/guides/${guideId}/personagens/${characterId}/imagem`, {
+    method: 'PUT',
+    body: form,
+    credentials: 'include',
+    headers: session?.accessToken ? { Authorization: `Bearer ${session.accessToken}` } : undefined,
+  });
+  if (!res.ok) throw await parseError(res);
+  return res.json() as Promise<{ imagePath: string }>;
+}
+
 export function uploadComicFile(
   comicId: string,
   file: File,
