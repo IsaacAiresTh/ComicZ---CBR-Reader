@@ -39,7 +39,18 @@ export function CharactersPage() {
     const termo = normalizar(busca.trim());
     const filtrados = todos.filter((personagem) => {
       if (letra && initialLetter(personagem.name) !== letra) return false;
-      if (termo && !normalizar(personagem.name).includes(termo)) return false;
+      /*
+       * Nome, apelidos e tags. O manto de quem o divide mora nas tags e nao nos
+       * apelidos, porque apelido vira link no texto: "lanterna" precisa achar o
+       * Hal Jordan sem que todo "Lanterna Verde" do site aponte para ele.
+       */
+      if (
+        termo &&
+        ![personagem.name, ...personagem.aliases, ...personagem.tags].some((campo) =>
+          normalizar(campo).includes(termo),
+        )
+      )
+        return false;
       return true;
     });
 

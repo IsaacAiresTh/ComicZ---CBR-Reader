@@ -373,6 +373,12 @@ export interface CharacterSummary {
   slug: string;
   summary: string | null;
   aliases: string[];
+  /**
+   * Classificacao livre da ficha. Tambem e onde mora o manto de quem o divide
+   * ("Flash", "Lanterna Verde"): a busca le as tags, mas o link automatico nao —
+   * como apelido, o manto apontaria todo portador para um so personagem.
+   */
+  tags: string[];
   /** Retrato: a imagem de `position` 0, quando existe. */
   portraitUrl: string | null;
   comicCount: number;
@@ -451,8 +457,7 @@ export interface CharacterDetail extends CharacterSummary {
   /** Guias em que ele esta no elenco — o caminho de volta para o evento. */
   guides: CharacterGuideAppearance[];
 
-  /** A ficha rapida. Tudo pode vir vazio. */
-  tags: string[];
+  /** A ficha rapida. Tudo pode vir vazio; as tags vem do resumo. */
   firstAppearance: string | null;
   firstAppearanceYear: number | null;
   affiliations: string[];
