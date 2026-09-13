@@ -658,6 +658,7 @@ export class CharactersService {
     slug: string;
     summary: string | null;
     aliases: string[];
+    tags: string[];
     accentColor: string | null;
     accentColor2: string | null;
     displayFont: string | null;
@@ -671,6 +672,7 @@ export class CharactersService {
       slug: row.slug,
       summary: row.summary,
       aliases: row.aliases,
+      tags: row.tags,
       portraitUrl: retrato ? characterImageUrl(retrato) : null,
       comicCount: row._count.comics,
       accentColor: row.accentColor,
