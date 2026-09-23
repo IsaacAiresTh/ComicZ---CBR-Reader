@@ -55,6 +55,14 @@ export interface SeriesListItem extends SeriesSummary {
   totalIssues: number | null;
   publisher: PublisherSummary | null;
   comicCount: number;
+  /**
+   * Capa escolhida no painel ou, sem ela, a da primeira edição — a mesma regra
+   * do catálogo. Existe para o painel poder listar as sagas em grade: num
+   * acervo grande, a capa identifica a saga muito antes do nome.
+   */
+  coverUrl: string | null;
+  /** Material de apoio: sai da home e do catálogo. Ver `Series.supporting`. */
+  supporting: boolean;
 }
 
 export interface CreatorCredit {

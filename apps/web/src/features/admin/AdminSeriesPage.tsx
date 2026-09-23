@@ -1,5 +1,11 @@
-import { useState } from 'react';
-import type { ComicSummary, SeriesStatus, UpsertSeriesPayload } from '@comicz/shared';
+import { useMemo, useState } from 'react';
+import type {
+  ComicSummary,
+  SeriesListItem,
+  SeriesStatus,
+  UpsertSeriesPayload,
+} from '@comicz/shared';
+import { chave, searchTerms } from '@comicz/shared';
 import {
   Badge,
   Button,
@@ -13,6 +19,7 @@ import {
 import { creditRoleLabel, groupCredits, seriesStatusLabel, seriesYears } from '../../lib/format';
 import { ApiError, mediaUrl } from '../../services/api';
 import { CoverPicker } from './CoverPicker';
+import { CARD_GRID_CLASS } from '../comics/ComicCard';
 import { useComics, useSeriesList } from '../comics/queries';
 import {
   useAttachComicToSeries,
@@ -30,13 +37,72 @@ const STATUS_OPTIONS: { value: SeriesStatus; label: string }[] = [
   { value: 'HIATUS', label: 'Em hiato' },
 ];
 
+type FiltroStatus = 'todos' | SeriesStatus;
+/** Material de apoio x saga que se pretende completar. Ver `Series.supporting`. */
+type FiltroTipo = 'todos' | 'principais' | 'apoio';
+/** O que falta preencher na ficha — o filtro que transforma a lista em fila de trabalho. */
+type FiltroFicha = 'todas' | 'sem-sinopse' | 'sem-capa';
+type Ordem = 'nome' | 'edicoes' | 'ano';
+
+const OPCOES_STATUS: { value: FiltroStatus; label: string }[] = [
+  { value: 'todos', label: 'Qualquer status' },
+  { value: 'ONGOING', label: 'Em lançamento' },
+  { value: 'COMPLETED', label: 'Finalizada' },
+  { value: 'HIATUS', label: 'Em hiato' },
+  { value: 'UNKNOWN', label: 'Não informado' },
+];
+
 export function AdminSeriesPage() {
   const { data: series, isLoading } = useSeriesList();
   const [editingId, setEditingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [busca, setBusca] = useState('');
+  const [status, setStatus] = useState<FiltroStatus>('todos');
+  const [tipo, setTipo] = useState<FiltroTipo>('todos');
+  const [ficha, setFicha] = useState<FiltroFicha>('todas');
+  const [ordem, setOrdem] = useState<Ordem>('nome');
   const deleteSeries = useDeleteSeries();
 
+  const todas = useMemo(() => series ?? [], [series]);
+
+  const visiveis = useMemo(() => {
+    // Mesma regra de busca do catálogo: cada palavra precisa aparecer no nome,
+    // ignorando acento e pontuação. Filtrar aqui, e não na API, porque a lista
+    // já veio inteira — ir ao servidor a cada tecla só adicionaria latência.
+    const termos = searchTerms(busca).map(chave).filter(Boolean);
+
+    const filtradas = todas.filter((item) => {
+      const alvo = chave(item.name);
+      if (termos.some((termo) => !alvo.includes(termo))) return false;
+      if (status !== 'todos' && item.status !== status) return false;
+      if (tipo === 'apoio' && !item.supporting) return false;
+      if (tipo === 'principais' && item.supporting) return false;
+      if (ficha === 'sem-sinopse' && item.description) return false;
+      if (ficha === 'sem-capa' && item.coverUrl) return false;
+      return true;
+    });
+
+    const porNome = (a: SeriesListItem, b: SeriesListItem) => a.name.localeCompare(b.name, 'pt');
+    return [...filtradas].sort((a, b) => {
+      if (ordem === 'edicoes') return b.comicCount - a.comicCount || porNome(a, b);
+      // Sem ano definido vai para o fim, e não para o topo como um zero faria.
+      if (ordem === 'ano') return (b.startYear ?? -Infinity) - (a.startYear ?? -Infinity) || porNome(a, b);
+      return porNome(a, b);
+    });
+  }, [todas, busca, status, tipo, ficha, ordem]);
+
+  const apoio = useMemo(() => todas.filter((item) => item.supporting).length, [todas]);
+  const semSinopse = useMemo(() => todas.filter((item) => !item.description).length, [todas]);
+  const filtrando = busca.trim() !== '' || status !== 'todos' || tipo !== 'todos' || ficha !== 'todas';
+
   if (editingId) return <SeriesEditor seriesId={editingId} onBack={() => setEditingId(null)} />;
+
+  function limpar() {
+    setBusca('');
+    setStatus('todos');
+    setTipo('todos');
+    setFicha('todas');
+  }
 
   return (
     <div className="space-y-6">
@@ -52,64 +118,197 @@ export function AdminSeriesPage() {
 
       {isLoading ? (
         <Spinner />
-      ) : (series?.length ?? 0) === 0 ? (
+      ) : todas.length === 0 ? (
         <p className="rounded-xl border border-dashed border-ink-700 px-6 py-10 text-center text-sm text-ink-500">
           Nenhuma saga ainda. Elas também são criadas sozinhas ao importar HQs.
         </p>
       ) : (
-        <ul className="space-y-3">
-          {series?.map((item) => {
-            const status = seriesStatusLabel(item.status);
-            return (
-              <li
-                key={item.id}
-                className="flex flex-wrap items-center gap-3 rounded-xl border border-ink-800 bg-ink-900 p-4"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="font-medium text-ink-100">{item.name}</p>
-                    {status && (
-                      <Badge tone={item.status === 'COMPLETED' ? 'success' : 'brand'}>
-                        {status}
-                      </Badge>
-                    )}
-                    {!item.description && <Badge tone="warning">sem sinopse</Badge>}
-                  </div>
-                  {item.description && (
-                    <p className="mt-1 line-clamp-1 text-sm text-ink-400">{item.description}</p>
-                  )}
-                  <p className="mt-1 text-xs text-ink-500">
-                    {item.comicCount} {item.comicCount === 1 ? 'edição' : 'edições'} no acervo
-                    {item.totalIssues ? ` · saga com ${item.totalIssues}` : ''}
-                    {item.publisher ? ` · ${item.publisher.name}` : ''}
-                  </p>
-                </div>
+        <>
+          <div className="space-y-3 rounded-xl border border-ink-800 bg-ink-900 p-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Field label="Buscar">
+                <Input
+                  value={busca}
+                  onChange={(event) => setBusca(event.target.value)}
+                  placeholder="Nome da saga"
+                />
+              </Field>
+              <Field label="Status">
+                <Select
+                  value={status}
+                  onChange={(event) => setStatus(event.target.value as FiltroStatus)}
+                >
+                  {OPCOES_STATUS.map((opcao) => (
+                    <option key={opcao.value} value={opcao.value}>
+                      {opcao.label}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Tipo">
+                <Select value={tipo} onChange={(event) => setTipo(event.target.value as FiltroTipo)}>
+                  <option value="todos">Todas as sagas</option>
+                  <option value="principais">Só as principais</option>
+                  <option value="apoio">Só material de apoio</option>
+                </Select>
+              </Field>
+              <Field label="Ficha">
+                <Select
+                  value={ficha}
+                  onChange={(event) => setFicha(event.target.value as FiltroFicha)}
+                >
+                  <option value="todas">Completa ou não</option>
+                  <option value="sem-sinopse">Falta sinopse</option>
+                  <option value="sem-capa">Falta capa</option>
+                </Select>
+              </Field>
+            </div>
 
-                <div className="flex gap-2">
-                  <Button variant="secondary" onClick={() => setEditingId(item.id)}>
-                    Editar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          `Excluir a saga "${item.name}"? As ${item.comicCount} edições continuam no catálogo, mas ficam sem saga.`,
-                        )
-                      ) {
-                        deleteSeries.mutate(item.id);
-                      }
-                    }}
-                  >
-                    🗑
-                  </Button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink-500">
+              <span>
+                <strong className="text-ink-300">{visiveis.length}</strong>
+                {visiveis.length === todas.length ? ' sagas' : ` de ${todas.length} sagas`}
+              </span>
+              <span>{apoio} de apoio</span>
+              <span>{semSinopse} sem sinopse</span>
+
+              <label className="ml-auto flex items-center gap-2">
+                <span>Ordenar por</span>
+                <select
+                  value={ordem}
+                  onChange={(event) => setOrdem(event.target.value as Ordem)}
+                  className="rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-xs text-ink-200"
+                >
+                  <option value="nome">Nome</option>
+                  <option value="edicoes">Mais edições</option>
+                  <option value="ano">Mais recentes</option>
+                </select>
+              </label>
+
+              {filtrando && (
+                <button
+                  type="button"
+                  onClick={limpar}
+                  className="text-brand-400 hover:underline"
+                >
+                  limpar filtros
+                </button>
+              )}
+            </div>
+          </div>
+
+          {visiveis.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-ink-700 px-6 py-10 text-center text-sm text-ink-500">
+              Nenhuma saga com esses filtros.
+            </p>
+          ) : (
+            <ul className={CARD_GRID_CLASS}>
+              {visiveis.map((item) => (
+                <SagaCard
+                  key={item.id}
+                  saga={item}
+                  onEdit={() => setEditingId(item.id)}
+                  onDelete={() => {
+                    if (
+                      window.confirm(
+                        `Excluir a saga "${item.name}"? As ${item.comicCount} edições continuam no catálogo, mas ficam sem saga.`,
+                      )
+                    ) {
+                      deleteSeries.mutate(item.id);
+                    }
+                  }}
+                />
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </div>
+  );
+}
+
+/**
+ * Card de uma saga na grade do painel.
+ *
+ * Mesma proporção e moldura do card do catálogo, de propósito: quem administra
+ * o acervo reconhece a saga pela capa que os leitores veem, não por outra.
+ *
+ * O que muda é o que o card destaca — aqui interessa o que falta preencher
+ * (sinopse, capa) e se a saga é material de apoio, e não o progresso de leitura.
+ */
+function SagaCard({
+  saga,
+  onEdit,
+  onDelete,
+}: {
+  saga: SeriesListItem;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const cover = mediaUrl(saga.coverUrl);
+  const status = seriesStatusLabel(saga.status);
+  const edicoes =
+    saga.totalIssues && saga.totalIssues > saga.comicCount
+      ? `${saga.comicCount} de ${saga.totalIssues}`
+      : `${saga.comicCount} ${saga.comicCount === 1 ? 'edição' : 'edições'}`;
+
+  return (
+    <li className="group relative flex flex-col">
+      <button
+        type="button"
+        onClick={onEdit}
+        title={`Editar "${saga.name}"`}
+        className={`flex flex-1 flex-col overflow-hidden rounded-xl border bg-ink-900 text-left transition-colors hover:border-ink-600 ${
+          // O tracejado âmbar diz "esta some da home" sem precisar ler o selo.
+          saga.supporting ? 'border-dashed border-amber-500/40' : 'border-ink-800'
+        }`}
+      >
+        <div className="relative aspect-2/3 overflow-hidden bg-ink-850">
+          {cover ? (
+            <img
+              src={cover}
+              alt={saga.name}
+              loading="lazy"
+              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center px-3 text-center text-xs text-ink-500">
+              Sem capa
+            </div>
+          )}
+
+          <span className="absolute left-2 top-2">
+            <Badge>{edicoes}</Badge>
+          </span>
+        </div>
+
+        <div className="flex flex-1 flex-col gap-1 p-3">
+          <p className="line-clamp-2 text-sm font-medium leading-snug text-ink-100">{saga.name}</p>
+          <p className="truncate text-xs text-ink-500">
+            {saga.publisher?.name ?? 'Sem editora'}
+            {saga.startYear ? ` · ${saga.startYear}` : ''}
+          </p>
+          <div className="mt-auto flex flex-wrap gap-1 pt-1">
+            {status && (
+              <Badge tone={saga.status === 'COMPLETED' ? 'success' : 'brand'}>{status}</Badge>
+            )}
+            {saga.supporting && <Badge tone="warning">apoio</Badge>}
+            {!saga.description && <Badge tone="danger">sem sinopse</Badge>}
+          </div>
+        </div>
+      </button>
+
+      {/* Fora do botão de editar: um botão dentro do outro não é HTML válido. */}
+      <button
+        type="button"
+        onClick={onDelete}
+        title={`Excluir a saga "${saga.name}"`}
+        aria-label={`Excluir a saga ${saga.name}`}
+        className="absolute right-2 top-2 rounded-md bg-ink-950/70 px-2 py-1 text-xs opacity-0 transition-opacity hover:bg-accent-500/80 focus-visible:opacity-100 group-hover:opacity-100"
+      >
+        🗑
+      </button>
+    </li>
   );
 }
 

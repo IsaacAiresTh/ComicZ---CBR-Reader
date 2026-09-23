@@ -41,6 +41,29 @@ export class SeriesService {
       },
     });
 
+    /**
+     * Capa herdada da primeira edicao, para as sagas que nao tem capa propria.
+     *
+     * Uma consulta so para todas elas, e nao uma por saga: o painel lista o
+     * acervo inteiro de uma vez, entao aqui um N+1 seria uma consulta por saga
+     * cadastrada. `distinct` com o `orderBy` comecando em seriesId deixa o
+     * banco escolher a primeira edicao de cada uma.
+     */
+    const semCapaPropria = rows.filter((row) => !row.coverPath).map((row) => row.id);
+    const herdadas = new Map<string, string>();
+    if (semCapaPropria.length > 0) {
+      const capas = await this.prisma.comic.findMany({
+        where: { seriesId: { in: semCapaPropria }, coverPath: { not: null } },
+        select: { id: true, seriesId: true, coverPath: true, updatedAt: true },
+        orderBy: [{ seriesId: 'asc' }, { issueNumber: 'asc' }, { title: 'asc' }],
+        distinct: ['seriesId'],
+      });
+      for (const capa of capas) {
+        const url = coverUrl(capa);
+        if (capa.seriesId && url) herdadas.set(capa.seriesId, url);
+      }
+    }
+
     return rows.map((row) => ({
       id: row.id,
       name: row.name,
@@ -52,6 +75,8 @@ export class SeriesService {
       description: row.description,
       publisher: row.publisher,
       comicCount: row._count.comics,
+      coverUrl: seriesCoverUrl(row, herdadas.get(row.id) ?? null),
+      supporting: row.supporting,
     }));
   }
 
