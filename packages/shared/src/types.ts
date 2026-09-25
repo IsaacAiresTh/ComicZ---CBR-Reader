@@ -19,6 +19,25 @@ export interface AuthResponse {
   expiresIn: number;
 }
 
+/**
+ * Resposta de login/refresh para o app mobile (header `X-Client: mobile`).
+ *
+ * No navegador refresh e midia vivem em cookies httpOnly; num app nativo nao
+ * ha cookie confiavel, entao os dois vem no corpo e o app guarda no cofre
+ * seguro do aparelho. O token de midia vai no header Authorization das
+ * requisicoes de imagem.
+ */
+export interface NativeAuthResponse extends AuthResponse {
+  refreshToken: string;
+  mediaToken: string;
+  mediaExpiresIn: number;
+}
+
+export interface MediaTokenResponse {
+  mediaToken: string;
+  expiresIn: number;
+}
+
 export interface Paginated<T> {
   items: T[];
   total: number;
@@ -55,6 +74,14 @@ export interface SeriesListItem extends SeriesSummary {
   totalIssues: number | null;
   publisher: PublisherSummary | null;
   comicCount: number;
+  /**
+   * Capa escolhida no painel ou, sem ela, a da primeira edição — a mesma regra
+   * do catálogo. Existe para o painel poder listar as sagas em grade: num
+   * acervo grande, a capa identifica a saga muito antes do nome.
+   */
+  coverUrl: string | null;
+  /** Material de apoio: sai da home e do catálogo. Ver `Series.supporting`. */
+  supporting: boolean;
 }
 
 export interface CreatorCredit {
