@@ -16,7 +16,6 @@
     },
     "android": {
       "package": "com.comicz.app",
-      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#f5b301",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -40,6 +39,12 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "backgroundColor": "#0b0d12"
+    "backgroundColor": "#0b0d12",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "b83e720c-be72-4ab7-897a-5871dafb1124"
+      }
+    }
   }
 }
