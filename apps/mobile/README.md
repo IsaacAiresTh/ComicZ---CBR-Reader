@@ -51,13 +51,43 @@ enviado vence o do servidor.
 
 **Sair da conta** remove os downloads e o progresso pendente do aparelho.
 
+## Gerando o APK
+
+O app é distribuído como APK (o link no site), não pelas lojas. O build roda
+na nuvem do EAS, com uma conta Expo:
+
+```bash
+npx eas-cli@latest login
+npx eas-cli@latest build -p android --profile preview      # para testar
+npx eas-cli@latest build -p android --profile production   # o APK do link
+```
+
+Os dois perfis (`eas.json`) apontam para a API de produção
+(`comicz-api.onrender.com`) — o `.env` local não entra no build. O número da
+versão fica no EAS e sobe sozinho a cada build de produção.
+
+No primeiro build o EAS cria o projeto (grava o `projectId` no `app.json`) e a
+chave de assinatura do Android. **A chave fica guardada no EAS e é ela que
+permite atualizar o app já instalado**: um APK assinado com outra chave não
+instala por cima. O identificador `com.comicz.app` também não pode mudar
+depois que houver instalações.
+
+A API de produção dorme depois de 15 minutos parada e leva ~30s para acordar.
+O app espera até 75s e mostra "Acordando o servidor…" enquanto isso.
+
+## Ícone e splash
+
+Gerados por `npm run icons` (`scripts/gerar-icones.mjs`) a partir de SVG: o
+amarelo da marca com um "Z" na tinta do app — a pílula "Comic" do site
+reduzida à letra. Para mudar, ajuste o script e rode de novo.
+
 ## Estrutura
 
 ```
 src/
 ├── app/                 rotas (Expo Router)
 │   ├── login.tsx
-│   ├── (tabs)/          Catálogo, Biblioteca, Baixadas, Conta
+│   ├── (tabs)/          Início, Catálogo, Biblioteca, Explorar, Baixadas
 │   ├── saga/[id].tsx    edições da saga + "baixar todas"
 │   └── ler/[id].tsx     leitor (local ou remoto)
 ├── components/
