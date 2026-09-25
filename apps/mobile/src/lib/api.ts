@@ -170,7 +170,31 @@ function setMemory(next: MemorySession | null): void {
   mediaListeners.forEach((listener) => listener());
 }
 
+/**
+ * A API anterior ao app responde login no formato do site: refresh só em
+ * cookie, nada no corpo. Sem esta conferência o erro que chegava à tela era o
+ * do SecureStore recusando `undefined` — verdadeiro, mas sem sentido para
+ * quem está tentando entrar.
+ */
+function assertNativeSession(
+  body: Partial<NativeAuthResponse>,
+): asserts body is NativeAuthResponse {
+  const ok =
+    typeof body.refreshToken === 'string' &&
+    typeof body.mediaToken === 'string' &&
+    typeof body.accessToken === 'string' &&
+    typeof body.mediaExpiresIn === 'number' &&
+    !!body.user;
+  if (!ok) {
+    throw new ApiError(
+      426,
+      'O servidor ainda não está atualizado para o app. Tente de novo mais tarde.',
+    );
+  }
+}
+
 async function adopt(body: NativeAuthResponse): Promise<PublicUser> {
+  assertNativeSession(body);
   await SecureStore.setItemAsync(REFRESH_KEY, body.refreshToken);
   await SecureStore.setItemAsync(USER_KEY, JSON.stringify(body.user));
   setMemory({
