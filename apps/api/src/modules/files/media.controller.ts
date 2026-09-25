@@ -71,15 +71,22 @@ export class MediaController {
   }
 
   /**
-   * Cookie e a via normal. A query `?t=` fica como saida para depuracao com
-   * curl e para clientes sem cookie — funciona, mas cria uma entrada de cache
-   * por token, entao o app nunca a usa.
+   * Cookie e a via do navegador. O app mobile manda o token de midia em
+   * `Authorization: Bearer` — header nao entra na URL, entao a chave de cache
+   * continua a mesma para todos. A query `?t=` fica como saida para depuracao
+   * com curl — funciona, mas cria uma entrada de cache por token.
+   *
+   * O Bearer aqui e o token de MIDIA, nao o access token: os dois sao
+   * assinados com segredos diferentes, e um access token e recusado.
    */
   private authorize(req: Request): void {
     const cookies = req.cookies as Record<string, string> | undefined;
+    const fromHeader = /^Bearer (.+)$/i.exec(req.headers.authorization ?? '')?.[1];
     const fromQuery = (req.query as Record<string, unknown> | undefined)?.t;
     this.mediaToken.verify(
-      cookies?.[MEDIA_COOKIE] ?? (typeof fromQuery === 'string' ? fromQuery : undefined),
+      cookies?.[MEDIA_COOKIE] ??
+        fromHeader ??
+        (typeof fromQuery === 'string' ? fromQuery : undefined),
     );
   }
 

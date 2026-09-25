@@ -22,6 +22,14 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Informe a senha'),
 });
 
+/**
+ * Clientes nativos nao tem cookie: o app guarda o refresh token no cofre do
+ * aparelho e o envia no corpo. Mesmo token opaco de 48 bytes em base64url.
+ */
+export const nativeRefreshSchema = z.object({
+  refreshToken: z.string().min(1).max(200),
+});
+
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'Informe a senha atual'),
   newPassword: passwordSchema,
@@ -242,6 +250,7 @@ export const importLocalSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type NativeRefreshInput = z.infer<typeof nativeRefreshSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 export type ListComicsQuery = z.infer<typeof listComicsQuerySchema>;
