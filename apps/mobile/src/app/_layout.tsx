@@ -106,3 +106,5 @@ export default function RootLayout() {
     </GestureHandlerRootView>
   );
 }
+
+export { ErrorBoundary } from '@/components/RouteError';

@@ -100,3 +100,5 @@ const styles = StyleSheet.create({
   toggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   empty: { color: Colors.ink500, textAlign: 'center', padding: Spacing.four },
 });
+
+export { ErrorBoundary } from '@/components/RouteError';

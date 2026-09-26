@@ -130,3 +130,5 @@ const styles = StyleSheet.create({
   statValue: { color: Colors.ink100, fontSize: 22, fontWeight: '800' },
   statLabel: { color: Colors.ink400, fontSize: 12, marginTop: 2 },
 });
+
+export { ErrorBoundary } from '@/components/RouteError';

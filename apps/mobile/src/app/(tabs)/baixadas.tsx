@@ -139,3 +139,5 @@ const styles = StyleSheet.create({
   title: { color: Colors.ink100, fontSize: 15, fontWeight: '700' },
   subtitle: { color: Colors.ink400, fontSize: 13 },
 });
+
+export { ErrorBoundary } from '@/components/RouteError';

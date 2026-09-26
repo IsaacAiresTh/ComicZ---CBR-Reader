@@ -229,3 +229,5 @@ const styles = StyleSheet.create({
   count: { flex: 1, color: Colors.ink500, fontSize: 12 },
   clear: { color: Colors.brandLight, fontSize: 13 },
 });
+
+export { ErrorBoundary } from '@/components/RouteError';

@@ -262,3 +262,5 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.two,
   },
 });
+
+export { ErrorBoundary } from '@/components/RouteError';
