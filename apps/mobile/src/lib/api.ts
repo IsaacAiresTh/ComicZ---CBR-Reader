@@ -16,7 +16,14 @@ const REFRESH_KEY = 'comicz.refresh';
 /** Guardado para o app abrir sem rede e ainda saber quem está logado. */
 const USER_KEY = 'comicz.user';
 const CLIENT_HEADERS = { 'X-Client': 'mobile' } as const;
-const REQUEST_TIMEOUT_MS = 15_000;
+/**
+ * A API de produção roda no plano gratuito do Render, que dorme depois de 15
+ * minutos parada; acordar levou 32s na medição. Sem rede de verdade o fetch
+ * falha na hora — este limite só pesa quando o servidor está lento.
+ */
+const REQUEST_TIMEOUT_MS = 75_000;
+/** A partir daqui uma requisição conta como "servidor acordando" para a UI. */
+const SLOW_AFTER_MS = 5_000;
 
 export class ApiError extends Error {
   constructor(
@@ -89,11 +96,36 @@ export function getMediaToken(): string | null {
   return memory?.mediaToken ?? null;
 }
 
+// ------------------------------------------------------------ servidor lento
+
+let slowRequests = 0;
+const slowListeners = new Set<Listener>();
+
+/** Há alguma requisição esperando há mais de 5s? É o servidor acordando. */
+export function isServerSlow(): boolean {
+  return slowRequests > 0;
+}
+
+export function subscribeServerSlow(listener: Listener): () => void {
+  slowListeners.add(listener);
+  return () => slowListeners.delete(listener);
+}
+
+function setSlow(delta: 1 | -1): void {
+  slowRequests += delta;
+  slowListeners.forEach((listener) => listener());
+}
+
 // ------------------------------------------------------------ fetch base
 
 async function rawFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let slow = false;
+  const slowTimer = setTimeout(() => {
+    slow = true;
+    setSlow(1);
+  }, SLOW_AFTER_MS);
   const url = `${API_URL}${path}`;
   try {
     return await fetch(url, { ...init, signal: controller.signal });
@@ -107,6 +139,8 @@ async function rawFetch(path: string, init: RequestInit = {}): Promise<Response>
     throw new OfflineError(url, reason);
   } finally {
     clearTimeout(timer);
+    clearTimeout(slowTimer);
+    if (slow) setSlow(-1);
   }
 }
 
@@ -136,7 +170,31 @@ function setMemory(next: MemorySession | null): void {
   mediaListeners.forEach((listener) => listener());
 }
 
+/**
+ * A API anterior ao app responde login no formato do site: refresh só em
+ * cookie, nada no corpo. Sem esta conferência o erro que chegava à tela era o
+ * do SecureStore recusando `undefined` — verdadeiro, mas sem sentido para
+ * quem está tentando entrar.
+ */
+function assertNativeSession(
+  body: Partial<NativeAuthResponse>,
+): asserts body is NativeAuthResponse {
+  const ok =
+    typeof body.refreshToken === 'string' &&
+    typeof body.mediaToken === 'string' &&
+    typeof body.accessToken === 'string' &&
+    typeof body.mediaExpiresIn === 'number' &&
+    !!body.user;
+  if (!ok) {
+    throw new ApiError(
+      426,
+      'O servidor ainda não está atualizado para o app. Tente de novo mais tarde.',
+    );
+  }
+}
+
 async function adopt(body: NativeAuthResponse): Promise<PublicUser> {
+  assertNativeSession(body);
   await SecureStore.setItemAsync(REFRESH_KEY, body.refreshToken);
   await SecureStore.setItemAsync(USER_KEY, JSON.stringify(body.user));
   setMemory({

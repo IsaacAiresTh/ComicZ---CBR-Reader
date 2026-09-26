@@ -540,3 +540,5 @@ const styles = StyleSheet.create({
   pillFace: { width: 28, height: 28, borderRadius: 14 },
   pillText: { color: Colors.ink200, fontSize: 14 },
 });
+
+export { ErrorBoundary } from '@/components/RouteError';

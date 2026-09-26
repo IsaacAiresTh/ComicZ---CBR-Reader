@@ -43,3 +43,5 @@ export default function EventsScreen() {
     </View>
   );
 }
+
+export { ErrorBoundary } from '@/components/RouteError';

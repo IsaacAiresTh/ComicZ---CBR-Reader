@@ -158,3 +158,5 @@ const styles = StyleSheet.create({
   },
   hubLabel: { color: Colors.ink100, fontSize: 13, fontWeight: '600' },
 });
+
+export { ErrorBoundary } from '@/components/RouteError';

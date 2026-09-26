@@ -6,6 +6,7 @@
   "types": "./dist/cjs/index.d.ts",
   "exports": {
     ".": {
+      "react-native": "./src/index.ts",
       "types": "./dist/cjs/index.d.ts",
       "import": "./dist/esm/index.js",
       "require": "./dist/cjs/index.js"

@@ -274,3 +274,5 @@ const styles = StyleSheet.create({
   error: { color: Colors.accent, fontSize: 14 },
   description: { color: Colors.ink300, fontSize: 15, lineHeight: 23 },
 });
+
+export { ErrorBoundary } from '@/components/RouteError';
