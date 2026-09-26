@@ -19,6 +19,25 @@ export interface AuthResponse {
   expiresIn: number;
 }
 
+/**
+ * Resposta de login/refresh para o app mobile (header `X-Client: mobile`).
+ *
+ * No navegador refresh e midia vivem em cookies httpOnly; num app nativo nao
+ * ha cookie confiavel, entao os dois vem no corpo e o app guarda no cofre
+ * seguro do aparelho. O token de midia vai no header Authorization das
+ * requisicoes de imagem.
+ */
+export interface NativeAuthResponse extends AuthResponse {
+  refreshToken: string;
+  mediaToken: string;
+  mediaExpiresIn: number;
+}
+
+export interface MediaTokenResponse {
+  mediaToken: string;
+  expiresIn: number;
+}
+
 export interface Paginated<T> {
   items: T[];
   total: number;
