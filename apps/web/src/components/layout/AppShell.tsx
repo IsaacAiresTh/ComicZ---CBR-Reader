@@ -9,6 +9,7 @@ const NAV = [
   { to: '/personagens', label: 'Personagens' },
   { to: '/guias', label: 'Guias' },
   { to: '/biblioteca', label: 'Minha biblioteca' },
+  { to: '/app', label: 'App' },
 ];
 
 export function AppShell() {
@@ -25,7 +26,10 @@ export function AppShell() {
     <div className="min-h-dvh bg-ink-950">
       <header className="sticky top-0 z-40 border-b border-ink-800 bg-ink-900/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-6 px-4">
-          <Link to="/" className="flex shrink-0 items-center gap-1.5 text-xl font-black tracking-tight">
+          <Link
+            to="/"
+            className="flex shrink-0 items-center gap-1.5 text-xl font-black tracking-tight"
+          >
             <span className="rounded-md bg-brand-500 px-1.5 py-0.5 text-ink-950">Comic</span>
             <span className="text-ink-100">Z</span>
           </Link>

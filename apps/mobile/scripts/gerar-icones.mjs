@@ -91,4 +91,14 @@ await render(
   ),
 );
 
+// O mesmo ícone na página de download do site (apps/web/public), para quem
+// baixa reconhecer o app na tela inicial do celular.
+const WEB_PUBLIC = join(OUT, '..', '..', '..', 'web', 'public');
+mkdirSync(WEB_PUBLIC, { recursive: true });
+await sharp(Buffer.from(svg(S, z(S / 2, S / 2, S * 0.5, INK), BRAND)))
+  .resize(512, 512)
+  .png()
+  .toFile(join(WEB_PUBLIC, 'app-icon.png'));
+console.log('  ../web/public/app-icon.png');
+
 console.log(`Cores: marca ${BRAND}, tinta ${INK}, fundo ${GROUND}.`);
