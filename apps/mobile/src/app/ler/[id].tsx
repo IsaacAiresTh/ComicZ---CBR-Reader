@@ -46,6 +46,13 @@ interface ReaderData {
   offline: boolean;
 }
 
+/**
+ * Fora do componente de propósito: a FlatList não aceita trocar este objeto
+ * depois de montada, e um literal no JSX é um objeto novo a cada render.
+ */
+const SINGLE_VIEWABILITY = { itemVisiblePercentThreshold: 60 };
+const CONTINUOUS_VIEWABILITY = { itemVisiblePercentThreshold: 50 };
+
 /** Salvar a cada página virada rápido demais só gera requisição descartada. */
 const SAVE_DEBOUNCE_MS = 800;
 
@@ -180,6 +187,10 @@ function Pages({ comicId, data }: { comicId: string; data: ReaderData }) {
     <View style={styles.screen}>
       {mode === 'single' ? (
         <FlatList
+          // Cada modo é uma lista própria: sem key, o React reaproveitaria a
+          // mesma FlatList ao trocar de modo e mudaria a configuração dela
+          // montada — o que ela recusa ("Changing viewabilityConfig on the fly").
+          key="single"
           ref={single}
           data={data.pages}
           keyExtractor={(page) => String(page.index)}
@@ -194,7 +205,7 @@ function Pages({ comicId, data }: { comicId: string; data: ReaderData }) {
           windowSize={5}
           initialNumToRender={2}
           maxToRenderPerBatch={2}
-          viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
+          viewabilityConfig={SINGLE_VIEWABILITY}
           onViewableItemsChanged={onViewableItemsChanged}
           renderItem={({ item, index }) => (
             <ZoomablePage
@@ -217,6 +228,7 @@ function Pages({ comicId, data }: { comicId: string; data: ReaderData }) {
         />
       ) : (
         <FlatList
+          key="continuous"
           ref={continuous}
           data={data.pages}
           keyExtractor={(page) => String(page.index)}
@@ -228,7 +240,7 @@ function Pages({ comicId, data }: { comicId: string; data: ReaderData }) {
           }}
           windowSize={7}
           initialNumToRender={3}
-          viewabilityConfig={{ itemVisiblePercentThreshold: 50 }}
+          viewabilityConfig={CONTINUOUS_VIEWABILITY}
           onViewableItemsChanged={onViewableItemsChanged}
           renderItem={({ item }) => (
             <Pressable onPress={() => setChrome((visible) => !visible)}>
@@ -320,3 +332,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+
+export { ErrorBoundary } from '@/components/RouteError';

@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { AppShell } from '../components/layout/AppShell';
+import { AppDownloadPage } from '../features/app/AppDownloadPage';
 import { LoginPage } from '../features/auth/LoginPage';
 import { ProfilePage } from '../features/auth/ProfilePage';
 import { ProtectedRoute } from '../features/auth/ProtectedRoute';
@@ -31,6 +32,8 @@ export function AppRouter() {
     <Routes>
       <Route path="/entrar" element={<LoginPage />} />
       <Route path="/registrar" element={<RegisterPage />} />
+      {/* Pública: é o link que se manda para quem ainda não tem conta. */}
+      <Route path="/app" element={<AppDownloadPage />} />
 
       <Route element={<ProtectedRoute />}>
         {/* O leitor fica fora do AppShell: ocupa a tela inteira. */}

@@ -235,3 +235,5 @@ const styles = StyleSheet.create({
   },
   organizeLabel: { color: Colors.ink200, fontSize: 13 },
 });
+
+export { ErrorBoundary } from '@/components/RouteError';

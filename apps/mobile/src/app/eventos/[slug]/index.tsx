@@ -434,3 +434,5 @@ const styles = StyleSheet.create({
   toggle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   empty: { color: Colors.ink500, textAlign: 'center', padding: Spacing.four },
 });
+
+export { ErrorBoundary } from '@/components/RouteError';

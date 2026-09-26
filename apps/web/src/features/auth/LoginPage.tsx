@@ -49,6 +49,12 @@ export function LoginPage() {
           <Link to="/registrar" className="font-medium text-brand-400 hover:underline">
             Criar conta
           </Link>
+          <span className="mt-3 block">
+            Tem Android?{' '}
+            <Link to="/app" className="font-medium text-brand-400 hover:underline">
+              Baixe o app e leia offline
+            </Link>
+          </span>
         </>
       }
     >
@@ -97,14 +103,19 @@ export function AuthShell({
     <div className="flex min-h-dvh items-center justify-center bg-ink-950 px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <Link to="/" className="inline-flex items-center gap-2 text-2xl font-black tracking-tight">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-2xl font-black tracking-tight"
+          >
             <span className="rounded-md bg-brand-500 px-2 py-0.5 text-ink-950">Comic</span>
             <span className="text-ink-100">Z</span>
           </Link>
           <h1 className="mt-6 text-xl font-semibold text-ink-100">{title}</h1>
           <p className="mt-1 text-sm text-ink-400">{subtitle}</p>
         </div>
-        <div className="rounded-2xl border border-ink-800 bg-ink-900 p-6 comic-shadow">{children}</div>
+        <div className="rounded-2xl border border-ink-800 bg-ink-900 p-6 comic-shadow">
+          {children}
+        </div>
         <p className="mt-6 text-center text-sm text-ink-400">{footer}</p>
       </div>
     </div>

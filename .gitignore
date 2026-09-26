@@ -18,6 +18,9 @@ coverage/
 # para o repositório. O storage é recriado sozinho pela aplicação.
 HQ's/
 HQs/
+quarentena/
+*.cbr
+*.cbz
 /storage/*
 !/storage/.gitkeep
 

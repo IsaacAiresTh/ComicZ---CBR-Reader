@@ -94,3 +94,5 @@ const styles = StyleSheet.create({
   small: { color: Colors.ink400, fontSize: 12 },
   empty: { color: Colors.ink500, textAlign: 'center', padding: Spacing.four },
 });
+
+export { ErrorBoundary } from '@/components/RouteError';

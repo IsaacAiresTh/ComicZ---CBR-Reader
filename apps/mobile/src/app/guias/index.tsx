@@ -46,3 +46,5 @@ export default function GuidesScreen() {
     </View>
   );
 }
+
+export { ErrorBoundary } from '@/components/RouteError';

@@ -158,3 +158,5 @@ const styles = StyleSheet.create({
   },
   count: { color: Colors.ink500, fontSize: 12, marginLeft: 'auto' },
 });
+
+export { ErrorBoundary } from '@/components/RouteError';

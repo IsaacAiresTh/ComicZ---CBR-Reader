@@ -528,3 +528,13 @@ export interface CharacterGuideAppearance {
   /** O papel dado no elenco daquele guia: "Quem roubou os dez anos". */
   role: string | null;
 }
+
+/**
+ * A versão do app Android publicada — o que a página de download mostra.
+ * Gravada pelo comando `npm run app:publicar` junto com o APK.
+ */
+export interface AppAndroidInfo {
+  version: string;
+  sizeBytes: number;
+  publishedAt: string;
+}

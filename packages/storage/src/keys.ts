@@ -30,3 +30,11 @@ export function pagesPrefix(comicFileId: string): string {
 export function coverKey(comicId: string): string {
   return `covers/${comicId}.webp`;
 }
+
+/**
+ * O APK do app Android que o site oferece para baixar, e os dados da versão
+ * publicada. Chave fixa: publicar uma versão nova substitui a anterior, e o
+ * link do site nunca muda.
+ */
+export const APP_ANDROID_KEY = 'app/comicz.apk';
+export const APP_ANDROID_INFO_KEY = 'app/android.json';
