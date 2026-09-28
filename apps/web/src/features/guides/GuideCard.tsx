@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { GuideSummary } from '@comicz/shared';
-import { Badge } from '../../components/ui';
+import { ehNovidade } from '@comicz/shared';
+import { Badge, SeloNovidade } from '../../components/ui';
 import { mediaUrl } from '../../services/api';
 
 /**
@@ -40,6 +41,12 @@ export function GuideCard({ guide }: { guide: GuideSummary }) {
           guia. `pointer-events-none` para não engolir o clique do link.
         */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-ink-950 via-ink-950/75 to-transparent" />
+
+        {ehNovidade(guide.createdAt) && (
+          <span className="absolute right-2 top-2">
+            <SeloNovidade />
+          </span>
+        )}
 
         {!guide.published && (
           <span className="absolute left-2 top-2">

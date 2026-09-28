@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import type { ComicSummary } from '@comicz/shared';
-import { Badge } from '../../components/ui';
+import { ehNovidade } from '@comicz/shared';
+import { Badge, SeloNovidade } from '../../components/ui';
 import { comicLabel, fileStatusLabel, percent } from '../../lib/format';
 import { fromHere } from '../../lib/navigation';
 import { mediaUrl } from '../../services/api';
@@ -46,6 +47,7 @@ export function ComicCard({
 
         {/* Dentro de uma coleção é o que responde "quais eu já salvei?". */}
         <span className="absolute right-2 top-2 flex items-center gap-1">
+          {ehNovidade(comic.createdAt) && <SeloNovidade />}
           {comic.inLibrary && (
             <span
               title="Na biblioteca"

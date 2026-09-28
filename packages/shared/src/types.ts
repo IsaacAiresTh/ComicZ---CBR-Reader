@@ -148,6 +148,8 @@ export interface ComicSummary {
   favorite?: boolean;
   libraryStatus?: LibraryStatus | null;
   progress?: { currentPage: number; pageCount: number; completed: boolean } | null;
+  /** Quando a edição entrou no acervo. Alimenta o selo de novidade. */
+  createdAt: string;
 }
 
 /**
@@ -172,6 +174,12 @@ export interface CatalogSeriesEntry {
   readyCount: number;
   readCount: number;
   inLibraryCount: number;
+  /**
+   * Quando a saga recebeu a edição mais recente — e não quando a saga foi
+   * criada. Uma saga antiga que ganhou dez edições ontem é novidade; uma
+   * cadastrada ontem com material velho não é.
+   */
+  createdAt: string;
 }
 
 export type CatalogEntry =
@@ -259,6 +267,8 @@ export interface GuideSummary {
   /** Hex "#rrggbb" da saga, ou null: a UI cai no amarelo da marca. */
   accentColor: string | null;
   itemCount: number;
+  /** Quando o guia foi criado. Alimenta o selo de novidade. */
+  createdAt: string;
   /**
    * Capa do guia: a escolhida pelo admin, ou — na falta dela — a da primeira
    * HQ da ordem de leitura. Mesma regra da saga; `hasOwnCover` (no detalhe)

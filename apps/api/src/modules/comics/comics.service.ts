@@ -260,6 +260,10 @@ export class ComicsService {
           readCount: issueList.filter((issue) => contexts.get(issue.id)?.progress?.completed)
             .length,
           inLibraryCount: issueList.filter((issue) => contexts.get(issue.id)?.library).length,
+          // A saga e novidade quando GANHA edicao, nao quando e cadastrada.
+          createdAt: new Date(
+            Math.max(...issueList.map((issue) => issue.createdAt.getTime())),
+          ).toISOString(),
         },
       });
     }
