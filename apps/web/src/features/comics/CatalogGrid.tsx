@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { CatalogEntry, CatalogSeriesEntry } from '@comicz/shared';
-import { Badge } from '../../components/ui';
+import { ehNovidade } from '@comicz/shared';
+import { Badge, SeloNovidade } from '../../components/ui';
 import { percent, seriesStatusLabel } from '../../lib/format';
 import { mediaUrl } from '../../services/api';
 import { CARD_GRID_CLASS, ComicCard } from './ComicCard';
@@ -56,6 +57,12 @@ export function SeriesCard({ series }: { series: CatalogSeriesEntry }) {
           <span className="absolute left-2 top-2">
             <Badge>{issues}</Badge>
           </span>
+
+          {ehNovidade(series.createdAt) && (
+            <span className="absolute right-2 top-2">
+              <SeloNovidade />
+            </span>
+          )}
 
           {read > 0 && read < total && (
             <div className="absolute inset-x-0 bottom-0 h-1 bg-ink-950/60">

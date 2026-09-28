@@ -78,6 +78,28 @@ export function Select({ className = '', ...props }: SelectHTMLAttributes<HTMLSe
   return <select className={`${CONTROL} ${className}`} {...props} />;
 }
 
+/**
+ * Selo de novidade, para sobrepor no canto da capa.
+ *
+ * Nao usa o Badge: os tons coloridos dele tem fundo translucido e somem sobre
+ * a arte da capa — o mesmo motivo pelo qual o catalogo so poe o selo neutro
+ * ali. Aqui o fundo e solido de proposito.
+ *
+ * Nao se posiciona sozinho: no card de HQ ele divide o canto com o selo da
+ * biblioteca, e fixar `absolute` aqui obrigaria a empurrar o outro mesmo
+ * quando nao ha novidade nenhuma para mostrar.
+ */
+export function SeloNovidade() {
+  return (
+    <span
+      title="Entrou no acervo nos ultimos dias"
+      className="pointer-events-none rounded-full bg-brand-500 px-2 py-0.5 text-[11px] font-bold uppercase leading-tight tracking-wide text-ink-950 shadow-lg shadow-ink-950/50"
+    >
+      New
+    </span>
+  );
+}
+
 export function Badge({
   children,
   tone = 'neutral',

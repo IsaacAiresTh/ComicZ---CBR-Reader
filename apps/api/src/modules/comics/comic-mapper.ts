@@ -47,6 +47,7 @@ export function toComicSummary(
     id: comic.id,
     title: comic.title,
     slug: comic.slug,
+    createdAt: comic.createdAt.toISOString(),
     issueNumber: comic.issueNumber,
     coverUrl: coverUrl(comic),
     series: comic.series
