@@ -82,7 +82,7 @@ export function ComicDetailPage() {
           </div>
 
           {comic.description && (
-            <p className="max-w-2xl text-sm leading-relaxed text-ink-300">
+            <p className="max-w-2xl whitespace-pre-line text-sm leading-relaxed text-ink-300">
               <CharacterText texto={comic.description} />
             </p>
           )}
