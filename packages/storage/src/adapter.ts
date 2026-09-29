@@ -35,6 +35,16 @@ export interface StorageAdapter {
   open(key: string): Promise<OpenedObject>;
 
   /**
+   * URL temporaria para o navegador buscar o objeto direto no storage, ou null
+   * quando o driver nao tem como oferecer uma.
+   *
+   * Existe por banda: servir a imagem pela API faz cada byte passar pelo
+   * Render, cuja cota free (5 GB/mes) acabou em poucos dias de leitura. Do R2
+   * o egress e zero. O disco local devolve null e a API segue servindo.
+   */
+  signedUrl(key: string): Promise<SignedUrl | null>;
+
+  /**
    * Garante o objeto como arquivo em disco, dentro de `workDir`.
    *
    * Existe porque 7z e sharp trabalham com caminhos, nao com streams. O
@@ -73,6 +83,12 @@ export type StorageDriver = 'local' | 's3';
 export interface OpenedObject {
   size: number;
   stream: Readable;
+}
+
+export interface SignedUrl {
+  url: string;
+  /** Quantos segundos a URL ainda vale, no minimo, para quem a cachear agora. */
+  cacheSeconds: number;
 }
 
 export interface LocalCopy {

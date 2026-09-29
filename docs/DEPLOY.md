@@ -128,8 +128,16 @@ não existe combinação de variáveis que faça isso funcionar.
                   │ worker (seu PC) │──páginas─┘  │
                   └─────────────────┘             │
                                                   ▼
-                    leitor ◄──── API/Render ◄── WebP
+       leitor ──/media──► API/Render ──302──► WebP direto do R2
 ```
+
+As imagens **não passam pelo Render**. `/media` confere o cookie de mídia e
+responde um redirect para uma URL assinada do R2; o navegador baixa os bytes de
+lá. Servir os bytes pela API esgotou a cota free de banda do Render (5 GB/mês)
+em setembro de 2026 e suspendeu o serviço — e o R2 não cobra egress. A
+assinatura vale por janelas fixas de 24 h (a URL de uma página é a mesma o dia
+inteiro, então o navegador a mantém em cache), e `?proxy=1` ainda devolve os
+bytes pela API para quem precisa lê-los com `fetch` (o seletor de capa).
 
 O worker roda na sua máquina de propósito: background worker não existe no free
 do Render, e 0,15 CPU com 512 MB não converteria centenas de páginas com sharp
@@ -258,9 +266,11 @@ local em vez de baixá-lo de volta.
   req/min seria compartilhado por todos os usuários.
 - **Migrations** rodam no `buildCommand` do Render, não no start: assim não
   custam nada a cada spin-down.
-- **Imagens em cache no edge da Vercel**: as respostas de `/media` saem como
-  `public, max-age=31536000, immutable`, então a Vercel as guarda e passa a
-  servi-las sem consultar a origem. Medido em produção: uma página nunca
+- **Redirects de mídia em cache no edge da Vercel**: com R2, `/media` responde
+  302 com `public, max-age` até o fim da janela de assinatura, e a Vercel pode
+  guardá-lo. Com o disco local (desenvolvimento, ou `?proxy=1`) a resposta é a
+  própria imagem, `public, max-age=31536000, immutable`. Nos dois casos vale o
+  que foi medido quando eram os bytes que saíam daqui: uma página nunca
   buscada responde 401 sem o cookie de mídia, mas a mesma página, depois de
   buscada uma vez por alguém autenticado, responde 200 para qualquer um que
   tenha a URL (`x-vercel-cache: HIT`). A URL não é adivinhável — dois UUIDs —

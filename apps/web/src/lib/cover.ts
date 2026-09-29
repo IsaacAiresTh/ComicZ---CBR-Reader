@@ -67,10 +67,13 @@ async function carregar(origem: Blob): Promise<ImageBitmap | HTMLImageElement> {
  * Busca uma página já servida pela API para usar como capa.
  *
  * `credentials: 'include'` porque a autorização de /media vem do cookie de
- * mídia, e não do header Authorization.
+ * mídia, e não do header Authorization. `proxy=1` pede os bytes à própria API:
+ * sem ele a resposta é um redirect para o R2, e o fetch esbarraria no CORS do
+ * bucket.
  */
 export async function baixarPagina(url: string): Promise<Blob> {
-  const res = await fetch(url, { credentials: 'include' });
+  const proxied = `${url}${url.includes('?') ? '&' : '?'}proxy=1`;
+  const res = await fetch(proxied, { credentials: 'include' });
   if (!res.ok) throw new CoverError(`Não foi possível carregar a página (${res.status})`);
   return res.blob();
 }
