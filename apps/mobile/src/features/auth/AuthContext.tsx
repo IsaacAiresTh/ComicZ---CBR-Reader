@@ -29,7 +29,7 @@ async function claimDevice(userId: string): Promise<void> {
 interface AuthValue {
   status: Status;
   user: PublicUser | null;
-  /** false quando o app abriu sem rede; volta a true no primeiro refresh bem-sucedido. */
+  /** false até o servidor confirmar a sessão, e enquanto o app estiver sem rede. */
   online: boolean;
   signIn(email: string, password: string): Promise<void>;
   register(input: { username: string; email: string; password: string }): Promise<void>;
@@ -49,16 +49,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     loadDownloads();
-    void client.restoreSession().then((restored) => {
+    // Entra com o usuário salvo e confirma com o servidor depois: sem rede, ou
+    // com o servidor acordando, as HQs baixadas já estão ao alcance. As telas
+    // que precisam da API esperam o mesmo refresh, que é compartilhado.
+    void (async () => {
+      const saved = await client.storedUser();
+      if (!saved) {
+        setStatus('signed-out');
+        return;
+      }
+      setUser(saved);
+      setOnline(false);
+      setStatus('signed-in');
+
+      const restored = await client.restoreSession();
       if (!restored) {
+        setUser(null);
         setStatus('signed-out');
         return;
       }
       setUser(restored.user);
       setOnline(restored.online);
-      setStatus('signed-in');
       if (restored.online) void flushProgress();
-    });
+    })();
 
     return client.onSessionExpired(() => {
       setUser(null);
