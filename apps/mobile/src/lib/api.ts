@@ -283,7 +283,20 @@ export interface RestoredSession {
   online: boolean;
 }
 
-/** Na abertura do app: retoma a sessão salva, com ou sem rede. */
+/**
+ * Quem está logado neste aparelho, sem falar com o servidor. Serve para o app
+ * abrir na hora: esperar o refresh travava a abertura por até 75s com Wi-Fi
+ * sem internet, e as HQs baixadas ficavam presas atrás disso.
+ */
+export async function storedUser(): Promise<PublicUser | null> {
+  const [refreshToken, storedUser] = await Promise.all([
+    SecureStore.getItemAsync(REFRESH_KEY),
+    SecureStore.getItemAsync(USER_KEY),
+  ]);
+  return refreshToken && storedUser ? (JSON.parse(storedUser) as PublicUser) : null;
+}
+
+/** Retoma a sessão salva, com ou sem rede. */
 export async function restoreSession(): Promise<RestoredSession | null> {
   const [refreshToken, storedUser] = await Promise.all([
     SecureStore.getItemAsync(REFRESH_KEY),

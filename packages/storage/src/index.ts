@@ -3,6 +3,7 @@ export {
   StorageObjectNotFound,
   type LocalCopy,
   type OpenedObject,
+  type SignedUrl,
   type StorageAdapter,
   type StorageDriver,
 } from './adapter';

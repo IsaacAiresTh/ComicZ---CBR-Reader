@@ -8,6 +8,7 @@ import { Body, Button } from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { useAuth } from '@/features/auth/AuthContext';
 import { OfflineError, offlineMessage } from '@/lib/api';
+import { useDownloads } from '@/lib/downloads';
 
 /** Mesmas credenciais do site. */
 export default function LoginScreen() {
@@ -16,6 +17,8 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Sessão expirada não apaga os downloads: eles continuam legíveis daqui.
+  const downloaded = Object.keys(useDownloads().comics).length;
 
   async function submit() {
     const parsed = loginSchema.safeParse({ email: email.trim(), password });
@@ -79,6 +82,13 @@ export default function LoginScreen() {
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Button label="Entrar" loading={loading} onPress={() => void submit()} />
           <Button label="Criar conta" variant="ghost" onPress={() => router.push('/registrar')} />
+          {downloaded > 0 ? (
+            <Button
+              label={`Ler HQs baixadas (${downloaded})`}
+              variant="ghost"
+              onPress={() => router.push('/offline')}
+            />
+          ) : null}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

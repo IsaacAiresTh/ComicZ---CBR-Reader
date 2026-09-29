@@ -16,7 +16,7 @@ import {
   startDownload,
   useDownloads,
 } from '@/lib/downloads';
-import { comicLabel, fileStatusLabel, percent } from '@/lib/format';
+import { comicLabel, fileStatusLabel, percent, plural } from '@/lib/format';
 import { useComic, useLibraryActions } from '@/lib/queries';
 
 export default function ComicScreen() {
@@ -36,11 +36,29 @@ export default function ComicScreen() {
   const started = Boolean(progress && progress.currentPage > 1 && !progress.completed);
   const local = downloaded[comic.id];
   const downloading = active[comic.id];
-  const busy = library.add.isPending || library.remove.isPending || library.update.isPending;
+  const busy =
+    library.add.isPending ||
+    library.remove.isPending ||
+    library.update.isPending ||
+    library.addSeries.isPending;
 
   const run = (promise: Promise<unknown>) =>
     promise.catch((error: unknown) =>
       Alert.alert('Não deu para salvar', error instanceof Error ? error.message : undefined),
+    );
+
+  // Atalho para quem procura a saga inteira aqui, e não na página da saga.
+  const addSeries = (seriesId: string) =>
+    void run(
+      library.addSeries.mutateAsync(seriesId).then((result) =>
+        setMessage(
+          result.added === 0
+            ? 'A saga inteira já estava na biblioteca'
+            : result.alreadyInLibrary > 0
+              ? `${result.added} adicionadas · ${result.alreadyInLibrary} já estavam`
+              : plural(result.added, 'edição adicionada', 'edições adicionadas'),
+        ),
+      ),
     );
 
   return (
@@ -159,6 +177,13 @@ export default function ComicScreen() {
               )
             }
           />
+          {comic.series ? (
+            <Action
+              label="+ Saga inteira"
+              disabled={busy}
+              onPress={() => addSeries(comic.series!.id)}
+            />
+          ) : null}
           <Action
             label={comic.favorite ? '★ Favorita' : '☆ Favoritar'}
             active={!!comic.favorite}

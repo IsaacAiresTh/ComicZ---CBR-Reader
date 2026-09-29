@@ -13,11 +13,13 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
   contentTypeFor,
   StorageObjectNotFound,
   type LocalCopy,
   type OpenedObject,
+  type SignedUrl,
   type StorageAdapter,
 } from './adapter';
 
@@ -31,6 +33,9 @@ export interface S3StorageOptions {
 
 /** Apagar objetos no S3 e em lote, e o lote tem teto de 1000. */
 const DELETE_BATCH = 1000;
+
+/** Janela de assinatura das URLs de leitura. Validade maxima do SigV4: 7 dias. */
+const SIGNING_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Storage compativel com S3. Escrito para o Cloudflare R2, que fala o mesmo
@@ -100,6 +105,33 @@ export class S3Storage implements StorageAdapter {
       size: response.ContentLength ?? 0,
       stream: response.Body as Readable,
     };
+  }
+
+  /**
+   * A assinatura e presa a uma janela fixa, e nao ao instante do pedido: com a
+   * mesma chave, data e validade, SigV4 gera a mesma URL. Assim a URL de uma
+   * pagina fica estavel pela janela inteira e o navegador reaproveita a imagem
+   * do cache em vez de baixa-la de novo a cada redirect.
+   *
+   * A validade e de duas janelas porque quem pega a URL no fim da janela ainda
+   * precisa de uma janela inteira de uso — e `cacheSeconds` so promete ate o
+   * fim da janela atual.
+   */
+  async signedUrl(key: string): Promise<SignedUrl> {
+    const now = Date.now();
+    const windowStart = Math.floor(now / SIGNING_WINDOW_MS) * SIGNING_WINDOW_MS;
+    const url = await getSignedUrl(
+      this.client,
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        // Objeto e imutavel sob a URL: a versao muda a URL quando ele muda.
+        ResponseCacheControl: `private, max-age=${(2 * SIGNING_WINDOW_MS) / 1000}, immutable`,
+      }),
+      { signingDate: new Date(windowStart), expiresIn: (2 * SIGNING_WINDOW_MS) / 1000 },
+    );
+    const cacheSeconds = Math.max(1, Math.floor((windowStart + SIGNING_WINDOW_MS - now) / 1000));
+    return { url, cacheSeconds };
   }
 
   async localCopy(key: string, workDir: string): Promise<LocalCopy> {

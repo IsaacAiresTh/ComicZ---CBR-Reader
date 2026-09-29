@@ -68,6 +68,7 @@ function RootStack() {
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen name="registrar" options={{ headerShown: false }} />
+          <Stack.Screen name="offline" options={{ title: 'HQs baixadas' }} />
         </Stack.Protected>
         <Stack.Protected guard={signedIn}>
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -82,8 +83,9 @@ function RootStack() {
           <Stack.Screen name="personagens/index" options={{ title: 'Personagens' }} />
           <Stack.Screen name="personagens/[slug]" options={{ title: '' }} />
           <Stack.Screen name="perfil" options={{ title: 'Meu perfil' }} />
-          <Stack.Screen name="ler/[id]" options={{ headerShown: false, animation: 'fade' }} />
         </Stack.Protected>
+        {/* Fora dos dois grupos: uma HQ baixada abre com ou sem sessão. */}
+        <Stack.Screen name="ler/[id]" options={{ headerShown: false, animation: 'fade' }} />
       </Stack>
       {/* Depois da abertura: o aviso de servidor acordando vira faixa no topo. */}
       <ServerWakingBanner />

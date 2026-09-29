@@ -53,7 +53,7 @@ export class MediaController {
   ): Promise<void> {
     this.authorize(req);
     const key = coverKey(comicId.replace(/\.webp$/i, ''));
-    await this.send(key, res);
+    await this.send(key, req, res);
   }
 
   @Public()
@@ -67,7 +67,7 @@ export class MediaController {
     this.authorize(req);
     const pageIndex = Number(index.replace(/\.webp$/i, ''));
     const key = pageKey(comicFileId, Number.isFinite(pageIndex) ? pageIndex : 0);
-    await this.send(key, res);
+    await this.send(key, req, res);
   }
 
   /**
@@ -91,10 +91,34 @@ export class MediaController {
   }
 
   /**
+   * Com R2, a resposta e um redirect para uma URL assinada: o navegador busca
+   * os bytes direto no bucket, e pelo Render passa so o 302. Servir a imagem
+   * daqui esgotou a cota de banda do Render (5 GB/mes) — o R2 nao cobra egress.
+   *
+   * O redirect herda o `public` da imagem, e com ele a mesma troca descrita no
+   * topo: um CDN pode guarda-lo e entrega-lo sem cookie. `max-age` para no fim
+   * da janela de assinatura, entao ninguem recebe do cache uma URL vencida.
+   *
+   * `?proxy=1` mantem o caminho antigo para quem le os bytes com fetch (o
+   * seletor de capa do admin): seguir o redirect ate o R2 exigiria CORS no
+   * bucket.
+   */
+  private async send(key: string, req: Request, res: Response): Promise<void> {
+    const proxy = (req.query as Record<string, unknown> | undefined)?.proxy === '1';
+    const signed = proxy ? null : await this.storage.signedUrl(key);
+    if (signed) {
+      res.setHeader('Cache-Control', `public, max-age=${signed.cacheSeconds}`);
+      res.redirect(302, signed.url);
+      return;
+    }
+    await this.stream(key, res);
+  }
+
+  /**
    * Tamanho e stream vem da mesma chamada: no R2 pedi-los separadamente
    * custaria duas operacoes Classe B por imagem exibida.
    */
-  private async send(key: string, res: Response): Promise<void> {
+  private async stream(key: string, res: Response): Promise<void> {
     let object;
     try {
       object = await this.storage.open(key);

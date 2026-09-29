@@ -72,6 +72,11 @@ export class LocalStorage implements StorageAdapter {
     return { size, stream: createReadStream(target) };
   }
 
+  /** Disco nao tem URL propria: a API continua servindo os bytes. */
+  async signedUrl(): Promise<null> {
+    return null;
+  }
+
   /**
    * Nao copia: devolve o proprio arquivo do storage. Um CBR de 800 MB
    * duplicado a cada job encheria o disco e dobraria o tempo de I/O sem
