@@ -8,6 +8,7 @@ import { api, ApiError } from '../../services/api';
 import { ComicGrid } from '../comics/ComicCard';
 import { AddToCollectionMenu } from '../collections/AddToCollectionMenu';
 import { useAddSeriesToLibrary, useRemoveSeriesFromLibrary } from '../comics/queries';
+import { CharacterText } from '../characters/CharacterText';
 
 export function SeriesPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -54,7 +55,9 @@ export function SeriesPage() {
         </div>
 
         {data.description ? (
-          <p className="mt-5 max-w-3xl text-sm leading-relaxed text-ink-300">{data.description}</p>
+          <p className="mt-5 max-w-3xl whitespace-pre-line text-sm leading-relaxed text-ink-300">
+            <CharacterText texto={data.description} />
+          </p>
         ) : (
           <p className="mt-5 text-sm text-ink-500">
             Sem sinopse ainda — dá para escrever uma em Admin → Séries.

@@ -4,7 +4,14 @@ import type { CharacterSummary } from '@comicz/shared';
 import { useCharacters } from '../comics/queries';
 
 /**
- * Texto em que nome de personagem vira link.
+ * Texto em que nome de personagem vira link, com o negrito e o italico do
+ * markdown resolvidos.
+ *
+ * O markdown existe aqui porque os textos do acervo ja vinham escritos com
+ * `**assim**` e `*assim*` desde antes — nos guias, nas sinopses de saga e nas
+ * de edicao. Sem alguem para interpreta-los, os asteriscos apareciam crus na
+ * tela. Resolver na leitura, e nao limpando o banco, preserva a intencao de
+ * quem escreveu e vale para o texto que ainda vai ser escrito.
  *
  * Tres decisoes que valem a explicacao:
  *
@@ -32,28 +39,82 @@ export function CharacterText({
   exceto?: string;
 }) {
   const { data: personagens } = useCharacters();
-  const partes = useMemo(
-    () => partir(texto, personagens ?? [], exceto),
-    [texto, personagens, exceto],
-  );
+  const blocos = useMemo(() => {
+    /*
+     * O conjunto e compartilhado entre os blocos de proposito: a regra de "so
+     * a primeira aparicao vira link" vale para o texto inteiro, e nao por
+     * trecho. Sem isso, um nome dentro de um negrito e outro fora dele
+     * virariam dois links do mesmo personagem.
+     */
+    const jaLinkados = new Set<string>();
+    return formatar(texto).map((bloco) => ({
+      estilo: bloco.estilo,
+      partes: partir(bloco.texto, personagens ?? [], exceto, jaLinkados),
+    }));
+  }, [texto, personagens, exceto]);
 
   return (
     <span className={className}>
-      {partes.map((parte, i) =>
-        typeof parte === 'string' ? (
-          <Fragment key={i}>{parte}</Fragment>
-        ) : (
-          <Link
-            key={i}
-            to={`/personagens/${parte.slug}`}
-            className="personagem-texto underline decoration-dotted underline-offset-2 hover:decoration-solid"
-          >
-            {parte.texto}
-          </Link>
-        ),
-      )}
+      {blocos.map((bloco, b) => {
+        const conteudo = bloco.partes.map((parte, i) =>
+          typeof parte === 'string' ? (
+            <Fragment key={i}>{parte}</Fragment>
+          ) : (
+            <Link
+              key={i}
+              to={`/personagens/${parte.slug}`}
+              className="personagem-texto underline decoration-dotted underline-offset-2 hover:decoration-solid"
+            >
+              {parte.texto}
+            </Link>
+          ),
+        );
+        if (bloco.estilo === 'forte')
+          return (
+            <strong key={b} className="font-semibold text-ink-200">
+              {conteudo}
+            </strong>
+          );
+        if (bloco.estilo === 'enfase') return <em key={b}>{conteudo}</em>;
+        return <Fragment key={b}>{conteudo}</Fragment>;
+      })}
     </span>
   );
+}
+
+type Estilo = 'normal' | 'forte' | 'enfase';
+
+export interface Bloco {
+  estilo: Estilo;
+  texto: string;
+}
+
+/**
+ * Quebra o texto nos marcadores de negrito e italico do markdown.
+ *
+ * `**` vem antes de `*` na alternancia porque a regex e gulosa da esquerda
+ * para a direita: invertendo, `**forte**` casaria como um italico vazio.
+ *
+ * Um asterisco solto — sem par — fica no texto como qualquer outro caractere.
+ * E o comportamento certo para um acervo onde ninguem revisa markdown: pior
+ * que ver um asterisco e ver metade do paragrafo sumir.
+ */
+export function formatar(texto: string): Bloco[] {
+  if (!texto) return [];
+  const blocos: Bloco[] = [];
+  const regex = /\*\*([^*]+)\*\*|\*([^*\n]+)\*/g;
+  let cursor = 0;
+
+  for (const achado of texto.matchAll(regex)) {
+    const inicio = achado.index ?? 0;
+    if (inicio > cursor) blocos.push({ estilo: 'normal', texto: texto.slice(cursor, inicio) });
+    if (achado[1] !== undefined) blocos.push({ estilo: 'forte', texto: achado[1] });
+    else if (achado[2] !== undefined) blocos.push({ estilo: 'enfase', texto: achado[2] });
+    cursor = inicio + achado[0].length;
+  }
+
+  if (cursor < texto.length) blocos.push({ estilo: 'normal', texto: texto.slice(cursor) });
+  return blocos.length ? blocos : [{ estilo: 'normal', texto }];
 }
 
 interface Achado {
@@ -66,6 +127,8 @@ export function partir(
   texto: string,
   personagens: CharacterSummary[],
   exceto?: string,
+  /** Compartilhado entre blocos para "so a primeira aparicao" valer no texto todo. */
+  jaLinkados: Set<string> = new Set<string>(),
 ): (string | Achado)[] {
   if (!texto || personagens.length === 0) return [texto];
 
@@ -101,7 +164,6 @@ export function partir(
   }
 
   const partes: (string | Achado)[] = [];
-  const jaLinkados = new Set<string>();
   let cursor = 0;
 
   for (const achado of texto.matchAll(regex)) {

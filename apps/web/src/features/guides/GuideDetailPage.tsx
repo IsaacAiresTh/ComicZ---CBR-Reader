@@ -107,7 +107,11 @@ export function GuideDetailPage() {
                 {item.comic.series && (
                   <p className="text-xs text-ink-500">{item.comic.series.name}</p>
                 )}
-                {item.note && <p className="mt-2 text-sm text-ink-400">{item.note}</p>}
+                {item.note && (
+                  <p className="mt-2 whitespace-pre-line text-sm text-ink-400">
+                    <CharacterText texto={item.note} />
+                  </p>
+                )}
               </div>
 
               <div className="flex shrink-0 items-center">
