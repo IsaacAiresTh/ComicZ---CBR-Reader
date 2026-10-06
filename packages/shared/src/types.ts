@@ -13,6 +13,11 @@ export interface PublicUser {
   createdAt: string;
 }
 
+/** O que a tela de nova senha mostra de um link valido: para qual conta e. */
+export interface ResetTokenInfo {
+  email: string;
+}
+
 export interface AuthResponse {
   user: PublicUser;
   accessToken: string;
