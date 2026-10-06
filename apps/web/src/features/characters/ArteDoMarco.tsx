@@ -78,7 +78,7 @@ export function ArteDoMarco({
         src={src}
         alt={alt}
         loading="lazy"
-        style={mascara(vivas)}
+        style={mascaraDasBordas(vivas)}
         className={`max-h-full max-w-full object-contain transition-all ${borrao}`}
       />
     </div>
@@ -136,7 +136,7 @@ function Saltando({ src, alt, borrao }: { src: string; alt: string; borrao: stri
   );
 }
 
-interface Bordas {
+export interface Bordas {
   topo: boolean;
   base: boolean;
   esquerda: boolean;
@@ -166,7 +166,7 @@ const ALCANCE: Record<keyof Bordas, string> = {
   direita: 'linear-gradient(to left, transparent 0, #000 16%)',
 };
 
-function mascara(bordas: Bordas): CSSProperties {
+export function mascaraDasBordas(bordas: Bordas): CSSProperties {
   const camadas = (Object.keys(ALCANCE) as (keyof Bordas)[])
     .filter((lado) => bordas[lado])
     .map((lado) => ALCANCE[lado])
@@ -209,7 +209,7 @@ const LIMIAR = 0.25;
  * padrao: dissolver a base de um recorte limpo nao apaga nada, porque ali ja
  * e transparente.
  */
-function useBordasVivas(src: string | null): Bordas | null {
+export function useBordasVivas(src: string | null): Bordas | null {
   const [bordas, setBordas] = useState<Bordas | null>(() =>
     src ? (lidas.get(src) ?? null) : null,
   );
