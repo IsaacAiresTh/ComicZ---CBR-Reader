@@ -78,7 +78,7 @@ export function ArteDoMarco({
         src={src}
         alt={alt}
         loading="lazy"
-        style={mascara(vivas)}
+        style={mascaraDasBordas(vivas)}
         className={`max-h-full max-w-full object-contain transition-all ${borrao}`}
       />
     </div>
@@ -101,7 +101,7 @@ function Painel({ src, alt, borrao }: { src: string; alt: string; borrao: string
         src={src}
         alt={alt}
         loading="lazy"
-        className={`personagem-painel max-h-[calc(100%-1rem)] max-w-[calc(100%-1rem)] -rotate-[1.5deg] border-4 border-ink-100 object-contain transition-all ${borrao}`}
+        className={`personagem-quadrinho max-h-[calc(100%-1rem)] max-w-[calc(100%-1rem)] -rotate-[1.5deg] border-4 border-ink-100 object-contain transition-all ${borrao}`}
       />
     </div>
   );
@@ -123,7 +123,7 @@ function Saltando({ src, alt, borrao }: { src: string; alt: string; borrao: stri
   return (
     <div className="flex h-[17rem] items-end justify-center lg:h-[21rem]">
       <div className={`relative h-full max-w-full transition-all ${borrao}`}>
-        <div className="personagem-painel absolute inset-x-0 bottom-0 top-[34%] rounded-md border-4 border-ink-100" />
+        <div className="personagem-quadrinho absolute inset-x-0 bottom-0 top-[34%] rounded-md border-4 border-ink-100" />
         <img
           src={src}
           alt={alt}
@@ -136,7 +136,7 @@ function Saltando({ src, alt, borrao }: { src: string; alt: string; borrao: stri
   );
 }
 
-interface Bordas {
+export interface Bordas {
   topo: boolean;
   base: boolean;
   esquerda: boolean;
@@ -166,7 +166,7 @@ const ALCANCE: Record<keyof Bordas, string> = {
   direita: 'linear-gradient(to left, transparent 0, #000 16%)',
 };
 
-function mascara(bordas: Bordas): CSSProperties {
+export function mascaraDasBordas(bordas: Bordas): CSSProperties {
   const camadas = (Object.keys(ALCANCE) as (keyof Bordas)[])
     .filter((lado) => bordas[lado])
     .map((lado) => ALCANCE[lado])
@@ -209,7 +209,7 @@ const LIMIAR = 0.25;
  * padrao: dissolver a base de um recorte limpo nao apaga nada, porque ali ja
  * e transparente.
  */
-function useBordasVivas(src: string | null): Bordas | null {
+export function useBordasVivas(src: string | null): Bordas | null {
   const [bordas, setBordas] = useState<Bordas | null>(() =>
     src ? (lidas.get(src) ?? null) : null,
   );

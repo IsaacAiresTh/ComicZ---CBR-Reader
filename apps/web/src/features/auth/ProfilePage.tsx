@@ -54,7 +54,9 @@ export function ProfilePage() {
   return (
     <div className="max-w-xl space-y-8">
       <header>
-        <h1 className="text-2xl font-semibold text-ink-100">Meu perfil</h1>
+        <h1 className="font-display text-5xl leading-none tracking-wide text-ink-100">
+          Meu perfil
+        </h1>
         <div className="mt-2 flex items-center gap-2 text-sm text-ink-400">
           <span>{user?.email}</span>
           {user?.role === 'ADMIN' && <Badge tone="brand">admin</Badge>}

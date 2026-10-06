@@ -6,16 +6,22 @@ import type {
   UpsertSeriesPayload,
 } from '@comicz/shared';
 import { chave, searchTerms } from '@comicz/shared';
+import { IconSearch, IconTrash } from '../../components/icons';
 import {
   Badge,
   Button,
+  Chip,
+  ConfirmDialog,
+  Drawer,
   ErrorNote,
   Field,
   Input,
+  Segmented,
   Select,
   Spinner,
   Textarea,
 } from '../../components/ui';
+import { AdminHeader } from './AdminHeader';
 import { creditRoleLabel, groupCredits, seriesStatusLabel, seriesYears } from '../../lib/format';
 import { ApiError, mediaUrl } from '../../services/api';
 import { CoverPicker } from './CoverPicker';
@@ -41,7 +47,7 @@ type FiltroStatus = 'todos' | SeriesStatus;
 /** Material de apoio x saga que se pretende completar. Ver `Series.supporting`. */
 type FiltroTipo = 'todos' | 'principais' | 'apoio';
 /** O que falta preencher na ficha — o filtro que transforma a lista em fila de trabalho. */
-type FiltroFicha = 'todas' | 'sem-sinopse' | 'sem-capa';
+type FiltroFicha = 'todas' | 'sem-sinopse' | 'sem-capa' | 'sem-ano';
 type Ordem = 'nome' | 'edicoes' | 'ano';
 
 const OPCOES_STATUS: { value: FiltroStatus; label: string }[] = [
@@ -62,6 +68,7 @@ export function AdminSeriesPage() {
   const [ficha, setFicha] = useState<FiltroFicha>('todas');
   const [ordem, setOrdem] = useState<Ordem>('nome');
   const deleteSeries = useDeleteSeries();
+  const [excluindo, setExcluindo] = useState<SeriesListItem | null>(null);
 
   const todas = useMemo(() => series ?? [], [series]);
 
@@ -79,6 +86,7 @@ export function AdminSeriesPage() {
       if (tipo === 'principais' && item.supporting) return false;
       if (ficha === 'sem-sinopse' && item.description) return false;
       if (ficha === 'sem-capa' && item.coverUrl) return false;
+      if (ficha === 'sem-ano' && item.startYear) return false;
       return true;
     });
 
@@ -86,14 +94,28 @@ export function AdminSeriesPage() {
     return [...filtradas].sort((a, b) => {
       if (ordem === 'edicoes') return b.comicCount - a.comicCount || porNome(a, b);
       // Sem ano definido vai para o fim, e não para o topo como um zero faria.
-      if (ordem === 'ano') return (b.startYear ?? -Infinity) - (a.startYear ?? -Infinity) || porNome(a, b);
+      if (ordem === 'ano')
+        return (b.startYear ?? -Infinity) - (a.startYear ?? -Infinity) || porNome(a, b);
       return porNome(a, b);
     });
   }, [todas, busca, status, tipo, ficha, ordem]);
 
-  const apoio = useMemo(() => todas.filter((item) => item.supporting).length, [todas]);
-  const semSinopse = useMemo(() => todas.filter((item) => !item.description).length, [todas]);
-  const filtrando = busca.trim() !== '' || status !== 'todos' || tipo !== 'todos' || ficha !== 'todas';
+  /*
+   * O que falta, contado sobre as sagas principais — material de apoio nao
+   * aparece na home nem no catalogo, entao nao entra na meta de fichas.
+   */
+  const principais = useMemo(() => todas.filter((item) => !item.supporting), [todas]);
+  const faltas = {
+    capa: principais.filter((item) => !item.coverUrl).length,
+    sinopse: principais.filter((item) => !item.description).length,
+    ano: principais.filter((item) => !item.startYear).length,
+  };
+  const completas = principais.filter(
+    (item) => item.coverUrl && item.description && item.startYear,
+  ).length;
+  const pctCompletas = principais.length ? Math.round((completas / principais.length) * 100) : 100;
+  const filtrando =
+    busca.trim() !== '' || status !== 'todos' || tipo !== 'todos' || ficha !== 'todas';
 
   if (editingId) return <SeriesEditor seriesId={editingId} onBack={() => setEditingId(null)} />;
 
@@ -105,100 +127,127 @@ export function AdminSeriesPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-ink-400">
-          Uma saga agrupa suas edições no catálogo. Aqui você escreve a sinopse, os créditos e o
-          status que aparecem na página dela.
-        </p>
-        <Button onClick={() => setCreating(true)}>+ Nova saga</Button>
-      </div>
-
-      {creating && <NewSeriesForm onClose={() => setCreating(false)} onCreated={setEditingId} />}
+    <div className="space-y-5">
+      <AdminHeader
+        title="Sagas"
+        count={`${todas.length} ${todas.length === 1 ? 'saga' : 'sagas'}`}
+        description="A sinopse, os créditos e o status que aparecem na página de cada saga."
+        actions={<Button onClick={() => setCreating(true)}>+ Nova saga</Button>}
+      />
 
       {isLoading ? (
         <Spinner />
       ) : todas.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-ink-700 px-6 py-10 text-center text-sm text-ink-500">
+        <p className="rounded-xl border border-dashed border-ink-700 px-6 py-10 text-center text-sm text-ink-400">
           Nenhuma saga ainda. Elas também são criadas sozinhas ao importar HQs.
         </p>
       ) : (
         <>
-          <div className="space-y-3 rounded-xl border border-ink-800 bg-ink-900 p-4">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Field label="Buscar">
-                <Input
-                  value={busca}
-                  onChange={(event) => setBusca(event.target.value)}
-                  placeholder="Nome da saga"
+          {/*
+            O resumo vira a fila de trabalho: cada falta e um botao que filtra a
+            grade. Antes os mesmos filtros eram uma lista suspensa entre quatro.
+          */}
+          <section className="grid items-center gap-5 rounded-2xl border border-ink-800 bg-ink-900 p-5 sm:grid-cols-[200px_minmax(0,1fr)]">
+            <div className="space-y-2">
+              <p className="text-xs text-ink-400">Fichas completas</p>
+              <p className="text-3xl font-extrabold text-ink-100">{pctCompletas}%</p>
+              <div className="h-2 overflow-hidden rounded-full bg-ink-700">
+                <div
+                  className="h-full rounded-full bg-emerald-400"
+                  style={{ width: `${pctCompletas}%` }}
                 />
-              </Field>
-              <Field label="Status">
-                <Select
-                  value={status}
-                  onChange={(event) => setStatus(event.target.value as FiltroStatus)}
-                >
-                  {OPCOES_STATUS.map((opcao) => (
-                    <option key={opcao.value} value={opcao.value}>
-                      {opcao.label}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field label="Tipo">
-                <Select value={tipo} onChange={(event) => setTipo(event.target.value as FiltroTipo)}>
-                  <option value="todos">Todas as sagas</option>
-                  <option value="principais">Só as principais</option>
-                  <option value="apoio">Só material de apoio</option>
-                </Select>
-              </Field>
-              <Field label="Ficha">
-                <Select
-                  value={ficha}
-                  onChange={(event) => setFicha(event.target.value as FiltroFicha)}
-                >
-                  <option value="todas">Completa ou não</option>
-                  <option value="sem-sinopse">Falta sinopse</option>
-                  <option value="sem-capa">Falta capa</option>
-                </Select>
-              </Field>
+              </div>
             </div>
-
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-ink-500">
-              <span>
-                <strong className="text-ink-300">{visiveis.length}</strong>
-                {visiveis.length === todas.length ? ' sagas' : ` de ${todas.length} sagas`}
-              </span>
-              <span>{apoio} de apoio</span>
-              <span>{semSinopse} sem sinopse</span>
-
-              <label className="ml-auto flex items-center gap-2">
-                <span>Ordenar por</span>
-                <select
-                  value={ordem}
-                  onChange={(event) => setOrdem(event.target.value as Ordem)}
-                  className="rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-xs text-ink-200"
+            <div className="space-y-2.5">
+              <p className="text-xs text-ink-400">
+                O que falta nas sagas principais — clique para filtrar:
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Chip
+                  active={ficha === 'sem-capa'}
+                  count={faltas.capa}
+                  onClick={() => setFicha(ficha === 'sem-capa' ? 'todas' : 'sem-capa')}
                 >
-                  <option value="nome">Nome</option>
-                  <option value="edicoes">Mais edições</option>
-                  <option value="ano">Mais recentes</option>
-                </select>
-              </label>
-
-              {filtrando && (
-                <button
-                  type="button"
-                  onClick={limpar}
-                  className="text-brand-400 hover:underline"
+                  Falta capa
+                </Chip>
+                <Chip
+                  active={ficha === 'sem-sinopse'}
+                  count={faltas.sinopse}
+                  onClick={() => setFicha(ficha === 'sem-sinopse' ? 'todas' : 'sem-sinopse')}
                 >
-                  limpar filtros
-                </button>
-              )}
+                  Falta sinopse
+                </Chip>
+                <Chip
+                  active={ficha === 'sem-ano'}
+                  count={faltas.ano}
+                  onClick={() => setFicha(ficha === 'sem-ano' ? 'todas' : 'sem-ano')}
+                >
+                  Falta ano
+                </Chip>
+              </div>
             </div>
+          </section>
+
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Segmented<FiltroTipo>
+              label="Tipo"
+              value={tipo}
+              onChange={setTipo}
+              options={[
+                { value: 'todos', label: 'Todas' },
+                { value: 'principais', label: 'Principais' },
+                { value: 'apoio', label: 'Material de apoio' },
+              ]}
+            />
+            <label className="flex h-10 min-w-56 flex-1 items-center gap-2 rounded-[10px] border border-ink-700 bg-ink-850 px-3 text-ink-400 focus-within:border-brand-500">
+              <IconSearch className="shrink-0" />
+              <input
+                type="search"
+                value={busca}
+                onChange={(event) => setBusca(event.target.value)}
+                placeholder="Nome da saga"
+                aria-label="Buscar saga"
+                className="min-w-0 flex-1 bg-transparent text-sm text-ink-100 placeholder:text-ink-500 focus:outline-none"
+              />
+            </label>
+            <Select
+              className="w-auto"
+              aria-label="Status"
+              value={status}
+              onChange={(event) => setStatus(event.target.value as FiltroStatus)}
+            >
+              {OPCOES_STATUS.map((opcao) => (
+                <option key={opcao.value} value={opcao.value}>
+                  {opcao.label}
+                </option>
+              ))}
+            </Select>
+            <Select
+              className="w-auto"
+              aria-label="Ordenar"
+              value={ordem}
+              onChange={(event) => setOrdem(event.target.value as Ordem)}
+            >
+              <option value="nome">Nome</option>
+              <option value="edicoes">Mais edições</option>
+              <option value="ano">Mais recentes</option>
+            </Select>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-400">
+            <span>
+              <strong className="text-ink-200">{visiveis.length}</strong>
+              {visiveis.length === todas.length ? ' sagas' : ` de ${todas.length} sagas`}
+            </span>
+            {filtrando && (
+              <button type="button" onClick={limpar} className="text-brand-400 hover:underline">
+                limpar filtros
+              </button>
+            )}
           </div>
 
           {visiveis.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-ink-700 px-6 py-10 text-center text-sm text-ink-500">
+            <p className="rounded-xl border border-dashed border-ink-700 px-6 py-10 text-center text-sm text-ink-400">
               Nenhuma saga com esses filtros.
             </p>
           ) : (
@@ -208,20 +257,32 @@ export function AdminSeriesPage() {
                   key={item.id}
                   saga={item}
                   onEdit={() => setEditingId(item.id)}
-                  onDelete={() => {
-                    if (
-                      window.confirm(
-                        `Excluir a saga "${item.name}"? As ${item.comicCount} edições continuam no catálogo, mas ficam sem saga.`,
-                      )
-                    ) {
-                      deleteSeries.mutate(item.id);
-                    }
-                  }}
+                  onDelete={() => setExcluindo(item)}
                 />
               ))}
             </ul>
           )}
         </>
+      )}
+
+      {creating && (
+        <Drawer title="Nova saga" onClose={() => setCreating(false)}>
+          <NewSeriesForm onClose={() => setCreating(false)} onCreated={setEditingId} />
+        </Drawer>
+      )}
+
+      {excluindo && (
+        <ConfirmDialog
+          title={`Excluir a saga “${excluindo.name}”?`}
+          confirmLabel="Excluir saga"
+          busy={deleteSeries.isPending}
+          onCancel={() => setExcluindo(null)}
+          onConfirm={() =>
+            deleteSeries.mutate(excluindo.id, { onSuccess: () => setExcluindo(null) })
+          }
+        >
+          <p>As {excluindo.comicCount} edições continuam no catálogo, mas ficam sem saga.</p>
+        </ConfirmDialog>
       )}
     </div>
   );
@@ -288,12 +349,13 @@ function SagaCard({
             {saga.publisher?.name ?? 'Sem editora'}
             {saga.startYear ? ` · ${saga.startYear}` : ''}
           </p>
+          {status && <p className="text-xs text-ink-400">{status}</p>}
+          {/* O que a ficha ja tem, e o que falta, riscado. */}
           <div className="mt-auto flex flex-wrap gap-1 pt-1">
-            {status && (
-              <Badge tone={saga.status === 'COMPLETED' ? 'success' : 'brand'}>{status}</Badge>
-            )}
             {saga.supporting && <Badge tone="warning">apoio</Badge>}
-            {!saga.description && <Badge tone="danger">sem sinopse</Badge>}
+            <Check ok={Boolean(saga.coverUrl)}>capa</Check>
+            <Check ok={Boolean(saga.description)}>sinopse</Check>
+            <Check ok={Boolean(saga.startYear)}>ano</Check>
           </div>
         </div>
       </button>
@@ -304,11 +366,24 @@ function SagaCard({
         onClick={onDelete}
         title={`Excluir a saga "${saga.name}"`}
         aria-label={`Excluir a saga ${saga.name}`}
-        className="absolute right-2 top-2 rounded-md bg-ink-950/70 px-2 py-1 text-xs opacity-0 transition-opacity hover:bg-accent-500/80 focus-visible:opacity-100 group-hover:opacity-100"
+        className="absolute right-2 top-2 grid h-8 w-8 place-items-center rounded-lg bg-ink-950/80 text-sm text-ink-100 opacity-0 transition-opacity hover:bg-accent-500 focus-visible:opacity-100 group-hover:opacity-100"
       >
-        🗑
+        <IconTrash />
       </button>
     </li>
+  );
+}
+
+function Check({ ok, children }: { ok: boolean; children: React.ReactNode }) {
+  return (
+    <span
+      className={`inline-flex h-5 items-center rounded px-1.5 text-[10px] font-bold ${
+        ok ? 'bg-emerald-500/12 text-emerald-300' : 'bg-ink-800 text-ink-500 line-through'
+      }`}
+      title={ok ? `Tem ${children}` : `Falta ${children}`}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -336,10 +411,7 @@ function NewSeriesForm({
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-4 rounded-xl border border-ink-700 bg-ink-900 p-6"
-    >
+    <form onSubmit={handleSubmit} className="space-y-4">
       {error && <ErrorNote>{error}</ErrorNote>}
       <Field label="Nome da saga">
         <Input
@@ -535,9 +607,9 @@ function SeriesEditor({ seriesId, onBack }: { seriesId: string; onBack: () => vo
           <span className="text-sm">
             <span className="font-medium text-ink-100">Material de apoio</span>
             <span className="mt-1 block text-xs text-ink-500">
-              Sai da home e do catálogo, e continua na busca por texto, no filtro por saga ou
-              tag, na página da saga, nos guias e na sua biblioteca. Use em sagas que entraram
-              para compor um guia e que você não pretende completar.
+              Sai da home e do catálogo, e continua na busca por texto, no filtro por saga ou tag,
+              na página da saga, nos guias e na sua biblioteca. Use em sagas que entraram para
+              compor um guia e que você não pretende completar.
             </span>
           </span>
         </label>
@@ -558,11 +630,14 @@ function SeriesEditor({ seriesId, onBack }: { seriesId: string; onBack: () => vo
         edicoes={data.comics}
       />
 
-      <SeriesComics seriesId={seriesId} comics={data.comics} years={seriesYears(data.startYear, data.endYear, data.status)} />
+      <SeriesComics
+        seriesId={seriesId}
+        comics={data.comics}
+        years={seriesYears(data.startYear, data.endYear, data.status)}
+      />
     </div>
   );
 }
-
 
 /**
  * Membros da saga.
@@ -588,7 +663,11 @@ function SeriesComics({
 
   // Busca so com 2+ caracteres: uma letra devolveria o acervo inteiro.
   const busca = search.trim();
-  const candidatos = useComics({ q: busca.length >= 2 ? busca : undefined, sort: 'title', page: 1 });
+  const candidatos = useComics({
+    q: busca.length >= 2 ? busca : undefined,
+    sort: 'title',
+    page: 1,
+  });
 
   const jaNaSaga = new Set(comics.map((comic) => comic.id));
   const resultados = (candidatos.data?.items ?? []).filter((comic) => !jaNaSaga.has(comic.id));

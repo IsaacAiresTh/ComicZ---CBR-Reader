@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import type {
   CharacterAppearanceGroup,
@@ -7,11 +7,12 @@ import type {
   CharacterMilestoneView,
 } from '@comicz/shared';
 import { Spinner } from '../../components/ui';
+import { iniciais } from './iniciais';
 import { comicLabel } from '../../lib/format';
 import { fromHere } from '../../lib/navigation';
 import { ApiError, mediaUrl } from '../../services/api';
 import { useCharacter } from '../comics/queries';
-import { ArteDoMarco } from './ArteDoMarco';
+import { ArteDoMarco, mascaraDasBordas, useBordasVivas } from './ArteDoMarco';
 import { CharacterText } from './CharacterText';
 import { variaveisDoPersonagem } from './estilo';
 
@@ -50,94 +51,111 @@ export function CharacterPage() {
 
       <Ficha personagem={personagem} />
 
-      {personagem.primer && <PrimeiraVez personagem={personagem} />}
+      {/*
+        Duas colunas: a leitura a esquerda e, a direita, uma coluna que fica
+        presa na tela com o "comece aqui" e o indice da pagina. Antes o "se voce
+        so vai ler uma coisa" flutuava ao lado do resumo com meia tela vazia
+        embaixo, e o indice de eras sumia assim que se rolava.
+      */}
+      <div className="grid items-start gap-12 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0 space-y-12">
+          {personagem.primer && <PrimeiraVez personagem={personagem} />}
 
-      {personagem.milestones.length > 0 ? (
-        <LinhaDoTempo
-          marcos={personagem.milestones}
-          slug={personagem.slug}
-          temSpoiler={temSpoiler}
-          revelar={revelarSpoilers}
-          onRevelar={() => setRevelarSpoilers((valor) => !valor)}
-        />
-      ) : (
-        /*
-         * Sem marcos, o texto corrido de antes continua valendo. Nenhum
-         * personagem perde o que ja tinha escrito por causa do template novo.
-         */
-        personagem.description && (
-          <section className="max-w-3xl" id="a-historia">
-            <Rotulo>A história</Rotulo>
-            <div className="space-y-5">
-              {personagem.description.split(/\n{2,}/).map((paragrafo, i) => (
-                <p key={i} className="whitespace-pre-line text-[15px] leading-7 text-ink-200">
-                  <CharacterText texto={paragrafo} exceto={personagem.slug} />
-                </p>
-              ))}
-            </div>
-          </section>
-        )
-      )}
+          {personagem.milestones.length > 0 ? (
+            <LinhaDoTempo
+              marcos={personagem.milestones}
+              slug={personagem.slug}
+              temSpoiler={temSpoiler}
+              revelar={revelarSpoilers}
+              onRevelar={() => setRevelarSpoilers((valor) => !valor)}
+            />
+          ) : (
+            /*
+             * Sem marcos, o texto corrido de antes continua valendo. Nenhum
+             * personagem perde o que ja tinha escrito por causa do template novo.
+             */
+            personagem.description && (
+              <section className="scroll-mt-24" id="a-historia">
+                <Rotulo>A história</Rotulo>
+                <div className="space-y-5">
+                  {personagem.description.split(/\n{2,}/).map((paragrafo, i) => (
+                    <p key={i} className="whitespace-pre-line text-base leading-8 text-ink-200">
+                      <CharacterText texto={paragrafo} exceto={personagem.slug} />
+                    </p>
+                  ))}
+                </div>
+              </section>
+            )
+          )}
 
-      {personagem.whyMatters && (
-        <section className="max-w-3xl">
-          <Rotulo>Por que ele importa</Rotulo>
-          <p className="text-[15px] leading-7 text-ink-200">
-            <CharacterText texto={personagem.whyMatters} exceto={personagem.slug} />
-          </p>
-        </section>
-      )}
+          {personagem.whyMatters && (
+            <section id="por-que-importa" className="scroll-mt-24">
+              <Rotulo>Por que importa</Rotulo>
+              <p className="text-base leading-8 text-ink-200">
+                <CharacterText texto={personagem.whyMatters} exceto={personagem.slug} />
+              </p>
+            </section>
+          )}
 
-      <OndeAparece personagem={personagem} />
+          <OndeAparece personagem={personagem} />
 
-      {personagem.guides.length > 0 && (
-        <section>
-          <Rotulo>No elenco de</Rotulo>
-          <ul className="flex flex-wrap gap-3">
-            {personagem.guides.map((guia) => (
-              <li key={guia.id}>
-                <Link
-                  to={guia.kind === 'EVENT' ? `/eventos/${guia.slug}` : `/guias/${guia.slug}`}
-                  className="block rounded-xl border border-ink-800 px-4 py-3 transition-colors hover:border-ink-600"
-                >
-                  <p className="text-sm font-semibold text-ink-100">{guia.title}</p>
-                  {guia.role && <p className="mt-0.5 text-xs text-ink-400">{guia.role}</p>}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+          {personagem.guides.length > 0 && (
+            <section>
+              <Rotulo>No elenco de</Rotulo>
+              <ul className="flex flex-wrap gap-3">
+                {personagem.guides.map((guia) => (
+                  <li key={guia.id}>
+                    <Link
+                      to={guia.kind === 'EVENT' ? `/eventos/${guia.slug}` : `/guias/${guia.slug}`}
+                      className="block rounded-xl border border-ink-800 px-4 py-3 transition-colors hover:border-ink-600"
+                    >
+                      <p className="text-sm font-semibold text-ink-100">{guia.title}</p>
+                      {guia.role && <p className="mt-0.5 text-xs text-ink-400">{guia.role}</p>}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
-      {personagem.related.length > 0 && (
-        <section>
-          <Rotulo>Personagens relacionados</Rotulo>
-          <p className="mb-3 text-xs text-ink-500">
-            Quem mais aparece nas mesmas edições do acervo.
-          </p>
-          <ul className="flex flex-wrap gap-2">
-            {personagem.related.map((outro) => (
-              <li key={outro.id}>
-                <Link
-                  to={`/personagens/${outro.slug}`}
-                  className="flex items-center gap-2 rounded-full border border-ink-800 py-1 pl-1 pr-3 transition-colors hover:border-ink-600"
-                >
-                  <span className="h-7 w-7 shrink-0 overflow-hidden rounded-full bg-ink-850">
-                    {mediaUrl(outro.portraitUrl) && (
-                      <img
-                        src={mediaUrl(outro.portraitUrl) ?? ''}
-                        alt=""
-                        className="h-full w-full object-cover"
-                      />
-                    )}
-                  </span>
-                  <span className="text-sm text-ink-200">{outro.name}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+          {personagem.related.length > 0 && (
+            <section id="relacionados" className="scroll-mt-24">
+              <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                <Rotulo>Quem anda junto</Rotulo>
+                <p className="text-xs text-ink-500">nas mesmas edições do acervo</p>
+              </div>
+              <ul className="flex flex-wrap gap-2">
+                {personagem.related.map((outro) => {
+                  const rosto = mediaUrl(outro.portraitUrl);
+                  return (
+                    <li key={outro.id}>
+                      <Link
+                        to={`/personagens/${outro.slug}`}
+                        className="flex min-h-11 items-center gap-2.5 rounded-full border border-ink-800 py-1 pl-1 pr-4 transition-colors hover:border-ink-600"
+                      >
+                        {/* Sem foto, a inicial na cor dele — no lugar do circulo vazio. */}
+                        <span
+                          className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full font-display text-lg text-ink-950"
+                          style={{ backgroundColor: outro.accentColor ?? 'var(--color-ink-600)' }}
+                        >
+                          {rosto ? (
+                            <img src={rosto} alt="" className="h-full w-full object-cover" />
+                          ) : (
+                            iniciais(outro.name)
+                          )}
+                        </span>
+                        <span className="text-sm text-ink-100">{outro.name}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
+        </div>
+
+        <ColunaLateral personagem={personagem} />
+      </div>
     </div>
   );
 }
@@ -227,11 +245,7 @@ function Topo({
             reduz ate caber inteira, ancorada embaixo. O padding e a margem para
             ela nao encostar na borda nem no texto.
           */}
-          <img
-            src={mediaUrl(arte.url) ?? ''}
-            alt={personagem.name}
-            className="absolute inset-0 h-full w-full object-contain object-bottom pt-6 pr-4 lg:pr-10"
-          />
+          <ArteDoTopo src={mediaUrl(arte.url) ?? ''} alt={personagem.name} />
         </div>
       )}
 
@@ -283,25 +297,65 @@ function Topo({
         </p>
 
         {personagem.comicCount > 0 && (
-          <div className="mt-4 flex flex-wrap gap-2">
-            <a
-              href="#onde-aparece"
-              className="rounded-lg bg-ink-100 px-4 py-2 text-sm font-semibold text-ink-950 transition-opacity hover:opacity-90"
-            >
-              Ver ordem de leitura
-            </a>
+          <div className="mt-5 flex flex-wrap gap-3">
+            {/*
+              A acao principal leva direto a leitura: com um "comece aqui"
+              escolhido, e ele; sem, a lista de onde aparece. Antes os dois
+              botoes eram ancoras para mais abaixo na mesma pagina.
+            */}
+            {personagem.startHere ? (
+              <Link
+                to={`/serie/${personagem.startHere.slug}`}
+                className="inline-flex min-h-12 items-center rounded-[10px] bg-ink-100 px-5 text-[15px] font-bold text-ink-950 shadow-[3px_3px_0_0_var(--color-ink-950)] transition-opacity hover:opacity-90"
+              >
+                Começar a ler: {personagem.startHere.name}
+              </Link>
+            ) : (
+              <a
+                href="#onde-aparece"
+                className="inline-flex min-h-12 items-center rounded-[10px] bg-ink-100 px-5 text-[15px] font-bold text-ink-950 shadow-[3px_3px_0_0_var(--color-ink-950)] transition-opacity hover:opacity-90"
+              >
+                Ver ordem de leitura
+              </a>
+            )}
             {(personagem.milestones.length > 0 || personagem.description) && (
               <a
                 href="#a-historia"
-                className="rounded-lg border border-ink-100/30 px-4 py-2 text-sm font-medium text-ink-100 transition-colors hover:border-ink-100/60"
+                className="inline-flex min-h-12 items-center rounded-[10px] border border-ink-100/35 px-5 text-sm font-semibold text-ink-100 transition-colors hover:border-ink-100/70"
               >
-                Começar pela história
+                Conhecer a história
               </a>
             )}
           </div>
         )}
       </div>
     </header>
+  );
+}
+
+/**
+ * A arte do topo, com o mesmo cuidado da arte dos marcos: se for um recorte
+ * parcial, as bordas com cena encostando se dissolvem, em vez de virar um
+ * retangulo duro sobre o painel colorido.
+ */
+function ArteDoTopo({ src, alt }: { src: string; alt: string }) {
+  const bordas = useBordasVivas(src);
+  const algumaViva = bordas !== null && Object.values(bordas).some(Boolean);
+  /*
+    A caixa do <img> precisa ser a da arte, e nao a da metade do painel: a
+    mascara se desenha na caixa, e com `w-full h-full object-contain` o
+    degrade das laterais caia longe da borda real da imagem. Dai o flex
+    ancorado embaixo com `max-h-full max-w-full`.
+  */
+  return (
+    <div className="absolute inset-0 flex items-end justify-center pr-4 pt-6 lg:pr-10">
+      <img
+        src={src}
+        alt={alt}
+        style={algumaViva ? mascaraDasBordas(bordas) : undefined}
+        className="max-h-full max-w-full object-contain"
+      />
+    </div>
   );
 }
 
@@ -316,85 +370,86 @@ function Topo({
  * fileira — regra vertical so faz sentido separando colunas que existem.
  */
 function Ficha({ personagem }: { personagem: CharacterDetail }) {
-  const campos = [
+  const [equipe, ...antes] = personagem.affiliations;
+  const cartoes = [
     personagem.firstAppearance && (
-      <Campo key="estreia" titulo="Primeira aparição">
-        <p className="text-[15px] font-semibold text-ink-100">{personagem.firstAppearance}</p>
+      <Cartao key="estreia" titulo="Estreia">
+        <p className="text-base font-bold text-ink-100">{personagem.firstAppearance}</p>
         {personagem.firstAppearanceYear && (
-          <p className="mt-0.5 text-xs text-ink-500">{personagem.firstAppearanceYear}</p>
+          <p className="text-[13px] text-ink-400">{personagem.firstAppearanceYear}</p>
         )}
-      </Campo>
+      </Cartao>
     ),
 
-    personagem.affiliations.length > 0 && (
-      <Campo key="afiliacoes" titulo="Afiliações">
+    equipe && (
+      <Cartao key="equipe" titulo="Equipe">
         {/*
-          A primeira e a atual e vem em destaque; as seguintes sao historico e
-          vem apagadas. E o que separa "Sociedade Secreta" de "ex-Legiao" sem
-          precisar de um campo dizendo qual e qual.
+          A primeira afiliacao e a atual; as seguintes sao historico. Elas
+          viram uma linha "antes: ..." em vez de uma lista que esticava o
+          cartao e deixava os vizinhos vazios.
         */}
-        {personagem.affiliations.map((afiliacao, i) => (
-          <p
-            key={afiliacao}
-            className={i === 0 ? 'text-[15px] font-semibold text-ink-100' : 'text-sm text-ink-400'}
-          >
-            {afiliacao}
+        <p className="text-base font-bold text-ink-100">{equipe}</p>
+        {antes.length > 0 && (
+          <p className="text-[13px] text-ink-400">
+            {antes.length === 1 ? 'também: ' : 'também: '}
+            {antes.join(', ')}
           </p>
-        ))}
-      </Campo>
-    ),
-
-    personagem.powers.length > 0 && (
-      <Campo key="poderes" titulo="Poderes">
-        {/* Chips: sao itens de uma lista sem ordem, e lista vertical daria a
-            eles uma hierarquia que nao existe. */}
-        <ul className="flex flex-wrap gap-1.5">
-          {personagem.powers.map((poder) => (
-            <li
-              key={poder}
-              className="rounded-md border border-ink-700 bg-ink-850 px-2 py-1 text-xs text-ink-200"
-            >
-              {poder}
-            </li>
-          ))}
-        </ul>
-      </Campo>
+        )}
+      </Cartao>
     ),
 
     (personagem.powerLevel || personagem.powerLevelRank) && (
-      <Campo key="nivel" titulo="Nível de poder">
-        {personagem.powerLevel && (
-          <p className="text-[15px] font-semibold text-ink-100">{personagem.powerLevel}</p>
-        )}
+      <Cartao key="nivel" titulo="Nível de poder">
         {personagem.powerLevelRank && <BarraDeNivel nivel={personagem.powerLevelRank} />}
-      </Campo>
+        {personagem.powerLevel && (
+          <p className="text-[13px] leading-snug text-ink-300">{personagem.powerLevel}</p>
+        )}
+      </Cartao>
     ),
 
     personagem.status && (
-      <Campo key="status" titulo="Status atual">
-        <p className="text-[15px] font-semibold text-ink-100">{personagem.status}</p>
+      <Cartao key="status" titulo="Status">
+        <p className="inline-flex items-center gap-2 text-base font-bold text-ink-100">
+          <span aria-hidden className="h-2 w-2 rounded-full bg-emerald-400" />
+          {personagem.status}
+        </p>
         {personagem.statusNote && (
-          <p className="mt-0.5 text-xs text-ink-500">{personagem.statusNote}</p>
+          <p className="text-[13px] text-ink-400">{personagem.statusNote}</p>
         )}
-      </Campo>
+      </Cartao>
     ),
   ].filter(Boolean);
 
-  if (campos.length === 0) return null;
+  if (cartoes.length === 0 && personagem.powers.length === 0) return null;
 
   return (
-    <section className="grid grid-cols-2 gap-x-6 gap-y-6 rounded-xl border border-ink-800 p-5 sm:grid-cols-3 lg:grid-cols-5 lg:gap-y-0 lg:divide-x lg:divide-ink-800">
-      {campos}
+    <section className="space-y-4">
+      {cartoes.length > 0 && <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{cartoes}</div>}
+
+      {personagem.powers.length > 0 && (
+        /* Poderes numa linha propria: dentro da ficha eles esticavam uma coluna. */
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="mr-1 text-[11px] font-bold uppercase tracking-[0.18em] text-ink-400">
+            Poderes
+          </span>
+          {personagem.powers.map((poder) => (
+            <span
+              key={poder}
+              className="rounded-lg border border-ink-700 bg-ink-850 px-3 py-1.5 text-[13px] text-ink-100"
+            >
+              {poder}
+            </span>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
 
-function Campo({ titulo, children }: { titulo: string; children: React.ReactNode }) {
+function Cartao({ titulo, children }: { titulo: string; children: React.ReactNode }) {
   return (
-    <div className="lg:px-5 lg:first:pl-0 lg:last:pr-0">
-      <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-500">
-        {titulo}
-      </p>
+    <div className="flex flex-col gap-1.5 rounded-2xl border border-ink-800 bg-ink-900 p-4">
+      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-ink-400">{titulo}</p>
       {children}
     </div>
   );
@@ -403,56 +458,149 @@ function Campo({ titulo, children }: { titulo: string; children: React.ReactNode
 /** Cinco segmentos, N acesos. A regua fixa e o que torna o numero comparavel. */
 function BarraDeNivel({ nivel }: { nivel: number }) {
   return (
-    <div className="mt-2 flex gap-1" role="img" aria-label={`Nível ${nivel} de 5`}>
+    <div className="my-1 flex gap-1" role="img" aria-label={`Nível ${nivel} de 5`}>
       {[1, 2, 3, 4, 5].map((degrau) => (
         <span
           key={degrau}
-          className={`h-1.5 flex-1 rounded-sm ${degrau <= nivel ? 'personagem-nivel' : 'bg-ink-800'}`}
+          className={`h-2 flex-1 rounded-sm ${degrau <= nivel ? 'personagem-nivel' : 'bg-ink-700'}`}
         />
       ))}
     </div>
   );
 }
 
-/** "Se e sua primeira vez": o resumo curto e por onde comecar a ler. */
+/** "Se e sua primeira vez": o resumo curto, em corpo de leitura. */
 function PrimeiraVez({ personagem }: { personagem: CharacterDetail }) {
   return (
-    <section className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-      <div>
-        <Rotulo>Se é sua primeira vez</Rotulo>
-        <p className="max-w-2xl text-[15px] leading-7 text-ink-200">
-          <CharacterText texto={personagem.primer ?? ''} exceto={personagem.slug} />
-        </p>
-      </div>
-
-      {personagem.startHere && (
-        <aside className="self-start rounded-xl border personagem-borda-suave p-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-500">
-            Se você só vai ler uma coisa
-          </p>
-          <Link
-            to={`/serie/${personagem.startHere.slug}`}
-            className="personagem-titulo mt-2 block text-2xl leading-tight text-ink-100 hover:underline"
-          >
-            {personagem.startHere.name}
-          </Link>
-          <p className="mt-1 text-xs text-ink-400">
-            {personagem.startHere.issueCount}{' '}
-            {personagem.startHere.issueCount === 1 ? 'edição' : 'edições'}
-            {personagem.startHere.note && ` · ${personagem.startHere.note}`}
-          </p>
-        </aside>
-      )}
+    <section id="primeira-vez" className="scroll-mt-24">
+      <Rotulo>Se é sua primeira vez</Rotulo>
+      <p className="text-[17px] leading-8 text-ink-200">
+        <CharacterText texto={personagem.primer ?? ''} exceto={personagem.slug} />
+      </p>
     </section>
   );
 }
 
 /**
- * A linha do tempo.
+ * A coluna da direita, presa na tela: o "comece aqui" com um botao de leitura
+ * e o indice da pagina, que marca a secao em que se esta.
+ */
+function ColunaLateral({ personagem }: { personagem: CharacterDetail }) {
+  const itens = [
+    ...(personagem.primer ? [{ id: 'primeira-vez', rotulo: 'Se é sua primeira vez' }] : []),
+    ...personagem.milestones.map((marco, i) => ({
+      id: `marco-${i + 1}`,
+      rotulo: `${String(i + 1).padStart(2, '0')} · ${marco.era}`,
+      spoiler: marco.spoiler,
+    })),
+    ...(personagem.milestones.length === 0 && personagem.description
+      ? [{ id: 'a-historia', rotulo: 'A história' }]
+      : []),
+    ...(personagem.whyMatters ? [{ id: 'por-que-importa', rotulo: 'Por que importa' }] : []),
+    { id: 'onde-aparece', rotulo: 'Onde aparece' },
+    ...(personagem.related.length > 0 ? [{ id: 'relacionados', rotulo: 'Quem anda junto' }] : []),
+  ];
+  const atual = useSecaoAtual(itens.map((item) => item.id));
+  const comeco = personagem.startHere;
+
+  return (
+    <aside className="space-y-4 lg:sticky lg:top-24">
+      {comeco && (
+        <div className="space-y-4 rounded-2xl border personagem-borda-suave bg-ink-900 p-5">
+          <p className="personagem-rotulo text-[11px] font-bold uppercase tracking-[0.2em]">
+            Se você só vai ler uma coisa
+          </p>
+          <div>
+            <Link
+              to={`/serie/${comeco.slug}`}
+              className="personagem-titulo block text-3xl leading-none text-ink-100 hover:underline"
+            >
+              {comeco.name}
+            </Link>
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-300">
+              {comeco.issueCount} {comeco.issueCount === 1 ? 'edição' : 'edições'}
+              {comeco.note && ` · ${comeco.note}`}
+            </p>
+          </div>
+          <Link
+            to={`/serie/${comeco.slug}`}
+            className="flex min-h-11 items-center justify-center rounded-[10px] bg-brand-500 text-sm font-bold text-ink-950 shadow-[3px_3px_0_0_var(--color-ink-950),3px_3px_0_1px_var(--color-brand-600)] hover:bg-brand-400"
+          >
+            Ir para a saga
+          </Link>
+        </div>
+      )}
+
+      {itens.length > 2 && (
+        <nav
+          aria-label="Nesta página"
+          className="hidden rounded-2xl border border-ink-800 bg-ink-900 p-4 lg:block"
+        >
+          <p className="mb-2 px-2 text-[11px] font-bold uppercase tracking-[0.2em] text-ink-400">
+            Nesta página
+          </p>
+          <ul className="space-y-0.5">
+            {itens.map((item) => (
+              <li key={item.id}>
+                <a
+                  href={`#${item.id}`}
+                  aria-current={atual === item.id ? 'location' : undefined}
+                  className={`block rounded-lg px-2.5 py-2 text-sm transition-colors ${
+                    atual === item.id
+                      ? 'bg-ink-800 font-semibold text-ink-100'
+                      : 'text-ink-300 hover:text-ink-100'
+                  }`}
+                >
+                  {item.rotulo}
+                  {'spoiler' in item && item.spoiler && (
+                    <span className="ml-1.5 text-[11px] text-ink-500">spoiler</span>
+                  )}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
+    </aside>
+  );
+}
+
+/** A secao mais alta que ainda esta no terco de cima da tela. */
+function useSecaoAtual(ids: string[]) {
+  const [atual, setAtual] = useState<string | null>(null);
+  const chave = ids.join('|');
+
+  useEffect(() => {
+    const alvos = chave
+      .split('|')
+      .map((id) => document.getElementById(id))
+      .filter((el): el is HTMLElement => el !== null);
+    if (alvos.length === 0 || typeof IntersectionObserver === 'undefined') return;
+    const visiveis = new Set<string>();
+    const observador = new IntersectionObserver(
+      (entradas) => {
+        for (const entrada of entradas) {
+          if (entrada.isIntersecting) visiveis.add(entrada.target.id);
+          else visiveis.delete(entrada.target.id);
+        }
+        const primeiro = alvos.find((el) => visiveis.has(el.id));
+        if (primeiro) setAtual(primeiro.id);
+      },
+      { rootMargin: '-80px 0px -60% 0px' },
+    );
+    alvos.forEach((el) => observador.observe(el));
+    return () => observador.disconnect();
+  }, [chave]);
+
+  return atual;
+}
+
+/**
+ * A linha do tempo, num trilho com os marcos numerados.
  *
- * O indice de eras fica no topo e leva a cada marco. Marco de spoiler nasce
- * borrado e so abre no botao — um botao unico para todos, porque revelar o
- * final de um e continuar escondendo o do outro nao protege ninguem.
+ * Spoiler abre um a um, no botao do proprio marco, ou todos de uma vez na
+ * caixa "Mostrar spoilers". Antes so existia o "Revelar o final" geral, longe
+ * do texto borrado.
  */
 function LinhaDoTempo({
   marcos,
@@ -467,45 +615,40 @@ function LinhaDoTempo({
   revelar: boolean;
   onRevelar: () => void;
 }) {
+  const [abertos, setAbertos] = useState<Set<string>>(() => new Set());
+
   return (
-    <section id="a-historia">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Rotulo>A história</Rotulo>
+    <section id="a-historia" className="scroll-mt-24">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-[22px] font-bold text-ink-100">
+          A história, em {marcos.length} {marcos.length === 1 ? 'momento' : 'momentos'}
+        </h2>
         {temSpoiler && (
-          <button
-            type="button"
-            onClick={onRevelar}
-            className="rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:border-ink-500 hover:text-ink-100"
-          >
-            {revelar ? 'Esconder o final' : 'Revelar o final'}
-          </button>
+          <label className="inline-flex min-h-11 cursor-pointer items-center gap-2.5 text-sm text-ink-300">
+            <input
+              type="checkbox"
+              checked={revelar}
+              onChange={onRevelar}
+              className="h-[18px] w-[18px] accent-[var(--color-brand-500)]"
+            />
+            Mostrar spoilers
+          </label>
         )}
       </div>
 
-      <ul className="mb-8 flex flex-wrap gap-2">
-        {marcos.map((marco, i) => (
-          <li key={marco.id}>
-            <a
-              href={`#marco-${i + 1}`}
-              className="block rounded-full border border-ink-800 px-3 py-1 text-xs text-ink-300 transition-colors hover:border-ink-600 hover:text-ink-100"
-            >
-              {marco.era}
-            </a>
-          </li>
-        ))}
-      </ul>
-
-      <div className="space-y-12">
+      <ol className="relative space-y-10 pl-12">
+        <span aria-hidden className="absolute bottom-3 left-[15px] top-3 w-0.5 bg-ink-800" />
         {marcos.map((marco, i) => (
           <Marco
             key={marco.id}
             marco={marco}
             numero={i + 1}
             slug={slug}
-            escondido={marco.spoiler && !revelar}
+            escondido={marco.spoiler && !revelar && !abertos.has(marco.id)}
+            onMostrar={() => setAbertos((atual) => new Set(atual).add(marco.id))}
           />
         ))}
-      </div>
+      </ol>
     </section>
   );
 }
@@ -515,21 +658,53 @@ function Marco({
   numero,
   slug,
   escondido,
+  onMostrar,
 }: {
   marco: CharacterMilestoneView;
   numero: number;
   slug: string;
   escondido: boolean;
+  onMostrar: () => void;
 }) {
   const arte = mediaUrl(marco.imageUrl);
 
   return (
-    <article id={`marco-${numero}`} className="scroll-mt-24 grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-      <div className="max-w-3xl">
-        <p className="personagem-rotulo text-xs font-semibold uppercase tracking-[0.18em]">
-          <span className="tabular-nums">{String(numero).padStart(2, '0')}</span> · {marco.era}
-          {marco.spoiler && <span className="ml-2 text-ink-500">spoiler</span>}
-        </p>
+    <li
+      id={`marco-${numero}`}
+      className={`relative scroll-mt-24 ${
+        // Marco sem arte nao reserva a coluna da imagem: acaba o texto, vem o
+        // proximo. Era isso que deixava meia tela vazia entre dois marcos.
+        arte ? 'grid gap-6 xl:grid-cols-[minmax(0,1fr)_240px]' : ''
+      } ${marco.spoiler ? 'rounded-2xl border border-dashed border-ink-600 bg-ink-900 p-5' : ''}`}
+    >
+      <span
+        aria-hidden
+        className={`absolute grid h-8 w-8 place-items-center rounded-full text-[13px] font-extrabold tabular-nums ${
+          marco.spoiler ? '-left-12 top-5' : '-left-12 top-0'
+        } ${
+          numero === 1
+            ? 'bg-brand-500 text-ink-950'
+            : 'border-2 border-[color-mix(in_srgb,var(--accent)_70%,var(--color-ink-100))] bg-ink-900 personagem-rotulo'
+        }`}
+      >
+        {String(numero).padStart(2, '0')}
+      </span>
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="personagem-rotulo text-xs font-bold uppercase tracking-[0.18em]">
+            {marco.era}
+            {marco.spoiler && <span className="ml-2 text-ink-500">spoiler</span>}
+          </p>
+          {escondido && (
+            <button
+              type="button"
+              onClick={onMostrar}
+              className="min-h-9 rounded-lg border border-ink-600 bg-ink-850 px-3.5 text-[13px] font-semibold text-ink-100 hover:border-ink-500"
+            >
+              Mostrar este spoiler
+            </button>
+          )}
+        </div>
 
         {marco.headline && (
           <h3 className="personagem-titulo mt-2 text-2xl leading-tight text-ink-100 sm:text-3xl">
@@ -546,7 +721,7 @@ function Marco({
           aria-hidden={escondido}
         >
           {marco.body.split(/\n{2,}/).map((paragrafo, i) => (
-            <p key={i} className="whitespace-pre-line text-[15px] leading-7 text-ink-200">
+            <p key={i} className="whitespace-pre-line text-base leading-8 text-ink-200">
               <CharacterText texto={paragrafo} exceto={slug} />
             </p>
           ))}
@@ -583,7 +758,7 @@ function Marco({
           )}
         </figure>
       )}
-    </article>
+    </li>
   );
 }
 
@@ -761,7 +936,7 @@ function Emblema({
 
 function Rotulo({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="personagem-rotulo mb-3 text-xs font-semibold uppercase tracking-[0.18em]">
+    <h2 className="personagem-rotulo mb-3 text-[11px] font-bold uppercase tracking-[0.2em]">
       {children}
     </h2>
   );

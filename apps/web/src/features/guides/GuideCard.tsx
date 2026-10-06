@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import type { GuideSummary } from '@comicz/shared';
 import { ehNovidade } from '@comicz/shared';
 import { Badge, SeloNovidade } from '../../components/ui';
+import { IconBook } from '../../components/icons';
 import { mediaUrl } from '../../services/api';
 
 /**
@@ -21,7 +22,7 @@ export function GuideCard({ guide }: { guide: GuideSummary }) {
   return (
     <Link
       to={`/guias/${guide.slug}`}
-      className="group relative block overflow-hidden rounded-xl border border-ink-800 bg-ink-850 transition-colors hover:border-brand-500/50"
+      className="group relative block overflow-hidden rounded-[10px] bg-ink-850 transition-shadow duration-200 hover:shadow-[5px_5px_0_0_var(--color-brand-500)]"
     >
       <div className="relative aspect-2/3">
         {cover ? (
@@ -32,7 +33,9 @@ export function GuideCard({ guide }: { guide: GuideSummary }) {
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
           />
         ) : (
-          <div className="grid h-full place-items-center text-3xl text-ink-700">📖</div>
+          <div className="capa-vazia grid h-full place-items-center text-4xl text-ink-600">
+            <IconBook />
+          </div>
         )}
 
         {/*
@@ -55,7 +58,7 @@ export function GuideCard({ guide }: { guide: GuideSummary }) {
         )}
 
         <div className="absolute inset-x-0 bottom-0 p-3">
-          <p className="line-clamp-3 text-sm font-semibold leading-snug text-ink-100">
+          <p className="line-clamp-3 font-display text-xl leading-tight tracking-wide text-ink-100">
             {guide.title}
           </p>
           <p className="mt-0.5 text-xs text-ink-300">

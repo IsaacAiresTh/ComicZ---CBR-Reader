@@ -127,6 +127,16 @@
   text-shadow: 0 1px 14px var(--color-ink-950);
 }
 
+/* Capa que nao existe: reticula sobre o ink, para nao ler como erro de carga. */
+@utility capa-vazia {
+  background-color: var(--color-ink-850);
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--color-ink-600) 70%, transparent) 1px,
+    transparent 1.3px
+  );
+  background-size: 7px 7px;
+}
+
 @layer utilities {
   .comic-shadow {
     box-shadow:
@@ -255,7 +265,7 @@
  * tingido, e a sombra solida deslocada — a sombra borrada faria o quadro
  * parecer foto; a deslocada faz parecer pagina impressa.
  */
-@utility personagem-painel {
+@utility personagem-quadrinho {
   background-color: color-mix(in srgb, var(--accent) 16%, var(--color-ink-950));
   background-image: radial-gradient(
     color-mix(in srgb, var(--accent-2) 38%, transparent) 1.3px,

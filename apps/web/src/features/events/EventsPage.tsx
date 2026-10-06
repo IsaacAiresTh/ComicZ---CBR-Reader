@@ -1,7 +1,7 @@
 import { type CSSProperties } from 'react';
 import { Link } from 'react-router-dom';
 import type { GuideSummary } from '@comicz/shared';
-import { Badge, EmptyState, ErrorNote, Spinner } from '../../components/ui';
+import { Badge, EmptyState, ErrorNote, PageTitle, Spinner } from '../../components/ui';
 import { mediaUrl } from '../../services/api';
 import { useGuides } from '../comics/queries';
 
@@ -15,13 +15,9 @@ export function EventsPage() {
 
   return (
     <div className="space-y-6">
-      <header className="max-w-2xl">
-        <h1 className="font-display text-3xl tracking-wide text-ink-100">Grandes sagas</h1>
-        <p className="mt-2 text-[15px] leading-relaxed text-ink-300">
-          Os eventos que atravessam várias revistas, com a trilha cronológica inteira em ordem de
-          leitura — prólogos, tie-ins e epílogos no lugar certo.
-        </p>
-      </header>
+      <PageTitle description="Os eventos que atravessam várias revistas, com a trilha cronológica inteira em ordem de leitura — prólogos, tie-ins e epílogos no lugar certo.">
+        Grandes sagas
+      </PageTitle>
 
       {eventos.length === 0 ? (
         <EmptyState
