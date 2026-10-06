@@ -47,6 +47,20 @@ export interface Paginated<T> {
 }
 
 /**
+ * Quantos itens cada aba da biblioteca mostraria, contados como a lista conta:
+ * uma saga com varias edicoes vale um.
+ */
+export interface LibraryCounts {
+  all: number;
+  reading: number;
+  wantToRead: number;
+  read: number;
+  favorites: number;
+}
+
+export type LibraryListResponse = Paginated<LibraryGroup> & { counts: LibraryCounts };
+
+/**
  * O catalogo devolve, alem da pagina, quantos titulos existem por inicial.
  *
  * Vem junto porque a contagem depende dos OUTROS filtros — busca e editora — e
@@ -267,6 +281,12 @@ export interface GuideSummary {
   /** Hex "#rrggbb" da saga, ou null: a UI cai no amarelo da marca. */
   accentColor: string | null;
   itemCount: number;
+  /** Quantas edicoes deste guia quem pede ja terminou de ler. */
+  readCount: number;
+  /** Blocos do mapa (historias). Zero num guia simples. */
+  nodeCount: number;
+  /** O "comece aqui" escolhido no painel. */
+  featured: boolean;
   /** Quando o guia foi criado. Alimenta o selo de novidade. */
   createdAt: string;
   /**
@@ -284,7 +304,6 @@ export interface GuideDetail extends GuideSummary {
   items: GuideItemView[];
   characters: GuideCharacterView[];
   nodes: GuideNodeView[];
-  readCount?: number;
 }
 
 export interface LibraryEntry {

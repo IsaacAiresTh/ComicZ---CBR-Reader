@@ -149,6 +149,8 @@ export const listLibraryQuerySchema = z.object({
     .enum(['true', 'false'])
     .transform((value) => value === 'true')
     .optional(),
+  /** "recent": mexidas por ultimo (padrao); "title": ordem alfabetica. */
+  sort: z.enum(['recent', 'title']).default('recent'),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(60).default(24),
 });
@@ -216,6 +218,8 @@ export const upsertGuideSchema = z.object({
   published: z.boolean().optional(),
   kind: guideKindSchema.optional(),
   accentColor: hexColorSchema.nullish(),
+  /** Marca como o "comece aqui" da pagina de guias; desmarca o anterior. */
+  featured: z.boolean().optional(),
 });
 
 export const guideNodeSchema = z.object({

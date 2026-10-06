@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { GuideDetail, GuideItemView, SeriesDetail } from '@comicz/shared';
-import { IconExternal, IconGrip, IconSearch, IconX } from '../../components/icons';
+import { IconExternal, IconGrip, IconSearch, IconStar, IconX } from '../../components/icons';
 import {
   ActionMenu,
   Badge,
@@ -62,6 +62,7 @@ export function GuideEditor({ guideId, onBack }: { guideId: string; onBack: () =
           published: guide.published,
           kind: guide.kind,
           accentColor: guide.accentColor,
+          featured: guide.featured,
           ...data,
         },
       });
@@ -121,6 +122,26 @@ export function GuideEditor({ guideId, onBack }: { guideId: string; onBack: () =
               { value: 'publicado', label: 'Publicado' },
             ]}
           />
+          {/* O guia em destaque abre a lista de guias como "comece aqui". */}
+          {!evento && (
+            <button
+              type="button"
+              aria-pressed={guide.featured}
+              onClick={() => void salvar({ featured: !guide.featured })}
+              title={
+                guide.featured
+                  ? 'Este guia abre a página de guias'
+                  : 'Mostrar no topo da página de guias (tira o destaque do anterior)'
+              }
+              className={`inline-flex min-h-10 items-center gap-1.5 rounded-[10px] border px-3.5 text-[13px] font-semibold ${
+                guide.featured
+                  ? 'border-brand-500 bg-brand-500/12 text-brand-400'
+                  : 'border-ink-600 text-ink-100 hover:border-ink-500'
+              }`}
+            >
+              <IconStar filled={guide.featured} /> {guide.featured ? 'Em destaque' : 'Destacar'}
+            </button>
+          )}
           <Link
             to={evento ? `/eventos/${guide.slug}` : `/guias/${guide.slug}`}
             target="_blank"

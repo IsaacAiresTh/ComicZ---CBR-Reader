@@ -8,7 +8,7 @@ import type {
   ComicSummary,
   GuideDetail,
   GuideSummary,
-  LibraryGroup,
+  LibraryListResponse,
   Paginated,
   PublisherSummary,
   SeriesListItem,
@@ -133,15 +133,21 @@ export function useCharacter(slug: string | undefined) {
   });
 }
 
-export function useLibrary(filters: { status?: string; favorite?: boolean; page?: number }) {
+export function useLibrary(filters: {
+  status?: string;
+  favorite?: boolean;
+  page?: number;
+  sort?: 'recent' | 'title';
+}) {
   return useQuery({
     queryKey: ['library', filters],
     queryFn: () =>
-      api.get<Paginated<LibraryGroup>>(
+      api.get<LibraryListResponse>(
         `/library${toQueryString({
           status: filters.status,
           favorite: filters.favorite === undefined ? undefined : String(filters.favorite),
           page: filters.page,
+          sort: filters.sort,
         })}`,
       ),
   });

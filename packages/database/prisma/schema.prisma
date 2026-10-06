@@ -479,6 +479,8 @@ model Guide {
   /// linha do tempo, selos e barra —, nunca no fundo: o tema do site continua
   /// mandando na leitura.
   accentColor String?   @map("accent_color")
+  /// O "comece aqui" da pagina de guias. No maximo um (indice parcial).
+  featured    Boolean   @default(false)
   createdById String?   @map("created_by_id") @db.Uuid
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
