@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Logo } from '../../components/Logo';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { loginSchema } from '@comicz/shared';
 import { Button, ErrorNote, Field, Input } from '../../components/ui';
@@ -103,13 +104,7 @@ export function AuthShell({
     <div className="flex min-h-dvh items-center justify-center bg-ink-950 px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-2xl font-black tracking-tight"
-          >
-            <span className="rounded-md bg-brand-500 px-2 py-0.5 text-ink-950">Comic</span>
-            <span className="text-ink-100">Z</span>
-          </Link>
+          <Logo tamanho="lg" />
           <h1 className="mt-6 text-xl font-semibold text-ink-100">{title}</h1>
           <p className="mt-1 text-sm text-ink-400">{subtitle}</p>
         </div>

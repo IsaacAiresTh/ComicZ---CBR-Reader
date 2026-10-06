@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Logo } from '../../components/Logo';
 import { Link } from 'react-router-dom';
 import type { AppAndroidInfo } from '@comicz/shared';
 import { useAuth } from '../auth/AuthContext';
@@ -36,10 +37,7 @@ export function AppDownloadPage() {
   return (
     <div className="min-h-dvh bg-ink-950 text-ink-100">
       <header className="mx-auto flex h-16 max-w-3xl items-center justify-between px-4">
-        <Link to="/" className="flex items-center gap-1.5 text-xl font-black tracking-tight">
-          <span className="rounded-md bg-brand-500 px-1.5 py-0.5 text-ink-950">Comic</span>
-          <span className="text-ink-100">Z</span>
-        </Link>
+        <Logo />
         <Link to={user ? '/' : '/entrar'} className="text-sm text-ink-400 hover:text-ink-100">
           {user ? 'Voltar ao site' : 'Entrar no site'}
         </Link>

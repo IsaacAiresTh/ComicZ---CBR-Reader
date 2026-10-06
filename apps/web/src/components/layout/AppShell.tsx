@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Logo } from '../Logo';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../features/auth/AuthContext';
 import { IconBookmark, IconGrid, IconHome, IconLayers, IconSearch } from '../icons';
@@ -38,13 +39,7 @@ export function AppShell() {
     <div className="min-h-dvh bg-ink-950">
       <header className="sticky top-0 z-40 border-b border-ink-800 bg-ink-900/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4 lg:gap-6">
-          <Link
-            to="/"
-            className="flex shrink-0 items-center gap-1.5 text-xl font-black tracking-tight"
-          >
-            <span className="rounded-md bg-brand-500 px-1.5 py-0.5 text-ink-950">Comic</span>
-            <span className="text-ink-100">Z</span>
-          </Link>
+          <Logo />
 
           <nav aria-label="Principal" className="hidden items-center gap-0.5 lg:flex">
             {DESCOBRIR.map((item) => (
