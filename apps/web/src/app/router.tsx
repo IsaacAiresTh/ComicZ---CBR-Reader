@@ -57,16 +57,15 @@ export function AppRouter() {
       </Route>
 
       <Route element={<ProtectedRoute requireAdmin />}>
-        <Route element={<AppShell />}>
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<AdminDashboard />} />
-            <Route path="hqs" element={<AdminComicsPage />} />
-            <Route path="series" element={<AdminSeriesPage />} />
-            <Route path="guias" element={<AdminGuidesPage />} />
-            <Route path="personagens" element={<AdminCharactersPage />} />
-            <Route path="fila" element={<AdminJobsPage />} />
-            <Route path="usuarios" element={<AdminUsersPage />} />
-          </Route>
+        {/* O admin tem casca propria, com menu lateral: fica fora do AppShell. */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route index element={<AdminDashboard />} />
+          <Route path="hqs" element={<AdminComicsPage />} />
+          <Route path="series" element={<AdminSeriesPage />} />
+          <Route path="guias" element={<AdminGuidesPage />} />
+          <Route path="personagens" element={<AdminCharactersPage />} />
+          <Route path="fila" element={<AdminJobsPage />} />
+          <Route path="usuarios" element={<AdminUsersPage />} />
         </Route>
       </Route>
 
