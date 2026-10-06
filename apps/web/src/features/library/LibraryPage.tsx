@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { CARD_GRID_CLASS, ComicCard } from '../comics/ComicCard';
-import { EmptyState, LinkButton, Spinner } from '../../components/ui';
+import { EmptyState, LinkButton, PageTitle, Spinner } from '../../components/ui';
 import { useLibrary } from '../comics/queries';
 import { CollectionsSection } from '../collections/CollectionsSection';
 import { iniciarArrasto } from '../collections/dragToCollection';
@@ -30,14 +30,15 @@ export function LibraryPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-ink-100">Minha biblioteca</h1>
-        <p className="mt-1 text-sm text-ink-400">
-          {data
+      <PageTitle
+        description={
+          data
             ? `${data.total} ${data.total === 1 ? 'item' : 'itens'} — sagas contam como uma coleção`
-            : 'Carregando...'}
-        </p>
-      </div>
+            : 'Carregando...'
+        }
+      >
+        Minha biblioteca
+      </PageTitle>
 
       <CollectionsSection />
 

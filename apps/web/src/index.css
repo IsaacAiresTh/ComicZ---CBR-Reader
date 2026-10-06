@@ -127,6 +127,16 @@
   text-shadow: 0 1px 14px var(--color-ink-950);
 }
 
+/* Capa que nao existe: reticula sobre o ink, para nao ler como erro de carga. */
+@utility capa-vazia {
+  background-color: var(--color-ink-850);
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--color-ink-600) 70%, transparent) 1px,
+    transparent 1.3px
+  );
+  background-size: 7px 7px;
+}
+
 @layer utilities {
   .comic-shadow {
     box-shadow:

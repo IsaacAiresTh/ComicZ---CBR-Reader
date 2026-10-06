@@ -38,7 +38,9 @@ export function SeriesPage() {
         <Link to="/catalogo" className="text-sm text-brand-400 hover:underline">
           ← catálogo
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold text-ink-100">{data.name}</h1>
+        <h1 className="mt-2 font-display text-5xl leading-[0.95] tracking-wide text-ink-100 sm:text-6xl">
+          {data.name}
+        </h1>
 
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {status && (
@@ -125,11 +127,15 @@ function SagaLibraryButton({ series }: { series: SeriesDetail }) {
           : await removeSeries.mutateAsync(series.id);
 
       if (action === 'remove') {
-        setFeedback(`${result.removed} ${result.removed === 1 ? 'edição removida' : 'edições removidas'}`);
+        setFeedback(
+          `${result.removed} ${result.removed === 1 ? 'edição removida' : 'edições removidas'}`,
+        );
       } else if (result.alreadyInLibrary > 0) {
         setFeedback(`${result.added} adicionadas · ${result.alreadyInLibrary} já estavam`);
       } else {
-        setFeedback(`${result.added} ${result.added === 1 ? 'edição adicionada' : 'edições adicionadas'}`);
+        setFeedback(
+          `${result.added} ${result.added === 1 ? 'edição adicionada' : 'edições adicionadas'}`,
+        );
       }
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Não deu para salvar');

@@ -31,7 +31,9 @@ export function GuideDetailPage() {
           {!guide.published && <Badge tone="warning">rascunho</Badge>}
         </div>
 
-        <h1 className="mt-2 text-3xl font-semibold text-ink-100">{guide.title}</h1>
+        <h1 className="mt-2 font-display text-5xl leading-[0.95] tracking-wide text-ink-100 sm:text-6xl">
+          {guide.title}
+        </h1>
         {guide.summary && (
           <p className="mt-2 text-ink-300">
             <CharacterText texto={guide.summary} />
