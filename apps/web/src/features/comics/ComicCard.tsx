@@ -108,7 +108,7 @@ export function ComicCard({
           </div>
         )}
 
-        {progress?.completed && (
+        {(progress?.completed || (showStatus && comic.libraryStatus === 'READ')) && (
           <span className="absolute bottom-2 right-2">
             <Badge tone="success">Lida</Badge>
           </span>
@@ -126,14 +126,28 @@ export function ComicCard({
         {showSeries && comic.series && comic.series.name !== comic.title && (
           <p className="truncate text-xs text-ink-400">{comic.series.name}</p>
         )}
-        {showStatus && progress && progress.pageCount > 0 && !lendo && (
-          <p className="text-xs text-ink-400">
-            página {progress.currentPage} de {progress.pageCount}
+        {/*
+          Na biblioteca, as mesmas palavras do card de saga ("lida", "na
+          fila"): as duas formas de card dividem a estante e precisam falar
+          igual. A pagina exata ja esta no selo da capa.
+        */}
+        {showStatus && statusDaEstante(comic, lendo) && (
+          <p
+            className={`text-xs ${comic.libraryStatus === 'WANT_TO_READ' && !lendo ? 'text-ink-400' : 'text-brand-400'}`}
+          >
+            {statusDaEstante(comic, lendo)}
           </p>
         )}
       </div>
     </Link>
   );
+}
+
+function statusDaEstante(comic: ComicSummary, lendo: boolean): string | null {
+  if (comic.progress?.completed || comic.libraryStatus === 'READ') return 'lida';
+  if (lendo) return 'lendo';
+  if (comic.libraryStatus === 'WANT_TO_READ') return 'na fila';
+  return null;
 }
 
 /** Compartilhado com o CatalogGrid para que os dois grids fiquem alinhados. */
