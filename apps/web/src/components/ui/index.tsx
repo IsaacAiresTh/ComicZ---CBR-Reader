@@ -376,6 +376,53 @@ export function Chip({
   );
 }
 
+/**
+ * Paginacao numerada: primeira, ultima e as vizinhas da atual, com "…" no
+ * meio. "Anterior / pagina 3 de 9 / Proxima" obrigava a clicar seis vezes
+ * para chegar ao fim.
+ */
+export function Paginacao({
+  pagina,
+  total,
+  onIr,
+}: {
+  pagina: number;
+  total: number;
+  onIr: (pagina: number) => void;
+}) {
+  if (total <= 1) return null;
+  const numeros = new Set([1, total, pagina - 1, pagina, pagina + 1]);
+  const lista = [...numeros].filter((n) => n >= 1 && n <= total).sort((a, b) => a - b);
+
+  return (
+    <nav aria-label="Páginas" className="flex flex-wrap items-center justify-center gap-1.5 pt-4">
+      <Button variant="secondary" disabled={pagina <= 1} onClick={() => onIr(pagina - 1)}>
+        ← Anterior
+      </Button>
+      {lista.map((n, i) => (
+        <span key={n} className="flex items-center gap-1.5">
+          {i > 0 && n - (lista[i - 1] ?? n) > 1 && <span className="px-1 text-ink-500">…</span>}
+          <button
+            type="button"
+            aria-current={n === pagina ? 'page' : undefined}
+            onClick={() => onIr(n)}
+            className={`h-10 min-w-10 rounded-[10px] px-2 text-sm ${
+              n === pagina
+                ? 'bg-brand-500 font-extrabold text-ink-950'
+                : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100'
+            }`}
+          >
+            {n}
+          </button>
+        </span>
+      ))}
+      <Button variant="secondary" disabled={pagina >= total} onClick={() => onIr(pagina + 1)}>
+        Próxima →
+      </Button>
+    </nav>
+  );
+}
+
 export function Field({
   label,
   error,

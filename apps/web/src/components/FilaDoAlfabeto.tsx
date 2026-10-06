@@ -39,12 +39,12 @@ export function FilaDoAlfabeto({
             aria-pressed={ativa}
             title={quantos === 1 ? '1 título' : `${quantos} títulos`}
             onClick={() => onEscolher(ativa ? null : letra)}
-            className={`h-8 w-8 rounded-md text-xs font-semibold transition-colors ${
+            className={`h-9 w-9 rounded-lg text-[13px] font-bold transition-colors ${
               ativa
                 ? 'bg-brand-500 text-ink-950'
                 : quantos === 0
                   ? 'cursor-default text-ink-700'
-                  : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100'
+                  : 'bg-ink-850 text-ink-300 hover:bg-ink-800 hover:text-ink-100'
             }`}
           >
             {letra}
@@ -56,7 +56,7 @@ export function FilaDoAlfabeto({
         <button
           type="button"
           onClick={() => onEscolher(null)}
-          className="ml-2 h-8 rounded-md px-3 text-xs text-ink-400 hover:text-ink-100"
+          className="ml-2 h-9 rounded-lg px-3 text-xs text-ink-400 hover:text-ink-100"
         >
           limpar
         </button>
