@@ -295,6 +295,8 @@ export interface GuideSummary {
    * separa os dois casos para a UI poder oferecer "voltar para a herdada".
    */
   coverUrl: string | null;
+  /** Capa da segunda HQ da ordem: aparece atras da primeira, como uma pilha. */
+  secondCoverUrl: string | null;
 }
 
 export interface GuideDetail extends GuideSummary {

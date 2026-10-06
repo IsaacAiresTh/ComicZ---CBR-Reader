@@ -39,7 +39,8 @@ export class GuidesService {
         _count: { select: { items: true, nodes: true } },
         items: {
           orderBy: { position: 'asc' },
-          take: 1,
+          // A segunda capa vai atras da primeira no card da lista.
+          take: 2,
           include: {
             comic: {
               select: {
@@ -103,6 +104,7 @@ export class GuidesService {
         featured: row.featured,
         // A capa escolhida pelo admin; na falta dela, a da primeira HQ da ordem.
         coverUrl: guideCoverUrl(row, first ? coverUrl(first) : null),
+        secondCoverUrl: row.items[1] ? coverUrl(row.items[1].comic) : null,
       };
     });
   }
@@ -157,6 +159,7 @@ export class GuidesService {
       nodeCount: guide.nodes.length,
       featured: guide.featured,
       coverUrl: guideCoverUrl(guide, firstCover ? coverUrl(firstCover) : null),
+      secondCoverUrl: guide.items[1] ? coverUrl(guide.items[1].comic) : null,
       hasOwnCover: Boolean(guide.coverPath),
       items,
       characters: guide.characters.map((character) => ({

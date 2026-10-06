@@ -166,6 +166,8 @@ function useInvalidateComicState() {
     void queryClient.invalidateQueries({ queryKey: ['series-detail'] });
     void queryClient.invalidateQueries({ queryKey: ['library'] });
     void queryClient.invalidateQueries({ queryKey: ['guide'] });
+    // A lista de guias e de eventos mostra quanto de cada um ja foi lido.
+    void queryClient.invalidateQueries({ queryKey: ['guides'] });
     void queryClient.invalidateQueries({ queryKey: ['continue-reading'] });
     void queryClient.invalidateQueries({ queryKey: ['user-stats'] });
   };
@@ -175,6 +177,36 @@ export function useAddToLibrary() {
   const invalidate = useInvalidateComicState();
   return useMutation({
     mutationFn: (comicId: string) => api.post(`/library/${comicId}`),
+    onSuccess: invalidate,
+  });
+}
+
+/**
+ * Varias edicoes de uma vez, como "salvar as 5 do guia". O servidor ignora as
+ * que ja estao la, entao mandar todas e seguro.
+ */
+export function useAddManyToLibrary() {
+  const invalidate = useInvalidateComicState();
+  return useMutation({
+    mutationFn: async (comicIds: string[]) => {
+      for (const comicId of comicIds) await api.post(`/library/${comicId}`);
+    },
+    onSuccess: invalidate,
+  });
+}
+
+/**
+ * Marca como lida sem abrir o leitor, para quem ja leu a edicao em outro
+ * lugar. Grava o progresso concluido, que e o que guias e eventos contam.
+ */
+export function useMarkComicRead() {
+  const invalidate = useInvalidateComicState();
+  return useMutation({
+    mutationFn: (input: { comicId: string; pageCount: number }) =>
+      api.patch(`/comics/${input.comicId}/progress`, {
+        currentPage: Math.max(1, input.pageCount),
+        completed: true,
+      }),
     onSuccess: invalidate,
   });
 }
