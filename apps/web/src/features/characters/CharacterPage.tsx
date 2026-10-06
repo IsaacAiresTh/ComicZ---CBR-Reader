@@ -559,16 +559,19 @@ function Marco({
           terminava na terceira linha e sobrava meia tela de vazio ate o marco
           seguinte.
 
-          A imagem para de mandar na altura da linha. Ela fica absoluta dentro
-          da moldura, e absoluto nao conta para o calculo da altura — quem
-          define a linha passa a ser o texto. A moldura cresce (`flex-1`) ate
-          ocupar a altura que o texto deu, e a imagem se ajusta por dentro com
-          `object-contain`. Os dois limites existem para os extremos: piso para
-          marco de duas linhas nao virar selo, teto para texto longo nao gerar
-          um poster.
+          A moldura tem altura FIXA e largura cheia, e a imagem se ajusta por
+          dentro com `object-contain`. Altura fixa porque amarra-la ao texto
+          dava os dois defeitos em sequencia: solta, a imagem em pe esticava a
+          linha para ~700px; presa ao texto, um marco de duas linhas encolhia a
+          arte para 224px. Largura cheia porque estas artes sao recortes com
+          margem transparente em volta — quanto mais estreita a caixa, menor o
+          personagem dentro dela, mesmo com a caixa inteira preenchida.
+
+          As duas alturas sao o unico botao desta secao: sobem a arte e o vao
+          abaixo de marco curto junto, descem os dois junto.
         */
-        <figure className="flex flex-col">
-          <div className="personagem-halo relative max-h-[20rem] min-h-[14rem] flex-1 rounded-xl">
+        <figure className="self-center">
+          <div className="personagem-halo relative h-[17rem] w-full rounded-xl lg:h-[21rem]">
             <img
               src={arte}
               alt={marco.sourceLabel ?? ''}
