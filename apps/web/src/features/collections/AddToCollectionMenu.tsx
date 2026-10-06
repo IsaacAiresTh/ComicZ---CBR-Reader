@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Button, ErrorNote, Input } from '../../components/ui';
+import { IconFolderPlus } from '../../components/icons';
+import { Button, ErrorNote, IconButton, Input } from '../../components/ui';
 import {
   useAddSeriesToCollection,
   useAddToCollection,
@@ -21,7 +22,14 @@ export type AlvoDaPasta = { kind: 'comic'; id: string } | { kind: 'series'; id: 
  * arrastar-e-soltar, e é o que serve para quem está na página da HQ ou da saga
  * sem ter passado pela biblioteca.
  */
-export function AddToCollectionMenu({ alvo }: { alvo: AlvoDaPasta }) {
+export function AddToCollectionMenu({
+  alvo,
+  compacto = false,
+}: {
+  alvo: AlvoDaPasta;
+  /** Vira um botao de icone, e o painel abre flutuando sob ele. */
+  compacto?: boolean;
+}) {
   const [aberto, setAberto] = useState(false);
   const [nome, setNome] = useState('');
   const [erro, setErro] = useState<string | null>(null);
@@ -65,6 +73,21 @@ export function AddToCollectionMenu({ alvo }: { alvo: AlvoDaPasta }) {
   // A saga vira um item so na pasta, entao o rotulo nao promete "N edicoes".
   const rotulo = alvo.kind === 'series' ? 'Guardar saga em uma pasta' : 'Guardar em uma pasta';
 
+  if (!aberto && compacto) {
+    return (
+      <div className="relative">
+        <IconButton label={rotulo} onClick={() => setAberto(true)}>
+          <IconFolderPlus />
+        </IconButton>
+        {recado && (
+          <p className="absolute right-0 top-full mt-1 whitespace-nowrap text-xs text-emerald-400">
+            {recado}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   if (!aberto) {
     return (
       <div className="space-y-1">
@@ -76,8 +99,14 @@ export function AddToCollectionMenu({ alvo }: { alvo: AlvoDaPasta }) {
     );
   }
 
-  return (
-    <div className="w-full max-w-sm space-y-2 rounded-xl border border-ink-800 bg-ink-900 p-3">
+  const painel = (
+    <div
+      className={
+        compacto
+          ? 'absolute right-0 top-full z-40 mt-2 w-80 space-y-2 rounded-xl border border-ink-700 bg-ink-850 p-3 comic-shadow'
+          : 'w-full max-w-sm space-y-2 rounded-xl border border-ink-800 bg-ink-900 p-3'
+      }
+    >
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-ink-200">
           {alvo.kind === 'series' ? 'Guardar a saga em' : 'Guardar em'}
@@ -118,6 +147,16 @@ export function AddToCollectionMenu({ alvo }: { alvo: AlvoDaPasta }) {
       </form>
 
       {erro && <ErrorNote>{erro}</ErrorNote>}
+    </div>
+  );
+
+  if (!compacto) return painel;
+  return (
+    <div className="relative">
+      <IconButton label={rotulo} active onClick={() => setAberto(false)}>
+        <IconFolderPlus />
+      </IconButton>
+      {painel}
     </div>
   );
 }
