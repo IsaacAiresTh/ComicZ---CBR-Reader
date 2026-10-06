@@ -101,7 +101,7 @@ function Painel({ src, alt, borrao }: { src: string; alt: string; borrao: string
         src={src}
         alt={alt}
         loading="lazy"
-        className={`personagem-painel max-h-[calc(100%-1rem)] max-w-[calc(100%-1rem)] -rotate-[1.5deg] border-4 border-ink-100 object-contain transition-all ${borrao}`}
+        className={`personagem-quadrinho max-h-[calc(100%-1rem)] max-w-[calc(100%-1rem)] -rotate-[1.5deg] border-4 border-ink-100 object-contain transition-all ${borrao}`}
       />
     </div>
   );
@@ -123,7 +123,7 @@ function Saltando({ src, alt, borrao }: { src: string; alt: string; borrao: stri
   return (
     <div className="flex h-[17rem] items-end justify-center lg:h-[21rem]">
       <div className={`relative h-full max-w-full transition-all ${borrao}`}>
-        <div className="personagem-painel absolute inset-x-0 bottom-0 top-[34%] rounded-md border-4 border-ink-100" />
+        <div className="personagem-quadrinho absolute inset-x-0 bottom-0 top-[34%] rounded-md border-4 border-ink-100" />
         <img
           src={src}
           alt={alt}
