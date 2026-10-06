@@ -8,6 +8,7 @@ import type {
   CharacterSummary,
   ComicSummary,
   ImportCharactersInput,
+  MilestoneArtStyle,
   SetCharacterComicsInput,
   SetMilestonesInput,
   SetSeriesNotesInput,
@@ -136,6 +137,7 @@ export class CharactersService {
         spoiler: marco.spoiler,
         imageUrl: marco.image ? characterImageUrl(marco.image) : null,
         sourceLabel: marco.sourceLabel,
+        artStyle: (marco.artStyle as MilestoneArtStyle | null) ?? null,
       })),
       appearances: grupos,
       related,
@@ -333,7 +335,9 @@ export class CharactersService {
 
     const character = await this.prisma.character.findUnique({
       where: { slug: entrada.slug },
-      include: { milestones: { select: { era: true, imageId: true, sourceLabel: true } } },
+      include: {
+        milestones: { select: { era: true, imageId: true, sourceLabel: true, artStyle: true } },
+      },
     });
     if (!character) {
       return {
@@ -391,6 +395,7 @@ export class CharactersService {
           spoiler: boolean;
           imageId: string | null;
           sourceLabel: string | null;
+          artStyle: string | null;
         }[]
       | null = null;
 
@@ -408,6 +413,8 @@ export class CharactersService {
           spoiler: marco.spoiler,
           imageId: anterior?.imageId ?? null,
           sourceLabel: marco.sourceLabel ?? anterior?.sourceLabel ?? null,
+          // A moldura se escolhe no painel olhando a arte, como a ancora.
+          artStyle: anterior?.artStyle ?? null,
         };
       });
       relatorio.marcos = marcos.length;
@@ -536,6 +543,7 @@ export class CharactersService {
             spoiler: marco.spoiler,
             imageId: marco.imageId ?? null,
             sourceLabel: marco.sourceLabel ?? null,
+            artStyle: marco.artStyle ?? null,
           },
         }),
       ),

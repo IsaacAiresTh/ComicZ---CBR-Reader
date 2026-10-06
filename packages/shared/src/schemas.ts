@@ -352,6 +352,7 @@ export const setMilestonesSchema = z.object({
         spoiler: z.boolean().default(false),
         imageId: z.string().uuid().nullish(),
         sourceLabel: z.string().trim().max(160).nullish(),
+        artStyle: z.enum(['dissolver', 'painel', 'saltando']).nullish(),
       }),
     )
     .max(30),
