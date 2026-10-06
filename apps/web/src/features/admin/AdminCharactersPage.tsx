@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import type {
   CharacterDetail,
   CharacterFont,
@@ -9,7 +10,20 @@ import type {
   MilestoneArtStyle,
   SeriesListItem,
 } from '@comicz/shared';
-import { Button, ErrorNote, Field, Input, Select, Spinner, Textarea } from '../../components/ui';
+import { IconDownload, IconExternal, IconSearch, IconUpload } from '../../components/icons';
+import {
+  Button,
+  Chip,
+  ErrorNote,
+  Field,
+  IconButton,
+  Input,
+  Select,
+  Spinner,
+  Textarea,
+} from '../../components/ui';
+import { AdminHeader } from './AdminHeader';
+import { BarraDeSalvar, SalvarTudoProvider, useSecao } from './SalvarTudo';
 import { CoverError, prepararCapa } from '../../lib/cover';
 import { comicLabel } from '../../lib/format';
 import { ApiError, mediaUrl } from '../../services/api';
@@ -50,6 +64,7 @@ export function AdminCharactersPage() {
   const [importando, setImportando] = useState(false);
   const [busca, setBusca] = useState('');
   const [ordem, setOrdem] = useState<'edicoes' | 'nome'>('edicoes');
+  const [soIncompletos, setSoIncompletos] = useState(false);
 
   /*
    * A lista inteira, sem teto. Antes eu cortava em 60 e quem quisesse o 61º era
@@ -59,79 +74,97 @@ export function AdminCharactersPage() {
   const lista = useMemo(() => {
     const termo = normalizar(busca.trim());
     const todos = personagens ?? [];
-    const filtrados = termo ? todos.filter((p) => normalizar(p.name).includes(termo)) : todos;
+    const filtrados = todos.filter(
+      (p) =>
+        (!termo || normalizar(p.name).includes(termo)) &&
+        (!soIncompletos || !p.summary || !p.portraitUrl),
+    );
     return [...filtrados].sort((a, b) =>
       ordem === 'nome'
         ? a.name.localeCompare(b.name, 'pt-BR')
         : b.comicCount - a.comicCount || a.name.localeCompare(b.name, 'pt-BR'),
     );
-  }, [personagens, busca, ordem]);
+  }, [personagens, busca, ordem, soIncompletos]);
 
   if (isLoading) return <Spinner />;
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
-      <div className="space-y-3">
-        <Input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar personagem"
-        />
+    <div className="space-y-5">
+      <AdminHeader
+        title="Personagens"
+        count={`${(personagens ?? []).length} personagens`}
+        actions={
+          <Button variant="secondary" onClick={() => setImportando(true)}>
+            <IconUpload />
+            Importar fichas
+          </Button>
+        }
+      />
+      <div className="grid items-start gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <div className="space-y-3 lg:sticky lg:top-6">
+          <label className="flex h-10 items-center gap-2 rounded-[10px] border border-ink-700 bg-ink-850 px-3 text-ink-400 focus-within:border-brand-500">
+            <IconSearch className="shrink-0" />
+            <input
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar personagem"
+              aria-label="Buscar personagem"
+              className="min-w-0 flex-1 bg-transparent text-sm text-ink-100 placeholder:text-ink-500 focus:outline-none"
+            />
+          </label>
 
-        <button
-          type="button"
-          onClick={() => setImportando(true)}
-          className={`w-full rounded-lg border border-dashed px-3 py-2 text-xs transition-colors ${
-            importando
-              ? 'border-brand-500 text-ink-100'
-              : 'border-ink-700 text-ink-400 hover:border-ink-500 hover:text-ink-200'
-          }`}
-        >
-          importar JSON
-        </button>
+          <div className="flex items-center gap-1.5">
+            <Chip active={!soIncompletos} onClick={() => setSoIncompletos(false)}>
+              Todos
+            </Chip>
+            <Chip active={soIncompletos} onClick={() => setSoIncompletos(true)}>
+              Incompletos
+            </Chip>
+            <button
+              type="button"
+              onClick={() => setOrdem((atual) => (atual === 'edicoes' ? 'nome' : 'edicoes'))}
+              className="ml-auto text-xs text-ink-400 hover:text-ink-100"
+            >
+              {ordem === 'edicoes' ? 'por edições' : 'A–Z'}
+            </button>
+          </div>
 
-        <div className="flex items-center justify-between text-xs text-ink-500">
-          <span>
+          <p className="text-xs text-ink-500">
             {lista.length === (personagens ?? []).length
               ? `${lista.length} personagens`
-              : `${lista.length} de ${(personagens ?? []).length}`}
-          </span>
-          <button
-            type="button"
-            onClick={() => setOrdem((atual) => (atual === 'edicoes' ? 'nome' : 'edicoes'))}
-            className="hover:text-ink-200"
-          >
-            {ordem === 'edicoes' ? 'por edições' : 'A–Z'}
-          </button>
+              : `${lista.length} de ${(personagens ?? []).length}`}{' '}
+            · os tracinhos dizem se tem resumo, imagem e tags
+          </p>
+          <ul className="max-h-[68vh] space-y-0.5 overflow-y-auto pr-1">
+            {lista.map((personagem) => (
+              <li key={personagem.id}>
+                <ItemDaLista
+                  personagem={personagem}
+                  ativo={personagem.slug === escolhido}
+                  onEscolher={() => {
+                    setEscolhido(personagem.slug);
+                    setImportando(false);
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
         </div>
-        <ul className="max-h-[70vh] space-y-1 overflow-y-auto pr-1">
-          {lista.map((personagem) => (
-            <li key={personagem.id}>
-              <ItemDaLista
-                personagem={personagem}
-                ativo={personagem.slug === escolhido}
-                onEscolher={() => {
-                  setEscolhido(personagem.slug);
-                  setImportando(false);
-                }}
-              />
-            </li>
-          ))}
-        </ul>
-      </div>
 
-      {importando || !escolhido ? (
-        <div className="space-y-4">
-          {!escolhido && !importando && (
-            <p className="rounded-xl border border-dashed border-ink-700 px-6 py-8 text-center text-sm text-ink-400">
-              Escolha um personagem para escrever a história dele — ou suba um arquivo.
-            </p>
-          )}
-          <ImportarFichas onFechar={escolhido ? () => setImportando(false) : undefined} />
-        </div>
-      ) : (
-        <Editor slug={escolhido} />
-      )}
+        {importando || !escolhido ? (
+          <div className="space-y-4">
+            {!escolhido && !importando && (
+              <p className="rounded-xl border border-dashed border-ink-700 px-6 py-8 text-center text-sm text-ink-400">
+                Escolha um personagem para escrever a história dele — ou suba um arquivo.
+              </p>
+            )}
+            <ImportarFichas onFechar={escolhido ? () => setImportando(false) : undefined} />
+          </div>
+        ) : (
+          <Editor slug={escolhido} />
+        )}
+      </div>
     </div>
   );
 }
@@ -146,20 +179,44 @@ function ItemDaLista({
   onEscolher: () => void;
 }) {
   const retrato = mediaUrl(personagem.portraitUrl);
+  // O que da para saber sem abrir a ficha: resumo, imagem e tags.
+  const partes = [Boolean(personagem.summary), Boolean(retrato), personagem.tags.length > 0];
   return (
     <button
       type="button"
       onClick={onEscolher}
-      className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors ${
-        ativo ? 'bg-ink-800 text-ink-100' : 'text-ink-300 hover:bg-ink-850'
+      aria-current={ativo ? 'true' : undefined}
+      className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
+        ativo
+          ? 'bg-ink-800 text-ink-100 shadow-[inset_3px_0_0_var(--color-brand-500)]'
+          : 'text-ink-300 hover:bg-ink-850'
       }`}
     >
-      <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full bg-ink-850">
-        {retrato && <img src={retrato} alt="" className="h-full w-full object-cover" />}
+      <span
+        className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full font-display text-base text-ink-950"
+        style={{ backgroundColor: personagem.accentColor ?? 'var(--color-ink-700)' }}
+      >
+        {retrato ? (
+          <img src={retrato} alt="" className="h-full w-full object-cover" />
+        ) : (
+          personagem.name.slice(0, 1)
+        )}
       </span>
-      <span className="min-w-0 flex-1 truncate text-sm">{personagem.name}</span>
-      {/* Sem texto, o personagem nao tem pagina de verdade — vale ver de longe. */}
-      {!personagem.summary && <span className="text-[10px] text-ink-600">vazio</span>}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-semibold">{personagem.name}</span>
+        <span
+          className="mt-1 flex gap-0.5"
+          aria-label={`${partes.filter(Boolean).length} de 3 preenchidos`}
+        >
+          {partes.map((ok, i) => (
+            <span
+              key={i}
+              className={`h-1 w-3.5 rounded-sm ${ok ? 'bg-emerald-400' : 'bg-ink-700'}`}
+            />
+          ))}
+        </span>
+      </span>
+      <span className="text-[11px] text-ink-500">{personagem.comicCount}</span>
     </button>
   );
 }
@@ -222,14 +279,13 @@ function BotaoDeExportar({ personagem }: { personagem: CharacterDetail }) {
   }
 
   return (
-    <button
-      type="button"
+    <IconButton
+      label="Baixar a ficha em JSON (o formato que o import aceita)"
+      small
       onClick={baixar}
-      title="Baixa a ficha no mesmo formato que o import aceita"
-      className="shrink-0 rounded-lg border border-ink-700 px-3 py-1.5 text-xs text-ink-300 transition-colors hover:border-ink-500 hover:text-ink-100"
     >
-      baixar JSON
-    </button>
+      <IconDownload />
+    </IconButton>
   );
 }
 
@@ -489,9 +545,20 @@ function LinhaDoRelatorio({ linha }: { linha: CharacterImportReport }) {
 
 function Editor({ slug }: { slug: string }) {
   const { data: personagem, isLoading } = useCharacter(slug);
+  // Descartar remonta o formulario, que volta a ler tudo do servidor.
+  const [versao, setVersao] = useState(0);
   if (isLoading || !personagem) return <Spinner />;
-  return <Formulario key={personagem.id} personagem={personagem} />;
+  return (
+    <div className="min-w-0">
+      <SalvarTudoProvider key={`${personagem.id}-${versao}`}>
+        <Formulario personagem={personagem} />
+        <BarraDeSalvar onDescartar={() => setVersao((v) => v + 1)} />
+      </SalvarTudoProvider>
+    </div>
+  );
 }
+
+type AbaDoEditor = 'ficha' | 'imagens' | 'marcos' | 'aparicoes' | 'estilo';
 
 function Formulario({ personagem }: { personagem: CharacterDetail }) {
   const salvar = useUpdateCharacter();
@@ -519,7 +586,6 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
   const [cor2, setCor2] = useState(personagem.accentColor2 ?? '#f5b301');
   const [fonte, setFonte] = useState<CharacterFont>(personagem.displayFont ?? 'bangers');
   const [erro, setErro] = useState<string | null>(null);
-  const [ok, setOk] = useState(false);
   const [subindoJson, setSubindoJson] = useState(false);
   const [enviando, setEnviando] = useState<{ atual: number; total: number } | null>(null);
   /*
@@ -529,43 +595,57 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
    */
   const [arrastes, setArrastes] = useState(0);
 
-  async function enviar() {
+  const [aba, setAba] = useState<AbaDoEditor>('ficha');
+
+  function dados() {
+    return {
+      summary: summary.trim() || null,
+      description: description.trim() || null,
+      // Campo de texto separado por virgula, como o de criadores da saga.
+      aliases: aliases
+        .split(',')
+        .map((alias) => alias.trim())
+        .filter(Boolean),
+      accentColor: cor1,
+      accentColor2: cor2,
+      displayFont: fonte,
+      tags: emLista(tags),
+      firstAppearance: estreia.trim() || null,
+      firstAppearanceYear: ano.trim() ? Number(ano) : null,
+      affiliations: emLista(afiliacoes),
+      powers: emLista(poderes),
+      powerLevel: nivelTexto.trim() || null,
+      powerLevelRank: nivel,
+      status: status.trim() || null,
+      statusNote: statusNota.trim() || null,
+      primer: primer.trim() || null,
+      whyMatters: porQueImporta.trim() || null,
+      startHereSeriesId: comecarPor || null,
+      startHereNote: comecarNota.trim() || null,
+    };
+  }
+
+  /*
+   * "Sujo" e o que difere do que foi lido (ou gravado por ultimo). Comparar o
+   * payload, e nao campo a campo, garante que a barra so acende quando o
+   * Salvar de fato mandaria algo diferente.
+   */
+  const atual = JSON.stringify(dados());
+  const [base, setBase] = useState(atual);
+
+  async function enviar(): Promise<boolean> {
     setErro(null);
-    setOk(false);
     try {
-      await salvar.mutateAsync({
-        id: personagem.id,
-        dados: {
-          summary: summary.trim() || null,
-          description: description.trim() || null,
-          // Campo de texto separado por virgula, como o de criadores da saga.
-          aliases: aliases
-            .split(',')
-            .map((alias) => alias.trim())
-            .filter(Boolean),
-          accentColor: cor1,
-          accentColor2: cor2,
-          displayFont: fonte,
-          tags: emLista(tags),
-          firstAppearance: estreia.trim() || null,
-          firstAppearanceYear: ano.trim() ? Number(ano) : null,
-          affiliations: emLista(afiliacoes),
-          powers: emLista(poderes),
-          powerLevel: nivelTexto.trim() || null,
-          powerLevelRank: nivel,
-          status: status.trim() || null,
-          statusNote: statusNota.trim() || null,
-          primer: primer.trim() || null,
-          whyMatters: porQueImporta.trim() || null,
-          startHereSeriesId: comecarPor || null,
-          startHereNote: comecarNota.trim() || null,
-        },
-      });
-      setOk(true);
+      await salvar.mutateAsync({ id: personagem.id, dados: dados() });
+      setBase(atual);
+      return true;
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : 'Não foi possível salvar');
+      return false;
     }
   }
+
+  useSecao('ficha', 'Ficha e estilo', atual !== base, enviar);
 
   /*
    * Errar o alvo nao pode custar o texto. Sem isto, uma foto solta fora da area
@@ -648,29 +728,80 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 className="font-display text-2xl tracking-wide text-ink-100">{personagem.name}</h2>
-          <p className="mt-1 text-xs text-ink-500">
-            {personagem.comicCount} {personagem.comicCount === 1 ? 'edição' : 'edições'} no acervo ·
-            /personagens/{personagem.slug}
-          </p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <BotaoDeExportar personagem={personagem} />
-          <button
-            type="button"
-            onClick={() => setSubindoJson((valor) => !valor)}
-            className={`rounded-lg border px-3 py-1.5 text-xs transition-colors ${
-              subindoJson
-                ? 'border-brand-500 text-ink-100'
-                : 'border-ink-700 text-ink-300 hover:border-ink-500 hover:text-ink-100'
-            }`}
+      <header className="space-y-4 border-b border-ink-800">
+        <div className="flex flex-wrap items-center gap-3.5">
+          <span
+            className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full border-2 font-display text-xl text-ink-950"
+            style={{ borderColor: cor2, backgroundColor: cor1 }}
           >
-            subir JSON
-          </button>
+            {mediaUrl(personagem.portraitUrl) ? (
+              <img
+                src={mediaUrl(personagem.portraitUrl) ?? ''}
+                alt=""
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              personagem.name.slice(0, 1)
+            )}
+          </span>
+          <div className="min-w-0 flex-1">
+            <h2 className="font-display text-3xl leading-none tracking-wide text-ink-100">
+              {personagem.name}
+            </h2>
+            <p className="mt-1 text-xs text-ink-500">
+              {personagem.comicCount} {personagem.comicCount === 1 ? 'edição' : 'edições'} no acervo
+              · /personagens/{personagem.slug}
+            </p>
+          </div>
+          <Link
+            to={`/personagens/${personagem.slug}`}
+            target="_blank"
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-[10px] border border-ink-600 px-3.5 text-[13px] font-semibold text-ink-100 hover:border-ink-500"
+          >
+            Ver página <IconExternal />
+          </Link>
+          <BotaoDeExportar personagem={personagem} />
+          <IconButton
+            label="Subir ficha em JSON"
+            small
+            active={subindoJson}
+            onClick={() => setSubindoJson((valor) => !valor)}
+          >
+            <IconUpload />
+          </IconButton>
         </div>
-      </div>
+        {/*
+          Abas no lugar de uma pagina com seis formularios empilhados. As que
+          nao estao a vista continuam montadas (so escondidas), para nenhuma
+          alteracao pendente se perder ao trocar de aba.
+        */}
+        <nav role="tablist" className="-mx-1 flex gap-1 overflow-x-auto px-1">
+          {(
+            [
+              ['ficha', 'Ficha', undefined],
+              ['imagens', 'Imagens', String(personagem.images.length)],
+              ['marcos', 'Marcos', String(personagem.milestones.length)],
+              ['aparicoes', 'Onde aparece', String(personagem.appearances.length)],
+              ['estilo', 'Estilo', undefined],
+            ] as [AbaDoEditor, string, string | undefined][]
+          ).map(([id, rotulo, conta]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              aria-selected={aba === id}
+              onClick={() => setAba(id)}
+              className={`min-h-10 shrink-0 px-3.5 text-sm ${
+                aba === id
+                  ? 'font-bold text-ink-100 shadow-[inset_0_-2px_0_var(--color-brand-500)]'
+                  : 'text-ink-400 hover:text-ink-100'
+              }`}
+            >
+              {rotulo} {conta && <span className="text-xs text-ink-500">{conta}</span>}
+            </button>
+          ))}
+        </nav>
+      </header>
 
       {subindoJson && (
         <ImportarFichas personagem={personagem} onFechar={() => setSubindoJson(false)} />
@@ -678,123 +809,125 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
 
       {erro && <ErrorNote>{erro}</ErrorNote>}
 
-      <Field label="Resumo" hint="Uma linha, mostrada sob o nome.">
-        <Input value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={300} />
-      </Field>
+      <div hidden={aba !== 'ficha'} className="space-y-6">
+        <Field label="Resumo" hint="Uma linha, mostrada sob o nome.">
+          <Input value={summary} onChange={(e) => setSummary(e.target.value)} maxLength={300} />
+        </Field>
 
-      <Field
-        label="A história"
-        hint="Parágrafos separados por linha em branco. As imagens entram entre eles."
-      >
-        <Textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={14}
-          className="font-normal"
-        />
-      </Field>
+        <Field
+          label="A história"
+          hint="Parágrafos separados por linha em branco. As imagens entram entre eles."
+        >
+          <Textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={14}
+            className="font-normal"
+          />
+        </Field>
 
-      <Field
-        label="Apelidos"
-        hint="Separados por vírgula. Servem só para o nome virar link no texto: sem “Prime” aqui, uma descrição que o chame assim não vira link."
-      >
-        <Input value={aliases} onChange={(e) => setAliases(e.target.value)} />
-      </Field>
+        <Field
+          label="Apelidos"
+          hint="Separados por vírgula. Servem só para o nome virar link no texto: sem “Prime” aqui, uma descrição que o chame assim não vira link."
+        >
+          <Input value={aliases} onChange={(e) => setAliases(e.target.value)} />
+        </Field>
 
-      <Field label="Tags" hint="Separadas por vírgula. Aparecem sob o resumo, no topo.">
-        <Input value={tags} onChange={(e) => setTags(e.target.value)} />
-      </Field>
+        <Field label="Tags" hint="Separadas por vírgula. Aparecem sob o resumo, no topo.">
+          <Input value={tags} onChange={(e) => setTags(e.target.value)} />
+        </Field>
 
-      <section className="rounded-xl border border-ink-800 p-4">
-        <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">
-          A ficha
-        </h3>
-        <p className="mb-4 text-xs text-ink-500">
-          Cada campo some da página quando fica vazio — meia ficha é informação, ficha vazia é
-          ruído. Não precisa preencher tudo.
-        </p>
+        <section className="rounded-xl border border-ink-800 p-4">
+          <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">
+            A ficha
+          </h3>
+          <p className="mb-4 text-xs text-ink-500">
+            Cada campo some da página quando fica vazio — meia ficha é informação, ficha vazia é
+            ruído. Não precisa preencher tudo.
+          </p>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Primeira aparição">
+              <Input
+                value={estreia}
+                onChange={(e) => setEstreia(e.target.value)}
+                placeholder="DC Comics Presents #87"
+              />
+            </Field>
+            <Field label="Ano">
+              <Input
+                value={ano}
+                onChange={(e) => setAno(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                placeholder="1985"
+                inputMode="numeric"
+              />
+            </Field>
+
+            <Field label="Afiliações" hint="A primeira aparece em destaque; as outras, apagadas.">
+              <Input value={afiliacoes} onChange={(e) => setAfiliacoes(e.target.value)} />
+            </Field>
+            <Field label="Poderes" hint="Viram chips, separados por vírgula.">
+              <Input value={poderes} onChange={(e) => setPoderes(e.target.value)} />
+            </Field>
+
+            <Field label="Status atual">
+              <Input value={status} onChange={(e) => setStatus(e.target.value)} />
+            </Field>
+            <Field label="Ressalva do status" hint="A segunda linha: “pós-Death Metal”.">
+              <Input value={statusNota} onChange={(e) => setStatusNota(e.target.value)} />
+            </Field>
+
+            <Field label="Nível de poder" hint="O rótulo: “Classe multiversal”.">
+              <Input value={nivelTexto} onChange={(e) => setNivelTexto(e.target.value)} />
+            </Field>
+
+            <div>
+              <span className="mb-1.5 block text-sm font-medium text-ink-300">A barra</span>
+              <BarraEditavel nivel={nivel} onEscolher={setNivel} />
+              <span className="mt-1 block text-xs text-ink-500">
+                {nivel
+                  ? `${nivel} de 5 — clique no mesmo degrau para tirar a barra.`
+                  : 'Sem barra. Clique num degrau para dar um nível.'}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <Field
+          label="Se é sua primeira vez"
+          hint="Três frases para quem nunca leu o personagem. Aparece antes da história."
+        >
+          <Textarea value={primer} onChange={(e) => setPrimer(e.target.value)} rows={4} />
+        </Field>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Primeira aparição">
-            <Input
-              value={estreia}
-              onChange={(e) => setEstreia(e.target.value)}
-              placeholder="DC Comics Presents #87"
-            />
+          <Field label="Se só for ler uma coisa" hint="Entre as sagas em que ele aparece.">
+            <Select value={comecarPor} onChange={(e) => setComecarPor(e.target.value)}>
+              <option value="">Nenhuma</option>
+              {personagem.appearances
+                .filter((grupo) => grupo.seriesId)
+                .map((grupo) => (
+                  <option key={grupo.seriesId} value={grupo.seriesId ?? ''}>
+                    {grupo.name}
+                  </option>
+                ))}
+            </Select>
           </Field>
-          <Field label="Ano">
-            <Input
-              value={ano}
-              onChange={(e) => setAno(e.target.value.replace(/\D/g, '').slice(0, 4))}
-              placeholder="1985"
-              inputMode="numeric"
-            />
+          <Field label="Por que essa" hint="“é aqui que ele se torna o vilão”.">
+            <Input value={comecarNota} onChange={(e) => setComecarNota(e.target.value)} />
           </Field>
-
-          <Field label="Afiliações" hint="A primeira aparece em destaque; as outras, apagadas.">
-            <Input value={afiliacoes} onChange={(e) => setAfiliacoes(e.target.value)} />
-          </Field>
-          <Field label="Poderes" hint="Viram chips, separados por vírgula.">
-            <Input value={poderes} onChange={(e) => setPoderes(e.target.value)} />
-          </Field>
-
-          <Field label="Status atual">
-            <Input value={status} onChange={(e) => setStatus(e.target.value)} />
-          </Field>
-          <Field label="Ressalva do status" hint="A segunda linha: “pós-Death Metal”.">
-            <Input value={statusNota} onChange={(e) => setStatusNota(e.target.value)} />
-          </Field>
-
-          <Field label="Nível de poder" hint="O rótulo: “Classe multiversal”.">
-            <Input value={nivelTexto} onChange={(e) => setNivelTexto(e.target.value)} />
-          </Field>
-
-          <div>
-            <span className="mb-1.5 block text-sm font-medium text-ink-300">A barra</span>
-            <BarraEditavel nivel={nivel} onEscolher={setNivel} />
-            <span className="mt-1 block text-xs text-ink-500">
-              {nivel
-                ? `${nivel} de 5 — clique no mesmo degrau para tirar a barra.`
-                : 'Sem barra. Clique num degrau para dar um nível.'}
-            </span>
-          </div>
         </div>
-      </section>
 
-      <Field
-        label="Se é sua primeira vez"
-        hint="Três frases para quem nunca leu o personagem. Aparece antes da história."
-      >
-        <Textarea value={primer} onChange={(e) => setPrimer(e.target.value)} rows={4} />
-      </Field>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Se só for ler uma coisa" hint="Entre as sagas em que ele aparece.">
-          <Select value={comecarPor} onChange={(e) => setComecarPor(e.target.value)}>
-            <option value="">Nenhuma</option>
-            {personagem.appearances
-              .filter((grupo) => grupo.seriesId)
-              .map((grupo) => (
-                <option key={grupo.seriesId} value={grupo.seriesId ?? ''}>
-                  {grupo.name}
-                </option>
-              ))}
-          </Select>
-        </Field>
-        <Field label="Por que essa" hint="“é aqui que ele se torna o vilão”.">
-          <Input value={comecarNota} onChange={(e) => setComecarNota(e.target.value)} />
+        <Field label="Por que ele importa" hint="O fecho da página, depois da história.">
+          <Textarea
+            value={porQueImporta}
+            onChange={(e) => setPorQueImporta(e.target.value)}
+            rows={4}
+          />
         </Field>
       </div>
 
-      <Field label="Por que ele importa" hint="O fecho da página, depois da história.">
-        <Textarea
-          value={porQueImporta}
-          onChange={(e) => setPorQueImporta(e.target.value)}
-          rows={4}
-        />
-      </Field>
-
-      <section className="rounded-xl border border-ink-800 p-4">
+      <section hidden={aba !== 'estilo'} className="rounded-xl border border-ink-800 p-4">
         <h3 className="mb-1 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">
           Estilo
         </h3>
@@ -848,14 +981,7 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
         </div>
       </section>
 
-      <div className="flex items-center gap-3">
-        <Button onClick={enviar} disabled={salvar.isPending}>
-          {salvar.isPending ? 'Salvando...' : 'Salvar'}
-        </Button>
-        {ok && <span className="text-xs text-emerald-400">Salvo.</span>}
-      </div>
-
-      <section>
+      <section hidden={aba !== 'imagens'}>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-ink-400">
           Imagens
         </h3>
@@ -948,8 +1074,12 @@ function Formulario({ personagem }: { personagem: CharacterDetail }) {
         </div>
       </section>
 
-      <EditorDeMarcos personagem={personagem} />
-      <EditorDeAparicoes personagem={personagem} />
+      <div hidden={aba !== 'marcos'}>
+        <EditorDeMarcos personagem={personagem} />
+      </div>
+      <div hidden={aba !== 'aparicoes'}>
+        <EditorDeAparicoes personagem={personagem} />
+      </div>
     </div>
   );
 }
@@ -1006,12 +1136,15 @@ function EditorDeMarcos({ personagem }: { personagem: CharacterDetail }) {
     setMarcos(copia);
   }
 
-  async function enviar() {
+  const atual = JSON.stringify(marcos);
+  const [base, setBase] = useState(atual);
+
+  async function enviar(): Promise<boolean> {
     setErro(null);
     setOk(false);
     if (marcos.some((marco) => !marco.era.trim() || !marco.body.trim())) {
       setErro('Todo marco precisa de era e texto.');
-      return;
+      return false;
     }
     try {
       await salvar.mutateAsync({
@@ -1026,11 +1159,16 @@ function EditorDeMarcos({ personagem }: { personagem: CharacterDetail }) {
           artStyle: marco.imageId ? marco.artStyle : null,
         })),
       });
+      setBase(atual);
       setOk(true);
+      return true;
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : 'Não foi possível salvar a linha do tempo');
+      return false;
     }
   }
+
+  useSecao('marcos', 'Marcos', atual !== base, enviar);
 
   return (
     <section className="rounded-xl border border-ink-800 p-4">
@@ -1110,20 +1248,11 @@ function EditorDeMarcos({ personagem }: { personagem: CharacterDetail }) {
                 ))}
               </Select>
 
-              <Select
-                className="w-auto"
-                value={marco.artStyle ?? ''}
-                disabled={!marco.imageId}
-                onChange={(e) =>
-                  altera(i, { artStyle: (e.target.value || null) as MilestoneArtStyle | null })
-                }
-                title="Como a arte se assenta na página"
-              >
-                <option value="">Moldura automática</option>
-                <option value="dissolver">Dissolver bordas</option>
-                <option value="painel">Painel de HQ</option>
-                <option value="saltando">Saltando do quadro</option>
-              </Select>
+              <SeletorDeMoldura
+                valor={marco.artStyle}
+                desabilitado={!marco.imageId}
+                onEscolher={(artStyle) => altera(i, { artStyle })}
+              />
 
               <Input
                 value={marco.sourceLabel}
@@ -1165,10 +1294,7 @@ function EditorDeMarcos({ personagem }: { personagem: CharacterDetail }) {
         >
           + marco
         </Button>
-        <Button onClick={enviar} disabled={salvar.isPending}>
-          {salvar.isPending ? 'Salvando...' : 'Salvar a linha do tempo'}
-        </Button>
-        {ok && <span className="text-xs text-emerald-400">Salvo.</span>}
+        {ok && <span className="text-xs text-emerald-400">Linha do tempo salva.</span>}
       </div>
     </section>
   );
@@ -1286,7 +1412,15 @@ function EditorDeAparicoes({ personagem }: { personagem: CharacterDetail }) {
   const total = sagas.reduce((soma, saga) => soma + saga.edicoes.length, 0) + avulsas.length;
   const salvando = salvarEdicoes.isPending || salvarNotas.isPending;
 
-  async function enviar() {
+  const estado = (lista: SagaEmEdicao[], soltas: ComicSummary[]) =>
+    JSON.stringify({
+      sagas: lista.map((saga) => [saga.seriesId, saga.note, saga.edicoes]),
+      avulsas: soltas.map((comic) => comic.id),
+    });
+  const atual = estado(sagas, avulsas);
+  const [base, setBase] = useState(atual);
+
+  async function enviar(): Promise<boolean> {
     setErro(null);
     setOk(false);
     // Saga sem nenhuma edicao marcada nao existe na pagina: nao entra no
@@ -1308,11 +1442,16 @@ function EditorDeAparicoes({ personagem }: { personagem: CharacterDetail }) {
         })),
       });
       setSagas(comEdicoes);
+      setBase(estado(comEdicoes, avulsas));
       setOk(true);
+      return true;
     } catch (e) {
       setErro(e instanceof ApiError ? e.message : 'Não foi possível salvar as aparições');
+      return false;
     }
   }
+
+  useSecao('aparicoes', 'Onde aparece', atual !== base, enviar);
 
   return (
     <section className="rounded-xl border border-ink-800 p-4">
@@ -1412,9 +1551,7 @@ function EditorDeAparicoes({ personagem }: { personagem: CharacterDetail }) {
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
-        <Button onClick={() => void enviar()} disabled={salvando}>
-          {salvando ? 'Salvando...' : 'Salvar as aparições'}
-        </Button>
+        {salvando && <span className="text-xs text-ink-400">Salvando...</span>}
         <span className="text-xs tabular-nums text-ink-500">
           {total} {total === 1 ? 'edição' : 'edições'} · {sagas.length}{' '}
           {sagas.length === 1 ? 'saga' : 'sagas'}
@@ -1663,6 +1800,84 @@ function BarraEditavel({
           }`}
         />
       ))}
+    </div>
+  );
+}
+
+/**
+ * A moldura da arte do marco em miniaturas, no lugar de uma lista suspensa:
+ * "Painel de HQ" ou "Saltando do quadro" dizem pouco ate se ver a forma.
+ */
+function SeletorDeMoldura({
+  valor,
+  desabilitado,
+  onEscolher,
+}: {
+  valor: MilestoneArtStyle | null;
+  desabilitado: boolean;
+  onEscolher: (valor: MilestoneArtStyle | null) => void;
+}) {
+  const opcoes: { valor: MilestoneArtStyle | null; rotulo: string; amostra: ReactNode }[] = [
+    {
+      valor: null,
+      rotulo: 'Automática',
+      amostra: (
+        <span className="h-9 w-4 rounded-t-full bg-brand-400 shadow-[0_0_14px_6px_rgba(63,174,90,0.25)]" />
+      ),
+    },
+    {
+      valor: 'dissolver',
+      rotulo: 'Dissolver',
+      amostra: <span className="h-9 w-7 bg-gradient-to-b from-brand-400 from-50% to-transparent" />,
+    },
+    {
+      valor: 'painel',
+      rotulo: 'Painel de HQ',
+      amostra: (
+        <span className="h-8 w-6 -rotate-3 border-2 border-ink-100 bg-ink-800 shadow-[3px_3px_0_0_#3fae5a]" />
+      ),
+    },
+    {
+      valor: 'saltando',
+      rotulo: 'Saltando',
+      amostra: (
+        <span className="relative h-9 w-7">
+          <span className="absolute inset-x-0 bottom-0 h-5 border-2 border-ink-100 bg-ink-800" />
+          <span className="absolute bottom-2 left-1/2 h-7 w-3 -translate-x-1/2 rounded-t-full bg-brand-400" />
+        </span>
+      ),
+    },
+  ];
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Como a arte entra na página"
+      className="flex flex-wrap gap-1.5"
+    >
+      {opcoes.map((opcao) => {
+        const ativa = valor === opcao.valor;
+        return (
+          <button
+            key={opcao.rotulo}
+            type="button"
+            role="radio"
+            aria-checked={ativa}
+            disabled={desabilitado}
+            title={desabilitado ? 'Escolha uma imagem primeiro' : opcao.rotulo}
+            onClick={() => onEscolher(opcao.valor)}
+            className={`flex w-[84px] flex-col items-center gap-1 rounded-lg p-1.5 text-[11px] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+              ativa
+                ? 'border-2 border-brand-500 bg-brand-500/[0.08] font-bold text-ink-100'
+                : 'border border-ink-700 bg-ink-850 text-ink-300 hover:border-ink-500'
+            }`}
+          >
+            <span className="grid h-11 w-full place-items-end justify-center overflow-hidden rounded bg-ink-950 pb-0.5">
+              {opcao.amostra}
+            </span>
+            {opcao.rotulo}
+          </button>
+        );
+      })}
     </div>
   );
 }
