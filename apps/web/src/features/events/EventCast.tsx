@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { GuideCharacterView } from '@comicz/shared';
+import type { CharacterSummary, GuideCharacterView } from '@comicz/shared';
 import { mediaUrl } from '../../services/api';
 import { useCharacters } from '../comics/queries';
 
@@ -11,6 +11,24 @@ import { useCharacters } from '../comics/queries';
  * da dobra. Sem imagem, o rosto vira a inicial do nome, o que mantem a fila com
  * a mesma altura mesmo em um guia recem-criado.
  */
+/**
+ * Chave de comparacao de nome: minusculas, sem acento, hifen valendo espaco e
+ * sem pontuacao.
+ *
+ * Existe porque o nome do elenco e digitado a mao e o do acervo tem grafia
+ * propria — "Mulher Invisível" no guia contra "Mulher-Invisível" no catalogo
+ * era a mesma pessoa aparecendo sem link e sem rosto.
+ */
+const chave = (nome: string) =>
+  nome
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[-–—]/g, ' ')
+    .replace(/[^a-z0-9 ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
 export function EventCast({ elenco }: { elenco: GuideCharacterView[] }) {
   const { data: personagens } = useCharacters();
 
@@ -27,9 +45,33 @@ export function EventCast({ elenco }: { elenco: GuideCharacterView[] }) {
    * opcao. A imagem do guia continua tendo precedencia quando existir — e dela
    * o papel NESTA historia, que e o motivo de a tabela ser separada.
    */
-  const doAcervoPorNome = new Map(
-    (personagens ?? []).map((personagem) => [personagem.name.toLowerCase(), personagem]),
-  );
+  const porNome = new Map((personagens ?? []).map((p) => [chave(p.name), p]));
+
+  /*
+   * Apelido como segunda tentativa: "Asa Noturna" no elenco e "Dick Grayson"
+   * no acervo sao a mesma pessoa.
+   *
+   * Mas MANTO nao entra. "Lanterna Verde" e "Superboy" sao apelido de alguem e
+   * tambem cargo que varia de dono — ligar pelo apelido mandaria todo portador
+   * para um so. O proprio acervo ja marca manto como TAG (ver CharacterSummary),
+   * entao e isso que uso para barrar: nome que e tag de alguem nao auto-liga, e
+   * o rosto fica sem link ate alguem dizer de qual portador se trata. Apelido
+   * que dois personagens dividem cai na mesma regra.
+   */
+  const mantos = new Set((personagens ?? []).flatMap((p) => p.tags.map(chave)));
+  const porApelido = new Map<string, CharacterSummary | null>();
+  for (const personagem of personagens ?? []) {
+    for (const apelido of personagem.aliases) {
+      const k = chave(apelido);
+      // ja visto: dois donos para o mesmo apelido, ninguem leva.
+      porApelido.set(k, porApelido.has(k) ? null : personagem);
+    }
+  }
+
+  const acha = (nome: string) => {
+    const k = chave(nome);
+    return porNome.get(k) ?? (mantos.has(k) ? undefined : (porApelido.get(k) ?? undefined));
+  };
 
   if (elenco.length === 0) return null;
 
@@ -41,7 +83,7 @@ export function EventCast({ elenco }: { elenco: GuideCharacterView[] }) {
 
       <ul className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-2">
         {elenco.map((personagem) => {
-          const doAcervo = doAcervoPorNome.get(personagem.name.toLowerCase());
+          const doAcervo = acha(personagem.name) ?? undefined;
           const imagem = mediaUrl(personagem.imageUrl) ?? mediaUrl(doAcervo?.portraitUrl);
           const slug = doAcervo?.slug;
           const rosto = (
