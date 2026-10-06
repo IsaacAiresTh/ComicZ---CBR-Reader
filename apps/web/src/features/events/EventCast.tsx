@@ -19,9 +19,16 @@ export function EventCast({ elenco }: { elenco: GuideCharacterView[] }) {
    * chave estrangeira para o personagem do acervo. Casar por nome e o que
    * existe hoje e resolve os oito deste evento; quem nao casar continua
    * aparecendo, so nao vira link — melhor do que um rosto sumir da fila.
+   *
+   * O mesmo casamento serve para a IMAGEM. GuideCharacter.imagePath e um
+   * upload proprio do guia, e hoje nenhum dos 98 rostos dos eventos tem um:
+   * a fila inteira caia na inicial do nome. Como mais da metade desses nomes e
+   * de personagem que ja tem retrato no acervo, o retrato entra como segunda
+   * opcao. A imagem do guia continua tendo precedencia quando existir — e dela
+   * o papel NESTA historia, que e o motivo de a tabela ser separada.
    */
-  const slugPorNome = new Map(
-    (personagens ?? []).map((personagem) => [personagem.name.toLowerCase(), personagem.slug]),
+  const doAcervoPorNome = new Map(
+    (personagens ?? []).map((personagem) => [personagem.name.toLowerCase(), personagem]),
   );
 
   if (elenco.length === 0) return null;
@@ -34,8 +41,9 @@ export function EventCast({ elenco }: { elenco: GuideCharacterView[] }) {
 
       <ul className="-mx-1 flex gap-4 overflow-x-auto px-1 pb-2">
         {elenco.map((personagem) => {
-          const imagem = mediaUrl(personagem.imageUrl);
-          const slug = slugPorNome.get(personagem.name.toLowerCase());
+          const doAcervo = doAcervoPorNome.get(personagem.name.toLowerCase());
+          const imagem = mediaUrl(personagem.imageUrl) ?? mediaUrl(doAcervo?.portraitUrl);
+          const slug = doAcervo?.slug;
           const rosto = (
             <>
               <div className="mx-auto h-20 w-20 overflow-hidden rounded-full border evento-borda bg-ink-850 transition-transform group-hover:scale-105">

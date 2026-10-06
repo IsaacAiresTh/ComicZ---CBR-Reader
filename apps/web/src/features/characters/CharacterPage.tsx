@@ -200,7 +200,14 @@ function Topo({
   emblema: CharacterImageView | null;
 }) {
   return (
-    <header className="personagem-painel relative -mx-4 -mt-8 overflow-hidden rounded-b-2xl">
+    <header
+      className={`personagem-painel relative -mx-4 -mt-8 overflow-hidden rounded-b-2xl ${
+        // Com `object-contain` a arte encolhe ate caber, entao um topo curto a
+        // deixaria minuscula. O piso so existe quando ha arte: sem ela, o
+        // painel continua do tamanho do texto.
+        arte ? 'sm:min-h-[24rem]' : ''
+      }`}
+    >
       <div className="personagem-faixa pointer-events-none absolute inset-0" />
       <div className="personagem-reticula pointer-events-none absolute inset-0 opacity-40" />
       <Emblema personagem={personagem} imagem={emblema} />
@@ -208,10 +215,20 @@ function Topo({
       {arte && (
         <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/2 sm:block">
           <div className="absolute inset-0 bg-[radial-gradient(58%_52%_at_58%_45%,rgba(0,0,0,0.28),transparent_70%)]" />
+          {/*
+            A arte precisa CABER na caixa, e nao preenche-la. Dimensionar so
+            pela altura (`h-[112%] w-auto max-w-none`) deixava a largura seguir
+            a proporcao da imagem sem teto nenhum: figura deitada estourava a
+            metade direita e era cortada na lateral, e os 112% cortavam o topo
+            — a cabeca do Wally, o tridente do Aquaman. Com `h-full w-full` e
+            `object-contain`, os dois limites valem ao mesmo tempo e a imagem se
+            reduz ate caber inteira, ancorada embaixo. O padding e a margem para
+            ela nao encostar na borda nem no texto.
+          */}
           <img
             src={mediaUrl(arte.url) ?? ''}
             alt={personagem.name}
-            className="absolute bottom-0 right-4 h-[112%] w-auto max-w-none object-contain object-bottom lg:right-12"
+            className="absolute inset-0 h-full w-full object-contain object-bottom pt-6 pr-4 lg:pr-10"
           />
         </div>
       )}
@@ -535,13 +552,27 @@ function Marco({
       </div>
 
       {arte && (
-        <figure className="self-start">
-          <div className="personagem-halo relative rounded-xl">
+        /*
+          A altura do marco e a do seu conteudo mais alto. Com `w-full` numa
+          coluna de ~450px, uma imagem em pe ocupava quase 700px: o texto
+          terminava na terceira linha e sobrava meia tela de vazio ate o marco
+          seguinte.
+
+          A imagem para de mandar na altura da linha. Ela fica absoluta dentro
+          da moldura, e absoluto nao conta para o calculo da altura — quem
+          define a linha passa a ser o texto. A moldura cresce (`flex-1`) ate
+          ocupar a altura que o texto deu, e a imagem se ajusta por dentro com
+          `object-contain`. Os dois limites existem para os extremos: piso para
+          marco de duas linhas nao virar selo, teto para texto longo nao gerar
+          um poster.
+        */
+        <figure className="flex flex-col">
+          <div className="personagem-halo relative max-h-[20rem] min-h-[14rem] flex-1 rounded-xl">
             <img
               src={arte}
               alt={marco.sourceLabel ?? ''}
               loading="lazy"
-              className={`relative w-full object-contain transition-all ${escondido ? 'blur-[6px]' : ''}`}
+              className={`absolute inset-0 h-full w-full object-contain transition-all ${escondido ? 'blur-[6px]' : ''}`}
             />
           </div>
           {marco.sourceLabel && (
