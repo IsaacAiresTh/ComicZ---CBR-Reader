@@ -70,6 +70,24 @@ Os três segredos JWT são gerados pelo próprio Render (`generateValue`), e a
 Se você renomear o serviço, o subdomínio muda: atualize o `destination` em
 `vercel.json`.
 
+### E-mail do "esqueci a senha" (opcional)
+
+Sem SMTP a API sobe normalmente, mas o link de redefinição só aparece no log
+do Render — ninguém recebe nada. Para mandar de verdade, adicione no dashboard
+as variáveis de qualquer provedor SMTP (Brevo, Amazon SES, Mailgun, Gmail com
+senha de app):
+
+| Variável | Exemplo |
+| --- | --- |
+| `SMTP_HOST` | `smtp-relay.brevo.com` |
+| `SMTP_PORT` | `587` (use `465` com `SMTP_SECURE=true`) |
+| `SMTP_USER` / `SMTP_PASS` | as credenciais do provedor |
+| `MAIL_FROM` | `ComicZ <nao-responda@seu-dominio.com>` |
+| `WEB_URL` | `https://comicz-zeta.vercel.app` — base do link no e-mail |
+
+O remetente precisa ser um endereço que o provedor aceite (domínio
+verificado), senão o e-mail cai no spam ou é recusado.
+
 ## 3. Frontend na Vercel
 
 **New Project** apontando para o repositório, com **Root Directory** na raiz

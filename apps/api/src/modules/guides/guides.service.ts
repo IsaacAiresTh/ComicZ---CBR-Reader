@@ -28,7 +28,7 @@ export class GuidesService {
   ) {}
 
   /** Usuario comum ve apenas guias publicados; admin ve todos. */
-  async list(isAdmin: boolean, kind?: GuideKind): Promise<GuideSummary[]> {
+  async list(isAdmin: boolean, userId: string, kind?: GuideKind): Promise<GuideSummary[]> {
     const rows = await this.prisma.guide.findMany({
       where: {
         ...(isAdmin ? {} : { published: true }),
@@ -36,10 +36,11 @@ export class GuidesService {
       },
       orderBy: [{ published: 'desc' }, { title: 'asc' }],
       include: {
-        _count: { select: { items: true } },
+        _count: { select: { items: true, nodes: true } },
         items: {
           orderBy: { position: 'asc' },
-          take: 1,
+          // A segunda capa vai atras da primeira no card da lista.
+          take: 2,
           include: {
             comic: {
               select: {
@@ -55,6 +56,37 @@ export class GuidesService {
       },
     });
 
+    /*
+     * O progresso de quem pede, guia a guia. A lista de guias mostra "3 de 5
+     * lidas" e separa os em andamento; sem isto, so o detalhe sabia contar.
+     * Duas consultas para a lista inteira — os itens dos guias e as leituras
+     * terminadas — e a conta em memoria.
+     */
+    const lidasPorGuia = new Map<string, number>();
+    if (userId && rows.length > 0) {
+      const itens = await this.prisma.guideItem.findMany({
+        where: { guideId: { in: rows.map((row) => row.id) } },
+        select: { guideId: true, comicId: true },
+      });
+      const terminadas = new Set(
+        (
+          await this.prisma.readingProgress.findMany({
+            where: {
+              userId,
+              completed: true,
+              comicId: { in: [...new Set(itens.map((i) => i.comicId))] },
+            },
+            select: { comicId: true },
+          })
+        ).map((progresso) => progresso.comicId),
+      );
+      for (const item of itens) {
+        if (terminadas.has(item.comicId)) {
+          lidasPorGuia.set(item.guideId, (lidasPorGuia.get(item.guideId) ?? 0) + 1);
+        }
+      }
+    }
+
     return rows.map((row) => {
       const first = row.items[0]?.comic;
       return {
@@ -67,8 +99,12 @@ export class GuidesService {
         kind: row.kind,
         accentColor: row.accentColor,
         itemCount: row._count.items,
+        readCount: lidasPorGuia.get(row.id) ?? 0,
+        nodeCount: row._count.nodes,
+        featured: row.featured,
         // A capa escolhida pelo admin; na falta dela, a da primeira HQ da ordem.
         coverUrl: guideCoverUrl(row, first ? coverUrl(first) : null),
+        secondCoverUrl: row.items[1] ? coverUrl(row.items[1].comic) : null,
       };
     });
   }
@@ -120,7 +156,10 @@ export class GuidesService {
       kind: guide.kind,
       accentColor: guide.accentColor,
       itemCount: guide._count.items,
+      nodeCount: guide.nodes.length,
+      featured: guide.featured,
       coverUrl: guideCoverUrl(guide, firstCover ? coverUrl(firstCover) : null),
+      secondCoverUrl: guide.items[1] ? coverUrl(guide.items[1].comic) : null,
       hasOwnCover: Boolean(guide.coverPath),
       items,
       characters: guide.characters.map((character) => ({
@@ -170,17 +209,27 @@ export class GuidesService {
 
   async update(id: string, input: UpsertGuideInput) {
     await this.ensureExists(id);
-    return this.prisma.guide.update({
-      where: { id },
-      data: {
-        title: input.title,
-        summary: input.summary ?? null,
-        description: input.description ?? null,
-        ...(input.published !== undefined ? { published: input.published } : {}),
-        ...(input.kind !== undefined ? { kind: input.kind } : {}),
-        ...(input.accentColor !== undefined ? { accentColor: input.accentColor ?? null } : {}),
-      },
-    });
+    const dados = {
+      title: input.title,
+      summary: input.summary ?? null,
+      description: input.description ?? null,
+      ...(input.published !== undefined ? { published: input.published } : {}),
+      ...(input.kind !== undefined ? { kind: input.kind } : {}),
+      ...(input.accentColor !== undefined ? { accentColor: input.accentColor ?? null } : {}),
+      ...(input.featured !== undefined ? { featured: input.featured } : {}),
+    };
+    // So um guia em destaque: marcar este desmarca o anterior, junto.
+    if (input.featured) {
+      const [, atualizado] = await this.prisma.$transaction([
+        this.prisma.guide.updateMany({
+          where: { featured: true, id: { not: id } },
+          data: { featured: false },
+        }),
+        this.prisma.guide.update({ where: { id }, data: dados }),
+      ]);
+      return atualizado;
+    }
+    return this.prisma.guide.update({ where: { id }, data: dados });
   }
 
   async remove(id: string): Promise<void> {

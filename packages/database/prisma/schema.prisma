@@ -28,11 +28,12 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  refreshTokens RefreshToken[]
-  libraryItems  LibraryItem[]
-  progress      ReadingProgress[]
-  guides        Guide[]
-  collections   Collection[]
+  refreshTokens  RefreshToken[]
+  passwordResets PasswordResetToken[]
+  libraryItems   LibraryItem[]
+  progress       ReadingProgress[]
+  guides         Guide[]
+  collections    Collection[]
 
   @@map("users")
 }
@@ -52,6 +53,23 @@ model RefreshToken {
   @@index([userId])
   @@index([expiresAt])
   @@map("refresh_tokens")
+}
+
+/// Link de "esqueci a senha". Como o refresh token, guardamos so o SHA-256:
+/// quem ler o banco nao consegue usar um link pendente. Vale uma hora e uma
+/// vez so (usedAt).
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("password_reset_tokens")
 }
 
 // ---------------------------------------------------------------- catalogo
@@ -99,15 +117,14 @@ model Series {
   createdAt   DateTime     @default(now()) @map("created_at")
   updatedAt   DateTime     @updatedAt @map("updated_at")
 
-  publisher       Publisher?       @relation(fields: [publisherId], references: [id], onDelete: SetNull)
+  publisher       Publisher?            @relation(fields: [publisherId], references: [id], onDelete: SetNull)
   comics          Comic[]
   creators        SeriesCreator[]
   collectionItems CollectionItem[]
+  startHereFor    Character[]
+  characterNotes  CharacterSeriesNote[]
 
   @@index([publisherId])
-  startHereFor   Character[]
-  characterNotes CharacterSeriesNote[]
-
   @@map("series")
 }
 
@@ -137,24 +154,24 @@ model Creator {
 }
 
 model Character {
-  id   String @id @default(uuid()) @db.Uuid
-  name String @unique
-  slug String @unique
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String   @unique
+  slug         String   @unique
   /// Uma linha: quem e. Aparece na lista e sob o nome na pagina.
-  summary String?
+  summary      String?
   /// O texto da pagina. Nomes de outros personagens viram link sozinhos.
-  description String?
+  description  String?
   /// Como o personagem tambem e chamado nos textos, e so para isso: sem
   /// "Prime" aqui, uma descricao que o chame assim nao vira link.
-  aliases String[] @default([])
+  aliases      String[] @default([])
   /// Hex "#rrggbb". As duas cores do personagem, e so nos acentos: titulo,
   /// halo, filete e os links do texto. O fundo continua sendo o ink do site.
-  accentColor  String? @map("accent_color")
-  accentColor2 String? @map("accent_color_2")
+  accentColor  String?  @map("accent_color")
+  accentColor2 String?  @map("accent_color_2")
   /// Chave de uma familia carregada no index.html — lista fechada de proposito:
   /// nome solto cai num fallback silencioso, que foi o que aconteceu com a
   /// Bangers, referenciada no tema e nunca baixada.
-  displayFont String? @map("display_font")
+  displayFont  String?  @map("display_font")
 
   /// A ficha rapida. Tudo opcional: sao 189 personagens vindos do metadado dos
   /// arquivos, e a pagina precisa ficar inteira com todos os campos vazios.
@@ -241,15 +258,15 @@ model CharacterSeriesNote {
 /// existe coluna de "principal" porque a ordem ja responde isso, e duas fontes
 /// para o mesmo fato divergem.
 model CharacterImage {
-  id          String  @id @default(uuid()) @db.Uuid
-  characterId String  @map("character_id") @db.Uuid
+  id          String   @id @default(uuid()) @db.Uuid
+  characterId String   @map("character_id") @db.Uuid
   path        String
   /// Legenda opcional, sob a imagem.
   caption     String?
   position    Int
   /// Promove esta imagem a marca d'agua do topo. Sem nenhuma marcada, a pagina
   /// usa a inicial do nome na fonte do personagem, que serve para todos.
-  emblem      Boolean @default(false)
+  emblem      Boolean  @default(false)
   /// Versao da URL da imagem: a rota de midia responde `immutable` por um ano,
   /// entao trocar o arquivo precisa mudar a URL.
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -479,6 +496,8 @@ model Guide {
   /// linha do tempo, selos e barra —, nunca no fundo: o tema do site continua
   /// mandando na leitura.
   accentColor String?   @map("accent_color")
+  /// O "comece aqui" da pagina de guias. No maximo um (indice parcial).
+  featured    Boolean   @default(false)
   createdById String?   @map("created_by_id") @db.Uuid
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
@@ -496,17 +515,17 @@ model Guide {
 /// edicoes numa trilha, a lista vertical fica impossivel de ler, enquanto os
 /// mesmos 138 itens cabem em uma duzia de blocos.
 model GuideNode {
-  id      String  @id @default(uuid()) @db.Uuid
-  guideId String  @map("guide_id") @db.Uuid
+  id      String   @id @default(uuid()) @db.Uuid
+  guideId String   @map("guide_id") @db.Uuid
   label   String
   /// Uma linha sobre o que este bloco e, mostrada no card do mapa.
   note    String?
   /// Faixa horizontal (linha do mapa). 0 e a de cima.
   lane    Int
   /// Passo no eixo do tempo, da esquerda para a direita.
-  coluna  Int     @map("coluna")
+  coluna  Int      @map("coluna")
   /// Bloco que nao depende de nenhum outro — comeca uma leitura por aqui.
-  entry   Boolean @default(false)
+  entry   Boolean  @default(false)
   /// De quais blocos este nasce. Guardado como lista, e nao como tabela de
   /// arestas: o grafo e pequeno e sempre lido inteiro junto com o guia.
   parents String[] @db.Uuid
@@ -523,12 +542,12 @@ model GuideNode {
 /// diferentes com peso e imagem diferentes, e aqui o que importa e o papel que
 /// ele tem NESTA historia.
 model GuideCharacter {
-  id        String  @id @default(uuid()) @db.Uuid
-  guideId   String  @map("guide_id") @db.Uuid
+  id        String   @id @default(uuid()) @db.Uuid
+  guideId   String   @map("guide_id") @db.Uuid
   name      String
   /// "O vilao", "Quem paga a conta" — uma linha, nao uma biografia.
   role      String?
-  imagePath String? @map("image_path")
+  imagePath String?  @map("image_path")
   position  Int
   /// Versao da URL da imagem: sem isto, trocar o rosto nao tiraria o antigo do
   /// cache, que responde `immutable` por um ano.

@@ -5,12 +5,18 @@ import type {
   LibraryEntry,
   LibraryGroup,
   ListLibraryQuery,
-  Paginated,
+  LibraryCounts,
+  LibraryListResponse,
   UpdateLibraryItemInput,
 } from '@comicz/shared';
 import { paginate, toSkipTake } from '../../common/utils/pagination';
 import { PrismaService } from '../../prisma/prisma.service';
-import { comicSummaryInclude, coverUrl, mediaVersion, toComicSummary } from '../comics/comic-mapper';
+import {
+  comicSummaryInclude,
+  coverUrl,
+  mediaVersion,
+  toComicSummary,
+} from '../comics/comic-mapper';
 import { seriesCoverUrl } from '../files/media-urls';
 
 type LibrarySeriesCard = Extract<LibraryGroup, { kind: 'series' }>['series'];
@@ -32,7 +38,7 @@ export class LibraryService {
    * a aba selecionada decide apenas se a saga aparece. Sem isso "8 edicoes"
    * viraria "2 edicoes" so por trocar de aba.
    */
-  async list(userId: string, query: ListLibraryQuery): Promise<Paginated<LibraryGroup>> {
+  async list(userId: string, query: ListLibraryQuery): Promise<LibraryListResponse> {
     // Todo filtro parte de userId: a biblioteca de um usuario nunca e
     // alcancavel a partir de um id na URL (evita IDOR/BOLA).
     const items = await this.prisma.libraryItem.findMany({
@@ -42,7 +48,7 @@ export class LibraryService {
         status: true,
         favorite: true,
         updatedAt: true,
-        comic: { select: { seriesId: true } },
+        comic: { select: { seriesId: true, title: true, series: { select: { name: true } } } },
       },
     });
 
@@ -54,6 +60,8 @@ export class LibraryService {
       wantToRead: number;
       favorites: number;
       lastActivityAt: Date;
+      /** Nome pelo qual o grupo e ordenado em "A-Z": a saga, ou a HQ avulsa. */
+      nome: string;
       /** Ao menos um item satisfaz a aba selecionada. */
       matches: boolean;
     }
@@ -74,6 +82,7 @@ export class LibraryService {
         wantToRead: 0,
         favorites: 0,
         lastActivityAt: item.updatedAt,
+        nome: item.comic.series?.name ?? item.comic.title,
         matches: false,
       };
 
@@ -88,9 +97,27 @@ export class LibraryService {
       groups.set(key, group);
     }
 
-    const visible = [...groups.values()]
+    /*
+     * Quanto cada aba mostraria, contado como a lista conta — uma saga vale um.
+     * Vai junto na resposta para as abas exibirem o numero sem uma chamada por
+     * aba.
+     */
+    const todos = [...groups.values()];
+    const counts: LibraryCounts = {
+      all: todos.length,
+      reading: todos.filter((group) => group.reading > 0).length,
+      wantToRead: todos.filter((group) => group.wantToRead > 0).length,
+      read: todos.filter((group) => group.read > 0).length,
+      favorites: todos.filter((group) => group.favorites > 0).length,
+    };
+
+    const visible = todos
       .filter((group) => group.matches)
-      .sort((a, b) => b.lastActivityAt.getTime() - a.lastActivityAt.getTime());
+      .sort((a, b) =>
+        query.sort === 'title'
+          ? a.nome.localeCompare(b.nome, 'pt-BR')
+          : b.lastActivityAt.getTime() - a.lastActivityAt.getTime(),
+      );
 
     const { skip, take } = toSkipTake(query);
     const pageGroups = visible.slice(skip, skip + take);
@@ -121,7 +148,7 @@ export class LibraryService {
       if (entry) pageItems.push({ kind: 'comic', entry });
     }
 
-    return paginate(pageItems, visible.length, query);
+    return { ...paginate(pageItems, visible.length, query), counts };
   }
 
   /**
@@ -214,9 +241,7 @@ export class LibraryService {
     ]);
 
     const seriesById = new Map(seriesRows.map((row) => [row.id, row]));
-    const acervoBySeries = new Map(
-      acervo.map((row) => [row.seriesId ?? '', row._count._all]),
-    );
+    const acervoBySeries = new Map(acervo.map((row) => [row.seriesId ?? '', row._count._all]));
     const coverBySeries = new Map<string, string | null>();
     for (const issue of issues) {
       if (!issue.seriesId || coverBySeries.get(issue.seriesId)) continue;

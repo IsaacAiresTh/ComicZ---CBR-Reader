@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Logo } from '../../components/Logo';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { loginSchema } from '@comicz/shared';
 import { Button, ErrorNote, Field, Input } from '../../components/ui';
@@ -12,6 +13,8 @@ export function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  /** O erro veio da senha recusada (401), e nao de validacao ou de rede. */
+  const [senhaErrada, setSenhaErrada] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   if (!isLoading && user) return <Navigate to="/" replace />;
@@ -21,6 +24,7 @@ export function LoginPage() {
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
     setError(null);
+    setSenhaErrada(false);
 
     const parsed = loginSchema.safeParse({ email, password });
     if (!parsed.success) {
@@ -34,6 +38,7 @@ export function LoginPage() {
       navigate(from, { replace: true });
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Nao foi possivel entrar');
+      setSenhaErrada(caught instanceof ApiError && caught.status === 401);
     } finally {
       setSubmitting(false);
     }
@@ -59,7 +64,20 @@ export function LoginPage() {
       }
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <ErrorNote>{error}</ErrorNote>}
+        {error && (
+          <ErrorNote>
+            {error}{' '}
+            {senhaErrada && (
+              <Link
+                to="/esqueci-a-senha"
+                state={{ email }}
+                className="font-bold text-brand-400 hover:underline"
+              >
+                Redefinir a senha?
+              </Link>
+            )}
+          </ErrorNote>
+        )}
         <Field label="E-mail">
           <Input
             type="email"
@@ -70,7 +88,21 @@ export function LoginPage() {
             required
           />
         </Field>
-        <Field label="Senha">
+        {/*
+          O link fica ao lado do rotulo "Senha", onde o olho procura quando a
+          senha falha, e reaparece no erro de login.
+        */}
+        <label className="block">
+          <span className="mb-1.5 flex items-baseline justify-between text-sm font-medium text-ink-300">
+            Senha
+            <Link
+              to="/esqueci-a-senha"
+              state={{ email }}
+              className="text-[13px] font-bold text-brand-400 hover:underline"
+            >
+              Esqueci a senha
+            </Link>
+          </span>
           <Input
             type="password"
             autoComplete="current-password"
@@ -79,7 +111,7 @@ export function LoginPage() {
             placeholder="••••••••"
             required
           />
-        </Field>
+        </label>
         <Button type="submit" className="w-full" disabled={submitting}>
           {submitting ? 'Entrando...' : 'Entrar'}
         </Button>
@@ -95,28 +127,22 @@ export function AuthShell({
   footer,
 }: {
   title: string;
-  subtitle: string;
+  subtitle: React.ReactNode;
   children: React.ReactNode;
-  footer: React.ReactNode;
+  footer?: React.ReactNode;
 }) {
   return (
     <div className="flex min-h-dvh items-center justify-center bg-ink-950 px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-2xl font-black tracking-tight"
-          >
-            <span className="rounded-md bg-brand-500 px-2 py-0.5 text-ink-950">Comic</span>
-            <span className="text-ink-100">Z</span>
-          </Link>
+          <Logo tamanho="lg" />
           <h1 className="mt-6 text-xl font-semibold text-ink-100">{title}</h1>
           <p className="mt-1 text-sm text-ink-400">{subtitle}</p>
         </div>
         <div className="rounded-2xl border border-ink-800 bg-ink-900 p-6 comic-shadow">
           {children}
         </div>
-        <p className="mt-6 text-center text-sm text-ink-400">{footer}</p>
+        {footer && <p className="mt-6 text-center text-sm text-ink-400">{footer}</p>}
       </div>
     </div>
   );

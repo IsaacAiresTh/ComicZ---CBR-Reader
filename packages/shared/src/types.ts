@@ -13,6 +13,11 @@ export interface PublicUser {
   createdAt: string;
 }
 
+/** O que a tela de nova senha mostra de um link valido: para qual conta e. */
+export interface ResetTokenInfo {
+  email: string;
+}
+
 export interface AuthResponse {
   user: PublicUser;
   accessToken: string;
@@ -45,6 +50,20 @@ export interface Paginated<T> {
   perPage: number;
   totalPages: number;
 }
+
+/**
+ * Quantos itens cada aba da biblioteca mostraria, contados como a lista conta:
+ * uma saga com varias edicoes vale um.
+ */
+export interface LibraryCounts {
+  all: number;
+  reading: number;
+  wantToRead: number;
+  read: number;
+  favorites: number;
+}
+
+export type LibraryListResponse = Paginated<LibraryGroup> & { counts: LibraryCounts };
 
 /**
  * O catalogo devolve, alem da pagina, quantos titulos existem por inicial.
@@ -267,6 +286,12 @@ export interface GuideSummary {
   /** Hex "#rrggbb" da saga, ou null: a UI cai no amarelo da marca. */
   accentColor: string | null;
   itemCount: number;
+  /** Quantas edicoes deste guia quem pede ja terminou de ler. */
+  readCount: number;
+  /** Blocos do mapa (historias). Zero num guia simples. */
+  nodeCount: number;
+  /** O "comece aqui" escolhido no painel. */
+  featured: boolean;
   /** Quando o guia foi criado. Alimenta o selo de novidade. */
   createdAt: string;
   /**
@@ -275,6 +300,8 @@ export interface GuideSummary {
    * separa os dois casos para a UI poder oferecer "voltar para a herdada".
    */
   coverUrl: string | null;
+  /** Capa da segunda HQ da ordem: aparece atras da primeira, como uma pilha. */
+  secondCoverUrl: string | null;
 }
 
 export interface GuideDetail extends GuideSummary {
@@ -284,7 +311,6 @@ export interface GuideDetail extends GuideSummary {
   items: GuideItemView[];
   characters: GuideCharacterView[];
   nodes: GuideNodeView[];
-  readCount?: number;
 }
 
 export interface LibraryEntry {

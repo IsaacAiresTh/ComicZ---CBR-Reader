@@ -385,6 +385,8 @@ export function useUpdateGuide() {
         /** GUIDE e uma trilha; EVENT ganha o mapa de blocos. */
         kind?: 'GUIDE' | 'EVENT';
         accentColor?: string | null;
+        /** So um guia fica em destaque: marcar este desmarca o anterior. */
+        featured?: boolean;
       };
     }) => api.patch(`/guides/${input.id}`, input.data),
     onSuccess: () => invalidateGuides(queryClient),

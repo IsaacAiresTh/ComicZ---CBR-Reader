@@ -22,6 +22,20 @@ export const loginSchema = z.object({
   password: z.string().min(1, 'Informe a senha'),
 });
 
+/** "Esqueci a senha": so o e-mail. A resposta e a mesma exista a conta ou nao. */
+export const forgotPasswordSchema = z.object({
+  email: z.string().email('E-mail invalido'),
+});
+
+/** O token do link, como veio na URL. */
+export const resetTokenSchema = z.object({
+  token: z.string().min(20, 'Link invalido').max(200, 'Link invalido'),
+});
+
+export const resetPasswordSchema = resetTokenSchema.extend({
+  newPassword: passwordSchema,
+});
+
 /**
  * Clientes nativos nao tem cookie: o app guarda o refresh token no cofre do
  * aparelho e o envia no corpo. Mesmo token opaco de 48 bytes em base64url.
@@ -149,6 +163,8 @@ export const listLibraryQuerySchema = z.object({
     .enum(['true', 'false'])
     .transform((value) => value === 'true')
     .optional(),
+  /** "recent": mexidas por ultimo (padrao); "title": ordem alfabetica. */
+  sort: z.enum(['recent', 'title']).default('recent'),
   page: z.coerce.number().int().min(1).default(1),
   perPage: z.coerce.number().int().min(1).max(60).default(24),
 });
@@ -216,6 +232,8 @@ export const upsertGuideSchema = z.object({
   published: z.boolean().optional(),
   kind: guideKindSchema.optional(),
   accentColor: hexColorSchema.nullish(),
+  /** Marca como o "comece aqui" da pagina de guias; desmarca o anterior. */
+  featured: z.boolean().optional(),
 });
 
 export const guideNodeSchema = z.object({
@@ -250,6 +268,9 @@ export const importLocalSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetTokenInput = z.infer<typeof resetTokenSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type NativeRefreshInput = z.infer<typeof nativeRefreshSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;

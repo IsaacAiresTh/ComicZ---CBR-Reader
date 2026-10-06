@@ -8,7 +8,7 @@ import { mediaUrl } from '../../services/api';
 import { useAuth } from '../auth/AuthContext';
 import { CatalogGrid } from './CatalogGrid';
 import { CARD_GRID_CLASS } from './ComicCard';
-import { GuideCard } from '../guides/GuideCard';
+import { GuideCoverCard } from '../guides/GuideCard';
 import { useCatalog, useContinueReading, useGuides, useUserStats } from './queries';
 
 /**
@@ -96,7 +96,7 @@ export function HomePage() {
         ) : (
           <div className={CARD_GRID_CLASS}>
             {publishedGuides.slice(0, 6).map((guide) => (
-              <GuideCard key={guide.id} guide={guide} />
+              <GuideCoverCard key={guide.id} guide={guide} />
             ))}
           </div>
         )}

@@ -1,4 +1,5 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Logo } from '../../components/Logo';
 import { useCharacters } from '../comics/queries';
 import { useAdminJobs, useAdminStats } from './queries';
 
@@ -31,16 +32,9 @@ export function AdminLayout() {
   return (
     <div className="min-h-dvh bg-ink-950 lg:grid lg:grid-cols-[240px_minmax(0,1fr)]">
       <aside className="sticky top-0 z-30 flex flex-col gap-1 border-b border-ink-800 bg-ink-900 px-3.5 py-3 lg:h-dvh lg:border-b-0 lg:border-r lg:py-5">
-        <Link
-          to="/admin"
-          className="flex items-center gap-1.5 px-2 pb-2 text-lg font-black tracking-tight lg:pb-4"
-        >
-          <span className="rounded-md bg-brand-500 px-1.5 py-0.5 text-ink-950">Comic</span>
-          <span className="text-ink-100">Z</span>
-          <span className="ml-1.5 text-[11px] font-bold tracking-[0.16em] text-brand-400">
-            ADMIN
-          </span>
-        </Link>
+        <div className="px-2 pb-2 lg:pb-4">
+          <Logo tamanho="sm" sufixo="ADMIN" to="/admin" />
+        </div>
 
         <nav
           aria-label="Admin"

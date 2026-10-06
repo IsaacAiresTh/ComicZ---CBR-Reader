@@ -40,6 +40,27 @@ const envSchema = z.object({
    */
   TMP_ROOT: z.string().optional(),
   MAX_UPLOAD_MB: z.coerce.number().int().min(1).max(8192).default(1024),
+
+  /**
+   * Endereco publico do site, para os links mandados por e-mail ("esqueci a
+   * senha"). Sem ele, vale a primeira origem de WEB_ORIGIN.
+   */
+  WEB_URL: z.string().url().optional(),
+  /**
+   * SMTP generico (qualquer provedor: Gmail, Brevo, SES, Mailgun...). Sem
+   * SMTP_HOST, nenhum e-mail sai: o link de redefinicao vai para o log da API,
+   * o que basta em desenvolvimento.
+   */
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  /** true para TLS direto (porta 465); com false, a conexao sobe por STARTTLS. */
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((value) => (value === undefined ? undefined : value === 'true')),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  MAIL_FROM: z.string().default('ComicZ <nao-responda@comicz.local>'),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -67,6 +88,17 @@ export interface AppConfig {
   uploadTmpDir: string;
   maxUploadMb: number;
   maxUploadBytes: number;
+  /** Base dos links que vao por e-mail, sem barra no fim. */
+  webUrl: string;
+  /** null quando nao ha SMTP configurado. */
+  smtp: {
+    host: string;
+    port: number;
+    secure: boolean;
+    user?: string;
+    pass?: string;
+  } | null;
+  mailFrom: string;
   jwt: {
     accessSecret: string;
     accessTtl: string;
@@ -109,6 +141,17 @@ export function loadConfig(): AppConfig {
     uploadTmpDir: join(tmpRoot, 'uploads'),
     maxUploadMb: env.MAX_UPLOAD_MB,
     maxUploadBytes: env.MAX_UPLOAD_MB * 1024 * 1024,
+    webUrl: (env.WEB_URL ?? env.WEB_ORIGIN.split(',')[0] ?? '').trim().replace(/\/+$/, ''),
+    smtp: env.SMTP_HOST
+      ? {
+          host: env.SMTP_HOST,
+          port: env.SMTP_PORT,
+          secure: env.SMTP_SECURE ?? env.SMTP_PORT === 465,
+          user: env.SMTP_USER || undefined,
+          pass: env.SMTP_PASS || undefined,
+        }
+      : null,
+    mailFrom: env.MAIL_FROM,
     jwt: {
       accessSecret: env.JWT_ACCESS_SECRET,
       accessTtl: env.JWT_ACCESS_TTL,

@@ -1,5 +1,6 @@
 import type { GuideNodeView } from '@comicz/shared';
 import { mediaUrl } from '../../services/api';
+import { partesDoAto } from './saga';
 
 /**
  * O mapa do evento.
@@ -35,25 +36,19 @@ const y0 = (coluna: number) => coluna * (A + GY);
 /** Folga entre a ponta da seta e a borda do card, para uma nao comer a outra. */
 const PONTA = 3;
 
-/**
- * "Ato 5 · A conta do Wally" -> ["Ato 5", "A conta do Wally"]. O numero e o
- * nome ganham peso diferente no card: o numero diz a ordem, o nome diz o que e.
- * Sem o separador, o texto inteiro vira nome — o ato e campo livre.
- */
-function partesDoAto(ato: string): [string | null, string] {
-  const corte = ato.indexOf(' · ');
-  return corte === -1 ? [null, ato] : [ato.slice(0, corte), ato.slice(corte + 3)];
-}
-
 interface Props {
   blocos: GuideNodeView[];
   /** Ato de cada bloco, por id. Vem dos itens, que sao quem carrega o capitulo. */
   atos: Map<string, string>;
   selecionado: string | null;
   onSelecionar: (id: string) => void;
+  /** Bloco com a proxima leitura: ganha a borda cheia e "voce esta aqui". */
+  atual?: string | null;
+  /** Blocos so com edicoes opcionais: tracejados, para nao parecerem obrigatorios. */
+  opcionais?: Set<string>;
 }
 
-export function EventMap({ blocos, atos, selecionado, onSelecionar }: Props) {
+export function EventMap({ blocos, atos, selecionado, onSelecionar, atual, opcionais }: Props) {
   if (blocos.length === 0) return null;
 
   const colunas = Math.max(...blocos.map((b) => b.coluna)) + 1;
@@ -91,7 +86,7 @@ export function EventMap({ blocos, atos, selecionado, onSelecionar }: Props) {
   });
 
   return (
-    <div className="-mx-4 overflow-x-auto px-4 pb-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+    <div className="overflow-x-auto pb-3">
       <div className="relative" style={{ width: largura, height: altura }}>
         <svg
           className="pointer-events-none absolute inset-0"
@@ -148,6 +143,8 @@ export function EventMap({ blocos, atos, selecionado, onSelecionar }: Props) {
             bloco={bloco}
             ato={atos.get(bloco.id) ?? null}
             ativo={selecionado === bloco.id}
+            atual={atual === bloco.id}
+            opcional={opcionais?.has(bloco.id) ?? false}
             onSelecionar={onSelecionar}
           />
         ))}
@@ -160,11 +157,15 @@ function NodeCard({
   bloco,
   ato,
   ativo,
+  atual,
+  opcional,
   onSelecionar,
 }: {
   bloco: GuideNodeView;
   ato: string | null;
   ativo: boolean;
+  atual: boolean;
+  opcional: boolean;
   onSelecionar: (id: string) => void;
 }) {
   const capa = mediaUrl(bloco.coverUrl);
@@ -176,9 +177,15 @@ function NodeCard({
       type="button"
       onClick={() => onSelecionar(bloco.id)}
       aria-pressed={ativo}
-      className={`absolute flex overflow-hidden rounded-lg border bg-ink-900 text-left transition-colors ${
-        ativo ? 'evento-borda evento-tinta' : 'border-ink-800 hover:border-ink-600'
-      }`}
+      className={`absolute flex overflow-hidden rounded-lg bg-ink-900 text-left transition-colors ${
+        atual
+          ? 'border-2 border-[var(--accent)] shadow-[4px_4px_0_0_var(--accent)]'
+          : completo
+            ? 'border-2 border-emerald-400/70'
+            : opcional
+              ? 'border border-dashed border-ink-500'
+              : 'border border-ink-800 hover:border-ink-600'
+      } ${ativo ? 'evento-tinta outline outline-[3px] outline-offset-[3px] outline-[color-mix(in_srgb,var(--accent)_35%,transparent)]' : ''}`}
       style={{ left: x0(bloco.lane), top: y0(bloco.coluna), width: L, height: A }}
     >
       <div className="h-full w-[46px] shrink-0 bg-ink-850">
@@ -187,10 +194,20 @@ function NodeCard({
 
       <div className="flex min-w-0 flex-1 flex-col justify-between p-2.5">
         <div className="min-w-0">
-          {bloco.entry && (
-            <span className="mb-1 inline-block rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider evento-selo">
-              comece aqui
+          {atual ? (
+            <span className="mb-1 inline-block rounded px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider evento-barra text-ink-950">
+              você está aqui
             </span>
+          ) : opcional ? (
+            <span className="mb-1 inline-block rounded border border-dashed border-ink-500 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-ink-300">
+              desvio opcional
+            </span>
+          ) : (
+            bloco.entry && (
+              <span className="mb-1 inline-block rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider evento-selo">
+                comece aqui
+              </span>
+            )
           )}
           {ato && <LinhaDoAto ato={ato} />}
           <p className="line-clamp-2 text-xs font-semibold leading-snug text-ink-100">

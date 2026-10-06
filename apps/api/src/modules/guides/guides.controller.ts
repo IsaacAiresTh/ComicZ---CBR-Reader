@@ -31,7 +31,10 @@ import {
   type ReorderGuideItemsInput,
   type UpsertGuideInput,
 } from '@comicz/shared';
-import { CurrentUser, type AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  type AuthenticatedUser,
+} from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { CoverService, OPCOES_CAPA, type UploadedCover } from '../files/cover.service';
@@ -49,7 +52,7 @@ export class GuidesController {
   @ApiOperation({ summary: 'Lista os guias de leitura' })
   list(@CurrentUser() user: AuthenticatedUser, @Query('kind') kind?: string) {
     const filtro = kind === 'EVENT' || kind === 'GUIDE' ? kind : undefined;
-    return this.guides.list(user.role === Role.ADMIN, filtro);
+    return this.guides.list(user.role === Role.ADMIN, user.id, filtro);
   }
 
   @Get(':idOrSlug')

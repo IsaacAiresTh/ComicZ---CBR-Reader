@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { LoginInput, PublicUser, RegisterInput } from '@comicz/shared';
+import type { LoginInput, PublicUser, RegisterInput, ResetPasswordInput } from '@comicz/shared';
 import { api, onSessionChange, refreshSession, setSession } from '../../services/api';
 
 interface AuthResponseBody {
@@ -24,7 +24,11 @@ interface AuthContextValue {
   isLoading: boolean;
   login: (input: LoginInput) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
+  /** Troca a senha pelo link do e-mail e ja entra na conta. */
+  resetPassword: (input: ResetPasswordInput) => Promise<void>;
   logout: () => Promise<void>;
+  /** Encerra a sessao em todos os aparelhos, este incluido. */
+  logoutAll: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -88,9 +92,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applyAuth],
   );
 
+  const resetPassword = useCallback(
+    async (input: ResetPasswordInput) => {
+      applyAuth(await api.post<AuthResponseBody>('/auth/reset-password', input));
+    },
+    [applyAuth],
+  );
+
   const logout = useCallback(async () => {
     try {
       await api.post('/auth/logout');
+    } finally {
+      setSession(null);
+      setUser(null);
+      queryClient.clear();
+    }
+  }, [queryClient]);
+
+  const logoutAll = useCallback(async () => {
+    try {
+      await api.post('/auth/logout-all');
     } finally {
       setSession(null);
       setUser(null);
@@ -109,10 +130,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       login,
       register,
+      resetPassword,
       logout,
+      logoutAll,
       refreshUser,
     }),
-    [user, isLoading, login, register, logout, refreshUser],
+    [user, isLoading, login, register, resetPassword, logout, logoutAll, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

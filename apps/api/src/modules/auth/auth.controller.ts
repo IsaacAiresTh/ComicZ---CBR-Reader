@@ -3,16 +3,26 @@ import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import {
+  forgotPasswordSchema,
   loginSchema,
   nativeRefreshSchema,
   registerSchema,
+  resetPasswordSchema,
+  resetTokenSchema,
   type AuthResponse,
+  type ForgotPasswordInput,
   type LoginInput,
   type MediaTokenResponse,
   type NativeAuthResponse,
   type RegisterInput,
+  type ResetPasswordInput,
+  type ResetTokenInfo,
+  type ResetTokenInput,
 } from '@comicz/shared';
-import { CurrentUser, type AuthenticatedUser } from '../../common/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  type AuthenticatedUser,
+} from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { APP_CONFIG, type AppConfig } from '../../config/configuration';
@@ -61,6 +71,43 @@ export class AuthController {
     @Res({ passthrough: true }) res: Response,
   ) {
     return this.respond(await this.auth.login(body, this.meta(req)), req, res);
+  }
+
+  /**
+   * Sempre 204, exista a conta ou nao. O limite e por IP e apertado: a rota
+   * manda e-mail, e nao pode virar canhao de spam na caixa de alguem.
+   */
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
+  @Post('forgot-password')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Manda o link de redefinicao de senha, se a conta existir' })
+  forgotPassword(@Body(new ZodValidationPipe(forgotPasswordSchema)) body: ForgotPasswordInput) {
+    this.auth.requestPasswordReset(body.email);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
+  @Post('reset-password/check')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Diz se o link de redefinicao ainda vale, e de qual conta e' })
+  checkResetToken(
+    @Body(new ZodValidationPipe(resetTokenSchema)) body: ResetTokenInput,
+  ): Promise<ResetTokenInfo> {
+    return this.auth.checkResetToken(body.token);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('reset-password')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Troca a senha pelo link e inicia a sessao' })
+  async resetPassword(
+    @Body(new ZodValidationPipe(resetPasswordSchema)) body: ResetPasswordInput,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.respond(await this.auth.resetPassword(body, this.meta(req)), req, res);
   }
 
   @Public()

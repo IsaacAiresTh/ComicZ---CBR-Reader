@@ -320,7 +320,8 @@ export function Segmented<T extends string>({
 }: {
   label: string;
   value: T;
-  options: { value: T; label: string }[];
+  /** `count` aparece miudo ao lado do rotulo, como nas abas da estante. */
+  options: { value: T; label: string; count?: ReactNode }[];
   onChange: (value: T) => void;
 }) {
   return (
@@ -342,6 +343,9 @@ export function Segmented<T extends string>({
           }`}
         >
           {option.label}
+          {option.count !== undefined && (
+            <span className="ml-1 text-[11px] font-normal text-ink-500">{option.count}</span>
+          )}
         </button>
       ))}
     </div>
