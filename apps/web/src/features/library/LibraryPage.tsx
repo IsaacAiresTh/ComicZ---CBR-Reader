@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import type { ComicSummary, LibraryCounts } from '@comicz/shared';
 import { CARD_GRID_CLASS, ComicCard } from '../comics/ComicCard';
 import {
@@ -38,7 +38,10 @@ type Ordem = 'recent' | 'title';
  * quem queria so continuar a leitura tinha que achar a capa no meio de tudo.
  */
 export function LibraryPage() {
-  const [tab, setTab] = useState<TabKey>('all');
+  // `?estante=READ` abre direto numa prateleira: e para onde levam os numeros do perfil.
+  const [params] = useSearchParams();
+  const pedida = TABS.find((item) => item.key === params.get('estante'))?.key;
+  const [tab, setTab] = useState<TabKey>(pedida ?? 'all');
   const [page, setPage] = useState(1);
   const [ordem, setOrdem] = useState<Ordem>('recent');
 

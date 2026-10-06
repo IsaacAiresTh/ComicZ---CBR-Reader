@@ -25,6 +25,8 @@ interface AuthContextValue {
   login: (input: LoginInput) => Promise<void>;
   register: (input: RegisterInput) => Promise<void>;
   logout: () => Promise<void>;
+  /** Encerra a sessao em todos os aparelhos, este incluido. */
+  logoutAll: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
 
@@ -98,6 +100,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [queryClient]);
 
+  const logoutAll = useCallback(async () => {
+    try {
+      await api.post('/auth/logout-all');
+    } finally {
+      setSession(null);
+      setUser(null);
+      queryClient.clear();
+    }
+  }, [queryClient]);
+
   const refreshUser = useCallback(async () => {
     setUser(await api.get<PublicUser>('/users/me'));
   }, []);
@@ -110,9 +122,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       login,
       register,
       logout,
+      logoutAll,
       refreshUser,
     }),
-    [user, isLoading, login, register, logout, refreshUser],
+    [user, isLoading, login, register, logout, logoutAll, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
