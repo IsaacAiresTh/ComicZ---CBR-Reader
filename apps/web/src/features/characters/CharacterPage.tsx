@@ -217,9 +217,10 @@ function Topo({
           <div className="absolute inset-0 bg-[radial-gradient(58%_52%_at_58%_45%,rgba(0,0,0,0.28),transparent_70%)]" />
           {/*
             A arte precisa CABER na caixa, e nao preenche-la. Dimensionar so
-            pela altura (`h-[112%] w-auto max-w-none`) deixava a largura seguir
-            a proporcao da imagem sem teto nenhum: figura deitada estourava a
-            metade direita e era cortada na lateral, e os 112% cortavam o topo
+            pela altura — 112 por cento dela, com largura automatica e sem
+            max-width — deixava a largura seguir a proporcao da imagem sem teto
+            nenhum: figura deitada estourava a metade direita e era cortada na
+            lateral, e o excedente de altura cortava o topo
             — a cabeca do Wally, o tridente do Aquaman. Com `h-full w-full` e
             `object-contain`, os dois limites valem ao mesmo tempo e a imagem se
             reduz ate caber inteira, ancorada embaixo. O padding e a margem para
