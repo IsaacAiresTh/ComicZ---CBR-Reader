@@ -11,6 +11,7 @@ import { comicLabel } from '../../lib/format';
 import { fromHere } from '../../lib/navigation';
 import { ApiError, mediaUrl } from '../../services/api';
 import { useCharacter } from '../comics/queries';
+import { ArteDoMarco } from './ArteDoMarco';
 import { CharacterText } from './CharacterText';
 import { variaveisDoPersonagem } from './estilo';
 
@@ -571,31 +572,12 @@ function Marco({
           abaixo de marco curto junto, descem os dois junto.
         */
         <figure className="self-center">
-          {/*
-            O mesmo espaco recebe dois tipos de arte: recorte com fundo
-            transparente e quadro retangular opaco. Tratados igual, um dos dois
-            sempre sai errado — o recorte emoldurado ganha borda em volta de
-            nada, e o quadro sem moldura fica com aresta dura, colado na pagina.
-
-            `drop-shadow` resolve os dois com a mesma regra porque segue o CANAL
-            ALFA, e nao a caixa, ao contrario de `box-shadow`: no recorte a
-            sombra desenha a silhueta do personagem, no quadro desenha o
-            retangulo e ele passa a ler como foto emoldurada de proposito.
-            `rounded-lg` segue a mesma logica — invisivel onde o canto ja e
-            transparente, suaviza onde ha pixel.
-
-            Para isso a caixa do elemento precisa ser a da imagem, e nao a do
-            container: dai `max-h-full max-w-full` centralizado por flex, no
-            lugar de `absolute inset-0 w-full`.
-          */}
-          <div className="personagem-halo flex h-[17rem] items-center justify-center rounded-xl lg:h-[21rem]">
-            <img
-              src={arte}
-              alt={marco.sourceLabel ?? ''}
-              loading="lazy"
-              className={`max-h-full max-w-full rounded-lg object-contain drop-shadow-[0_14px_30px_rgba(0,0,0,0.55)] transition-all ${escondido ? 'blur-[6px]' : ''}`}
-            />
-          </div>
+          <ArteDoMarco
+            src={arte}
+            alt={marco.sourceLabel ?? ''}
+            estilo={marco.artStyle}
+            escondido={escondido}
+          />
           {marco.sourceLabel && (
             <figcaption className="mt-2 text-xs text-ink-500">{marco.sourceLabel}</figcaption>
           )}

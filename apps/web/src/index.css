@@ -250,6 +250,21 @@
   color: color-mix(in srgb, var(--accent, var(--color-brand-500)) 72%, var(--color-ink-100));
 }
 
+/*
+ * O quadrinho da arte do marco: reticula na cor do personagem sobre um ink
+ * tingido, e a sombra solida deslocada — a sombra borrada faria o quadro
+ * parecer foto; a deslocada faz parecer pagina impressa.
+ */
+@utility personagem-painel {
+  background-color: color-mix(in srgb, var(--accent) 16%, var(--color-ink-950));
+  background-image: radial-gradient(
+    color-mix(in srgb, var(--accent-2) 38%, transparent) 1.3px,
+    transparent 1.6px
+  );
+  background-size: 8px 8px;
+  box-shadow: 8px 8px 0 color-mix(in srgb, var(--accent) 85%, var(--color-ink-950));
+}
+
 /* Halo atras do recorte, para a figura nao boiar sobre o ink liso. */
 @utility personagem-halo {
   background: radial-gradient(

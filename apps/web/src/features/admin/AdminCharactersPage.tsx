@@ -6,6 +6,7 @@ import type {
   CharacterSummary,
   ComicSummary,
   ImportCharactersInput,
+  MilestoneArtStyle,
   SeriesListItem,
 } from '@comicz/shared';
 import { Button, ErrorNote, Field, Input, Select, Spinner, Textarea } from '../../components/ui';
@@ -960,6 +961,7 @@ interface MarcoEmEdicao {
   spoiler: boolean;
   imageId: string | null;
   sourceLabel: string;
+  artStyle: MilestoneArtStyle | null;
 }
 
 /**
@@ -980,6 +982,7 @@ function EditorDeMarcos({ personagem }: { personagem: CharacterDetail }) {
       spoiler: marco.spoiler,
       imageId: personagem.images.find((imagem) => imagem.url === marco.imageUrl)?.id ?? null,
       sourceLabel: marco.sourceLabel ?? '',
+      artStyle: marco.artStyle,
     })),
   );
   const [erro, setErro] = useState<string | null>(null);
@@ -1020,6 +1023,7 @@ function EditorDeMarcos({ personagem }: { personagem: CharacterDetail }) {
           spoiler: marco.spoiler,
           imageId: marco.imageId,
           sourceLabel: marco.sourceLabel.trim() || null,
+          artStyle: marco.imageId ? marco.artStyle : null,
         })),
       });
       setOk(true);
@@ -1106,6 +1110,21 @@ function EditorDeMarcos({ personagem }: { personagem: CharacterDetail }) {
                 ))}
               </Select>
 
+              <Select
+                className="w-auto"
+                value={marco.artStyle ?? ''}
+                disabled={!marco.imageId}
+                onChange={(e) =>
+                  altera(i, { artStyle: (e.target.value || null) as MilestoneArtStyle | null })
+                }
+                title="Como a arte se assenta na página"
+              >
+                <option value="">Moldura automática</option>
+                <option value="dissolver">Dissolver bordas</option>
+                <option value="painel">Painel de HQ</option>
+                <option value="saltando">Saltando do quadro</option>
+              </Select>
+
               <Input
                 value={marco.sourceLabel}
                 onChange={(e) => altera(i, { sourceLabel: e.target.value })}
@@ -1132,7 +1151,15 @@ function EditorDeMarcos({ personagem }: { personagem: CharacterDetail }) {
           onClick={() =>
             setMarcos((atual) => [
               ...atual,
-              { era: '', headline: '', body: '', spoiler: false, imageId: null, sourceLabel: '' },
+              {
+                era: '',
+                headline: '',
+                body: '',
+                spoiler: false,
+                imageId: null,
+                sourceLabel: '',
+                artStyle: null,
+              },
             ])
           }
         >

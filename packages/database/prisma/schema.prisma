@@ -206,6 +206,9 @@ model CharacterMilestone {
   imageId     String? @map("image_id") @db.Uuid
   /// "Crise Infinita #1": de onde veio a arte, sob ela.
   sourceLabel String? @map("source_label")
+  /// Como a arte se assenta: nulo e o automatico (dissolve as bordas que tem
+  /// cena encostando); "dissolver", "painel" ou "saltando" forcam um trato.
+  artStyle    String? @map("art_style")
 
   character Character       @relation(fields: [characterId], references: [id], onDelete: Cascade)
   image     CharacterImage? @relation(fields: [imageId], references: [id], onDelete: SetNull)

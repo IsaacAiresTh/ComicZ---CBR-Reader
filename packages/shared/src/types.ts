@@ -441,7 +441,18 @@ export interface CharacterMilestoneView {
   imageUrl: string | null;
   /** De onde veio a arte: "Crise Infinita #1". */
   sourceLabel: string | null;
+  /** Nulo e o automatico: a pagina decide olhando as bordas da imagem. */
+  artStyle: MilestoneArtStyle | null;
 }
+
+/**
+ * Como a arte do marco se assenta na pagina.
+ *
+ * - `dissolver`: as bordas com cena encostando somem num degrade.
+ * - `painel`: a arte vira um quadrinho, com moldura e reticula no vazio.
+ * - `saltando`: a cena fica presa num quadro e a figura sai por cima dele.
+ */
+export type MilestoneArtStyle = 'dissolver' | 'painel' | 'saltando';
 
 /** Um grupo de "onde aparece": uma saga, ou as edicoes soltas. */
 export interface CharacterAppearanceGroup {
