@@ -66,17 +66,20 @@ export function LinkButton({
 export function IconButton({
   label,
   active = false,
+  small = false,
   className = '',
   children,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; active?: boolean }) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { label: string; active?: boolean; small?: boolean }) {
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
       aria-pressed={props['aria-pressed']}
-      className={`grid h-11 w-11 shrink-0 place-items-center rounded-[10px] border text-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+      className={`grid shrink-0 place-items-center rounded-[10px] border transition-colors ${
+        small ? 'h-9 w-9 text-base' : 'h-11 w-11 text-lg'
+      } disabled:cursor-not-allowed disabled:opacity-50 ${
         active
           ? 'border-brand-500/60 bg-brand-500/10 text-brand-400'
           : 'border-ink-600 text-ink-100 hover:border-ink-500 hover:bg-ink-850'
@@ -423,6 +426,163 @@ export function Paginacao({
   );
 }
 
+/**
+ * Lista de nomes em etiquetas, com sugestoes. No lugar do "separados por
+ * virgula": la, um erro de digitacao criava um personagem novo calado; aqui o
+ * nome ja cadastrado aparece primeiro e entra com um Enter.
+ */
+export function TagInput({
+  value,
+  onChange,
+  suggestions = [],
+  placeholder,
+  label,
+}: {
+  value: string[];
+  onChange: (value: string[]) => void;
+  suggestions?: string[];
+  placeholder?: string;
+  label: string;
+}) {
+  const [texto, setTexto] = useState('');
+  const termo = texto.trim().toLowerCase();
+  const opcoes = termo
+    ? suggestions.filter((s) => s.toLowerCase().includes(termo) && !value.includes(s)).slice(0, 6)
+    : [];
+  const exato = suggestions.some((s) => s.toLowerCase() === termo);
+
+  function adicionar(nome: string) {
+    const limpo = nome.trim();
+    if (limpo && !value.some((v) => v.toLowerCase() === limpo.toLowerCase())) {
+      onChange([...value, limpo]);
+    }
+    setTexto('');
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border border-ink-700 bg-ink-850 p-1.5 focus-within:border-brand-500">
+        {value.map((item) => (
+          <span
+            key={item}
+            className="inline-flex h-7 items-center gap-1 rounded-full bg-ink-700 pl-2.5 pr-1 text-xs text-ink-100"
+          >
+            {item}
+            <button
+              type="button"
+              aria-label={`Remover ${item}`}
+              onClick={() => onChange(value.filter((v) => v !== item))}
+              className="grid h-5 w-5 place-items-center rounded-full text-ink-400 hover:bg-ink-600 hover:text-ink-100"
+            >
+              ×
+            </button>
+          </span>
+        ))}
+        <input
+          value={texto}
+          aria-label={label}
+          placeholder={value.length === 0 ? placeholder : undefined}
+          onChange={(e) => {
+            const novo = e.target.value;
+            if (novo.endsWith(',')) adicionar(novo.slice(0, -1));
+            else setTexto(novo);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              adicionar(opcoes[0] && !exato ? opcoes[0] : texto);
+            } else if (e.key === 'Backspace' && !texto && value.length > 0) {
+              onChange(value.slice(0, -1));
+            }
+          }}
+          onBlur={() => texto.trim() && adicionar(texto)}
+          className="min-w-24 flex-1 bg-transparent px-1.5 text-sm text-ink-100 placeholder:text-ink-500 focus:outline-none"
+        />
+      </div>
+      {opcoes.length > 0 && (
+        <ul className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-ink-600 bg-ink-850 comic-shadow">
+          {opcoes.map((opcao) => (
+            <li key={opcao}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => adicionar(opcao)}
+                className="block w-full px-3 py-2 text-left text-sm text-ink-100 hover:bg-ink-800"
+              >
+                {opcao} <span className="text-ink-500">· já cadastrado</span>
+              </button>
+            </li>
+          ))}
+          {!exato && (
+            <li>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => adicionar(texto)}
+                className="block w-full px-3 py-2 text-left text-sm text-ink-300 hover:bg-ink-800"
+              >
+                Criar “{texto.trim()}”
+              </button>
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Painel que desliza da direita, para editar sem perder a lista de vista. */
+export function Drawer({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const tituloId = useId();
+  useEffect(() => {
+    const fechar = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', fechar);
+    return () => window.removeEventListener('keydown', fechar);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <button
+        type="button"
+        aria-label="Fechar"
+        className="absolute inset-0 cursor-default bg-ink-950/60"
+        onClick={onClose}
+      />
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={tituloId}
+        className="absolute inset-y-0 right-0 flex w-full max-w-lg flex-col border-l border-ink-600 bg-ink-900 shadow-[-24px_0_48px_rgba(0,0,0,0.5)]"
+      >
+        <div className="flex items-center justify-between border-b border-ink-800 px-6 py-4">
+          <h2 id={tituloId} className="text-lg font-extrabold text-ink-100">
+            {title}
+          </h2>
+          <button
+            type="button"
+            aria-label="Fechar"
+            onClick={onClose}
+            className="grid h-10 w-10 place-items-center rounded-lg text-xl text-ink-300 hover:bg-ink-800 hover:text-ink-100"
+          >
+            ×
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+      </aside>
+    </div>
+  );
+}
+
 export function Field({
   label,
   error,
@@ -444,22 +604,31 @@ export function Field({
   );
 }
 
+/*
+ * `w-full` so quando quem usa nao pediu outra largura: com as duas classes
+ * juntas, quem ganha e a ordem do CSS gerado, e o `w-auto` de um filtro
+ * perdia — os selects do admin esticavam ate a linha inteira.
+ */
+function largura(className: string) {
+  return /(^|\s)(w-|flex-1)/.test(className) ? '' : 'w-full';
+}
+
 const CONTROL =
-  'w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-brand-500 focus:outline-none';
+  'rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-ink-100 placeholder:text-ink-500 focus:border-brand-500 focus:outline-none';
 
 export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={`${CONTROL} ${className}`} {...props} />;
+  return <input className={`${largura(className)} ${CONTROL} ${className}`} {...props} />;
 }
 
 export function Textarea({
   className = '',
   ...props
 }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={`${CONTROL} ${className}`} {...props} />;
+  return <textarea className={`${largura(className)} ${CONTROL} ${className}`} {...props} />;
 }
 
 export function Select({ className = '', ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={`${CONTROL} ${className}`} {...props} />;
+  return <select className={`${largura(className)} ${CONTROL} ${className}`} {...props} />;
 }
 
 /**
@@ -505,7 +674,7 @@ export function Badge({
   };
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border bg-ink-900/90 px-2.5 py-0.5 text-xs font-semibold ${tones[tone]}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border bg-ink-900/90 px-2.5 py-0.5 text-xs font-semibold ${tones[tone]}`}
     >
       {tone !== 'neutral' && <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-current" />}
       {children}

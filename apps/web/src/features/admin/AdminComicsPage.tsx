@@ -1,22 +1,31 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ComicSummary } from '@comicz/shared';
+import { IconEdit, IconSearch, IconUpload, IconX } from '../../components/icons';
 import {
+  ActionMenu,
   Badge,
   Button,
+  ConfirmDialog,
+  Drawer,
   ErrorNote,
   Field,
+  IconButton,
   Input,
+  Paginacao,
   Select,
   Spinner,
+  TagInput,
   Textarea,
 } from '../../components/ui';
 import { comicLabel, fileStatusLabel, formatBytes } from '../../lib/format';
 import { fromHere } from '../../lib/navigation';
 import { ApiError, mediaUrl, uploadComicFile } from '../../services/api';
+import { AdminHeader } from './AdminHeader';
 import { CoverPicker } from './CoverPicker';
 import {
+  useCharacters,
   useComic,
   useComics,
   usePublishers,
@@ -24,19 +33,42 @@ import {
   useServerConfig,
   type CatalogFilters,
 } from '../comics/queries';
-import { useCreateComic, useDeleteComic, useReprocessComic, useUpdateComic } from './queries';
+import {
+  useAdminStats,
+  useAttachComicToSeries,
+  useCreateComic,
+  useDeleteComic,
+  useReprocessComic,
+  useUpdateComic,
+} from './queries';
+
+type Aba = '' | 'READY' | 'PENDING' | 'PROCESSING' | 'FAILED';
+
+const ABAS: { value: Aba; label: string; stat?: 'READY' | 'PENDING' | 'PROCESSING' | 'FAILED' }[] =
+  [
+    { value: '', label: 'Todas' },
+    { value: 'READY', label: 'Prontas', stat: 'READY' },
+    { value: 'PENDING', label: 'Na fila', stat: 'PENDING' },
+    { value: 'PROCESSING', label: 'Processando', stat: 'PROCESSING' },
+    { value: 'FAILED', label: 'Falharam', stat: 'FAILED' },
+  ];
 
 export function AdminComicsPage() {
   const location = useLocation();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState<Aba>('');
   const [seriesFilter, setSeriesFilter] = useState('');
   const [sort, setSort] = useState<NonNullable<CatalogFilters['sort']>>('recent');
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<ComicSummary | null>(null);
   const [creating, setCreating] = useState(false);
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(() => new Set());
+  const [confirmar, setConfirmar] = useState<ComicSummary[] | null>(null);
+  const [movendo, setMovendo] = useState(false);
+  const [ocupado, setOcupado] = useState(false);
 
   const sagas = useSeriesList();
+  const { data: stats } = useAdminStats();
 
   /**
    * Qualquer filtro que mude o conjunto tem de voltar para a primeira pagina.
@@ -47,6 +79,7 @@ export function AdminComicsPage() {
     return (valor: T) => {
       set(valor);
       setPage(1);
+      setSelecionadas(new Set());
     };
   }
 
@@ -60,35 +93,100 @@ export function AdminComicsPage() {
   });
   const deleteComic = useDeleteComic();
   const reprocess = useReprocessComic();
+  const anexar = useAttachComicToSeries();
 
   const items = comics.data?.items ?? [];
+  const escolhidas = items.filter((comic) => selecionadas.has(comic.id));
+  const todasMarcadas = items.length > 0 && escolhidas.length === items.length;
+
+  function alterna(id: string) {
+    setSelecionadas((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(id)) novo.delete(id);
+      else novo.add(id);
+      return novo;
+    });
+  }
+
+  /* As acoes em lote reaproveitam as rotas de uma HQ, uma depois da outra. */
+  async function emLote(acao: (comic: ComicSummary) => Promise<unknown>, alvo: ComicSummary[]) {
+    setOcupado(true);
+    try {
+      for (const comic of alvo) await acao(comic);
+      setSelecionadas(new Set());
+    } finally {
+      setOcupado(false);
+    }
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <Input
-          className="max-w-xs"
-          value={search}
-          onChange={(event) => filtrar(setSearch)(event.target.value)}
-          placeholder="Buscar HQ"
-        />
+    <div className="space-y-5">
+      <AdminHeader
+        title="HQs"
+        count={stats ? `${stats.comics} no acervo` : undefined}
+        actions={
+          <Button variant="secondary" onClick={() => setCreating(true)}>
+            + HQ sem arquivo
+          </Button>
+        }
+      />
+
+      <EnvioEmLote />
+
+      <nav
+        role="tablist"
+        aria-label="Status do arquivo"
+        className="-mx-1 flex gap-1 overflow-x-auto border-b border-ink-800 px-1"
+      >
+        {ABAS.map((aba) => {
+          const conta = aba.stat ? stats?.files[aba.stat] : stats?.comics;
+          const ativa = statusFilter === aba.value;
+          return (
+            <button
+              key={aba.value}
+              type="button"
+              role="tab"
+              aria-selected={ativa}
+              onClick={() => filtrar(setStatusFilter)(aba.value)}
+              className={`min-h-10 shrink-0 px-3.5 text-sm ${
+                ativa
+                  ? 'font-bold text-ink-100 shadow-[inset_0_-2px_0_var(--color-brand-500)]'
+                  : 'text-ink-400 hover:text-ink-100'
+              }`}
+            >
+              {aba.label}{' '}
+              {conta !== undefined &&
+                (aba.value === 'FAILED' && conta > 0 ? (
+                  <span className="ml-1 rounded-full bg-accent-500/20 px-1.5 py-px text-[11px] font-bold text-accent-400">
+                    {conta}
+                  </span>
+                ) : (
+                  <span className="ml-1 text-xs text-ink-500">{conta}</span>
+                ))}
+            </button>
+          );
+        })}
+      </nav>
+
+      <div className="flex flex-wrap items-center gap-2.5">
+        <label className="flex h-10 min-w-60 flex-1 items-center gap-2 rounded-[10px] border border-ink-700 bg-ink-850 px-3 text-ink-400 focus-within:border-brand-500">
+          <IconSearch className="shrink-0" />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => filtrar(setSearch)(event.target.value)}
+            placeholder="Título, saga ou nome do arquivo"
+            aria-label="Buscar HQ"
+            className="min-w-0 flex-1 bg-transparent text-sm text-ink-100 placeholder:text-ink-500 focus:outline-none"
+          />
+        </label>
         <Select
           className="w-auto"
-          value={statusFilter}
-          onChange={(event) => filtrar(setStatusFilter)(event.target.value)}
-        >
-          <option value="">Todos os status</option>
-          <option value="READY">Prontas</option>
-          <option value="PENDING">Na fila</option>
-          <option value="PROCESSING">Processando</option>
-          <option value="FAILED">Falharam</option>
-        </Select>
-        <Select
-          className="w-auto"
+          aria-label="Saga"
           value={seriesFilter}
           onChange={(event) => filtrar(setSeriesFilter)(event.target.value)}
         >
-          <option value="">Todas as sagas</option>
+          <option value="">Saga: todas</option>
           {(sagas.data ?? []).map((saga) => (
             <option key={saga.id} value={saga.id}>
               {saga.name}
@@ -97,6 +195,7 @@ export function AdminComicsPage() {
         </Select>
         <Select
           className="w-auto"
+          aria-label="Ordenar"
           value={sort}
           onChange={(event) =>
             filtrar(setSort)(event.target.value as NonNullable<CatalogFilters['sort']>)
@@ -106,136 +205,447 @@ export function AdminComicsPage() {
           <option value="issue">Por edição</option>
           <option value="title">Por título</option>
         </Select>
-        <Button className="ml-auto" onClick={() => setCreating(true)}>
-          + Nova HQ
-        </Button>
       </div>
 
-      {comics.data && (
-        <p className="text-xs text-ink-500">
-          {comics.data.total} {comics.data.total === 1 ? 'HQ' : 'HQs'}
-          {comics.data.totalPages > 1 && ` — página ${comics.data.page} de ${comics.data.totalPages}`}
-        </p>
+      {escolhidas.length > 0 && (
+        <div className="sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-brand-600/50 bg-[#1c1a10] px-4 py-2 comic-shadow">
+          <span className="text-sm font-bold text-brand-400">
+            {escolhidas.length} {escolhidas.length === 1 ? 'selecionada' : 'selecionadas'}
+          </span>
+          <span aria-hidden className="mx-1 h-5 w-px bg-brand-600/50" />
+          <Button
+            variant="ghost"
+            disabled={ocupado}
+            onClick={() =>
+              void emLote(
+                (comic) => reprocess.mutateAsync(comic.id),
+                escolhidas.filter((comic) => comic.file),
+              )
+            }
+          >
+            Reprocessar
+          </Button>
+          <Button variant="ghost" disabled={ocupado} onClick={() => setMovendo(true)}>
+            Mover para saga…
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={ocupado}
+            className="text-accent-400 hover:text-accent-400"
+            onClick={() => setConfirmar(escolhidas)}
+          >
+            Excluir…
+          </Button>
+          <button
+            type="button"
+            aria-label="Limpar seleção"
+            onClick={() => setSelecionadas(new Set())}
+            className="ml-auto grid h-9 w-9 place-items-center rounded-lg text-lg text-ink-300 hover:bg-ink-800"
+          >
+            <IconX />
+          </button>
+        </div>
       )}
-
-      {creating && <ComicForm onClose={() => setCreating(false)} />}
-      {editing && <ComicForm comic={editing} onClose={() => setEditing(null)} />}
 
       {comics.isLoading ? (
         <Spinner />
       ) : items.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-ink-700 px-6 py-10 text-center text-sm text-ink-500">
-          Nenhuma HQ cadastrada. Crie uma acima, ou use{' '}
+        <p className="rounded-xl border border-dashed border-ink-700 px-6 py-10 text-center text-sm text-ink-400">
+          Nenhuma HQ aqui. Solte arquivos na área acima, ou use{' '}
           <code className="text-brand-400">npm run import</code> para importar sua pasta local.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-ink-800">
+        <div className="overflow-x-auto rounded-2xl border border-ink-800">
           <table className="w-full min-w-3xl text-sm">
-            <thead className="bg-ink-850 text-left text-xs uppercase tracking-wide text-ink-400">
+            <thead className="bg-ink-900 text-left text-[11px] uppercase tracking-[0.14em] text-ink-400">
               <tr>
-                <th className="px-4 py-3 font-medium">HQ</th>
-                <th className="px-4 py-3 font-medium">Série</th>
-                <th className="px-4 py-3 font-medium">Arquivo</th>
-                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="w-12 px-4 py-3">
+                  <input
+                    type="checkbox"
+                    aria-label="Selecionar todas desta página"
+                    checked={todasMarcadas}
+                    onChange={() =>
+                      setSelecionadas(todasMarcadas ? new Set() : new Set(items.map((c) => c.id)))
+                    }
+                    className="h-[18px] w-[18px] accent-[var(--color-brand-500)]"
+                  />
+                </th>
+                <th className="px-2 py-3 font-bold">HQ</th>
+                <th className="px-4 py-3 font-bold">Saga</th>
+                <th className="px-4 py-3 font-bold">Arquivo</th>
+                <th className="px-4 py-3 font-bold">Status</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-ink-800">
-              {items.map((comic) => (
-                <tr key={comic.id} className="hover:bg-ink-900">
-                  <td className="px-4 py-3">
-                    <Link
-                      to={`/hq/${comic.id}`}
-                      state={fromHere(location)}
-                      className="text-ink-100 hover:text-brand-400"
-                    >
-                      {comicLabel(comic.title, comic.issueNumber)}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-ink-400">{comic.series?.name ?? '—'}</td>
-                  <td className="px-4 py-3 text-ink-400">
-                    {comic.file ? (
-                      <span title={comic.file.originalFilename}>
-                        {comic.file.format} · {formatBytes(comic.file.sizeBytes)}
-                        {comic.file.pageCount ? ` · ${comic.file.pageCount}p` : ''}
-                      </span>
-                    ) : (
-                      '—'
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge
-                      tone={
-                        comic.file?.status === 'READY'
-                          ? 'success'
-                          : comic.file?.status === 'FAILED'
-                            ? 'danger'
-                            : comic.file
-                              ? 'warning'
-                              : 'neutral'
-                      }
-                    >
-                      {fileStatusLabel(comic.file?.status)}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex justify-end gap-1">
-                      <UploadButton comicId={comic.id} hasFile={Boolean(comic.file)} />
-                      {comic.file && (
-                        <Button
-                          variant="ghost"
-                          onClick={() => reprocess.mutate(comic.id)}
-                          title="Reprocessar o arquivo"
-                        >
-                          ↻
-                        </Button>
-                      )}
-                      <Button variant="ghost" onClick={() => setEditing(comic)} title="Editar">
-                        ✎
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        title="Excluir"
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `Excluir "${comic.title}"? O arquivo e as páginas serão apagados do storage.`,
+              {items.map((comic) => {
+                const marcada = selecionadas.has(comic.id);
+                const capa = mediaUrl(comic.coverUrl);
+                const status = comic.file?.status;
+                return (
+                  <tr
+                    key={comic.id}
+                    className={marcada ? 'bg-brand-500/[0.05]' : 'hover:bg-ink-900'}
+                  >
+                    <td className="px-4 py-2">
+                      <input
+                        type="checkbox"
+                        aria-label={`Selecionar ${comicLabel(comic.title, comic.issueNumber)}`}
+                        checked={marcada}
+                        onChange={() => alterna(comic.id)}
+                        className="h-[18px] w-[18px] accent-[var(--color-brand-500)]"
+                      />
+                    </td>
+                    <td className="px-2 py-2">
+                      <div className="flex items-center gap-3">
+                        <span className="block h-12 w-8 shrink-0 overflow-hidden rounded bg-ink-800">
+                          {capa && (
+                            <img
+                              src={capa}
+                              alt=""
+                              loading="lazy"
+                              className="h-full w-full object-cover"
+                            />
+                          )}
+                        </span>
+                        <span className="min-w-0">
+                          <Link
+                            to={`/hq/${comic.id}`}
+                            state={fromHere(location)}
+                            className="font-semibold text-ink-100 hover:text-brand-400"
+                          >
+                            {comicLabel(comic.title, comic.issueNumber)}
+                          </Link>
+                          {!comic.file ? (
+                            <span className="block text-xs text-brand-400">Falta o arquivo</span>
+                          ) : status === 'FAILED' ? (
+                            <span
+                              className="block max-w-72 truncate text-xs text-accent-400"
+                              title={comic.file.errorMessage ?? ''}
+                            >
+                              {comic.file.errorMessage ?? 'Falhou'}
+                            </span>
+                          ) : (
+                            !capa &&
+                            status === 'READY' && (
+                              <span className="block text-xs text-brand-400">Sem capa</span>
                             )
-                          ) {
-                            deleteComic.mutate(comic.id);
-                          }
-                        }}
+                          )}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2 text-ink-300">{comic.series?.name ?? '—'}</td>
+                    <td className="px-4 py-2 text-xs text-ink-400">
+                      {comic.file ? (
+                        <span title={comic.file.originalFilename}>
+                          {comic.file.format} · {formatBytes(comic.file.sizeBytes)}
+                          {comic.file.pageCount ? ` · ${comic.file.pageCount}p` : ''}
+                        </span>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="px-4 py-2">
+                      <Badge
+                        tone={
+                          status === 'READY'
+                            ? 'success'
+                            : status === 'FAILED'
+                              ? 'danger'
+                              : comic.file
+                                ? 'warning'
+                                : 'neutral'
+                        }
                       >
-                        🗑
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {fileStatusLabel(status)}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-2">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <UploadButton comicId={comic.id} hasFile={Boolean(comic.file)} />
+                        <IconButton label="Editar" small onClick={() => setEditing(comic)}>
+                          <IconEdit />
+                        </IconButton>
+                        <ActionMenu
+                          small
+                          items={[
+                            ...(comic.file
+                              ? [
+                                  {
+                                    label: 'Reprocessar o arquivo',
+                                    onSelect: () => reprocess.mutate(comic.id),
+                                  },
+                                ]
+                              : []),
+                            {
+                              label: 'Excluir…',
+                              danger: true,
+                              onSelect: () => setConfirmar([comic]),
+                            },
+                          ]}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
 
-      {(comics.data?.totalPages ?? 1) > 1 && (
-        <div className="flex items-center justify-center gap-3">
-          <Button variant="secondary" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-            Anterior
-          </Button>
-          <span className="text-sm text-ink-400">
-            página {comics.data?.page} de {comics.data?.totalPages}
-          </span>
-          <Button
-            variant="secondary"
-            disabled={page >= (comics.data?.totalPages ?? 1)}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Próxima
-          </Button>
-        </div>
+      <Paginacao
+        pagina={comics.data?.page ?? 1}
+        total={comics.data?.totalPages ?? 1}
+        onIr={(alvo) => {
+          setPage(alvo);
+          setSelecionadas(new Set());
+        }}
+      />
+
+      {(creating || editing) && (
+        <Drawer
+          title={editing ? 'Editar HQ' : 'Nova HQ'}
+          onClose={() => {
+            setCreating(false);
+            setEditing(null);
+          }}
+        >
+          <ComicForm
+            key={editing?.id ?? 'nova'}
+            comic={editing ?? undefined}
+            onClose={() => {
+              setCreating(false);
+              setEditing(null);
+            }}
+          />
+        </Drawer>
+      )}
+
+      {confirmar && (
+        <ConfirmDialog
+          title={
+            confirmar.length === 1
+              ? `Excluir “${comicLabel(confirmar[0]?.title ?? '', confirmar[0]?.issueNumber ?? null)}”?`
+              : `Excluir ${confirmar.length} HQs?`
+          }
+          confirmLabel="Excluir"
+          busy={ocupado}
+          onCancel={() => setConfirmar(null)}
+          onConfirm={() =>
+            void emLote((comic) => deleteComic.mutateAsync(comic.id), confirmar).then(() =>
+              setConfirmar(null),
+            )
+          }
+        >
+          <p>O arquivo e as páginas serão apagados do storage. Não dá para desfazer.</p>
+        </ConfirmDialog>
+      )}
+
+      {movendo && (
+        <MoverParaSaga
+          quantas={escolhidas.length}
+          sagas={sagas.data ?? []}
+          ocupado={ocupado}
+          onCancelar={() => setMovendo(false)}
+          onMover={(seriesId) =>
+            void emLote(
+              (comic) => anexar.mutateAsync({ seriesId, comicId: comic.id }),
+              escolhidas,
+            ).then(() => setMovendo(false))
+          }
+        />
       )}
     </div>
   );
+}
+
+function MoverParaSaga({
+  quantas,
+  sagas,
+  ocupado,
+  onCancelar,
+  onMover,
+}: {
+  quantas: number;
+  sagas: { id: string; name: string }[];
+  ocupado: boolean;
+  onCancelar: () => void;
+  onMover: (seriesId: string) => void;
+}) {
+  const [saga, setSaga] = useState('');
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-ink-950/75 p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="w-full max-w-md space-y-4 rounded-2xl border border-ink-600 bg-ink-850 p-6"
+      >
+        <h2 className="text-xl font-extrabold text-ink-100">
+          Mover {quantas} {quantas === 1 ? 'HQ' : 'HQs'} para qual saga?
+        </h2>
+        <Select value={saga} onChange={(e) => setSaga(e.target.value)} aria-label="Saga">
+          <option value="">Escolha a saga</option>
+          {sagas.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.name}
+            </option>
+          ))}
+        </Select>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" onClick={onCancelar}>
+            Cancelar
+          </Button>
+          <Button disabled={!saga || ocupado} onClick={() => onMover(saga)}>
+            Mover
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Envio de varios arquivos de uma vez. Cada arquivo vira uma HQ: o nome dele
+ * sugere titulo e numero ("Batman 012.cbz" vira Batman #12), e o resto se
+ * ajusta depois no editor. Antes era criar a HQ, achar a linha dela e clicar
+ * num botao escondido — um arquivo por vez.
+ */
+function EnvioEmLote() {
+  const createComic = useCreateComic();
+  const queryClient = useQueryClient();
+  const { data: serverConfig } = useServerConfig();
+  const entrada = useRef<HTMLInputElement>(null);
+  const [arrastando, setArrastando] = useState(false);
+  const [envios, setEnvios] = useState<
+    { nome: string; progresso: number; erro?: string; feito?: boolean }[]
+  >([]);
+
+  async function enviar(arquivos: File[]) {
+    const validos = arquivos.filter((arquivo) => /\.(cbr|cbz)$/i.test(arquivo.name));
+    if (validos.length === 0) return;
+    const inicio = envios.length;
+    setEnvios((atual) => [
+      ...atual,
+      ...validos.map((arquivo) => ({ nome: arquivo.name, progresso: 0 })),
+    ]);
+
+    for (const [i, arquivo] of validos.entries()) {
+      const indice = inicio + i;
+      const marca = (mudanca: Partial<{ progresso: number; erro: string; feito: boolean }>) =>
+        setEnvios((atual) =>
+          atual.map((item, j) => (j === indice ? { ...item, ...mudanca } : item)),
+        );
+
+      if (serverConfig?.maxUploadBytes && arquivo.size > serverConfig.maxUploadBytes) {
+        marca({ erro: `passa do limite de ${serverConfig.maxUploadMb} MB` });
+        continue;
+      }
+      try {
+        const { titulo, numero } = tituloDoArquivo(arquivo.name);
+        const nova = await createComic.mutateAsync({ title: titulo, issueNumber: numero });
+        await uploadComicFile(nova.id, arquivo, (pct) => marca({ progresso: pct }));
+        marca({ feito: true, progresso: 100 });
+      } catch (caught) {
+        marca({ erro: caught instanceof ApiError ? caught.message : 'falha no envio' });
+      }
+    }
+    void queryClient.invalidateQueries({ queryKey: ['comics'] });
+    void queryClient.invalidateQueries({ queryKey: ['admin-jobs'] });
+    void queryClient.invalidateQueries({ queryKey: ['admin-stats'] });
+  }
+
+  const emAndamento = envios.filter((envio) => !envio.feito && !envio.erro);
+
+  return (
+    <div
+      onDragOver={(event) => {
+        event.preventDefault();
+        setArrastando(true);
+      }}
+      onDragLeave={() => setArrastando(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setArrastando(false);
+        void enviar([...event.dataTransfer.files]);
+      }}
+      className={`rounded-2xl border-2 border-dashed px-5 py-4 transition-colors ${
+        arrastando ? 'border-brand-500 bg-brand-500/[0.06]' : 'border-ink-600 bg-ink-900'
+      }`}
+    >
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-ink-100">Solte .cbr ou .cbz aqui, quantos quiser</p>
+          <p className="text-[13px] text-ink-400">
+            Cada arquivo vira uma HQ; o nome do arquivo sugere título e número, e o resto você
+            ajusta no editor.
+            {serverConfig && ` Até ${serverConfig.maxUploadMb} MB por arquivo.`}
+          </p>
+        </div>
+        <input
+          ref={entrada}
+          type="file"
+          accept=".cbr,.cbz"
+          multiple
+          className="hidden"
+          onChange={(event) => {
+            const arquivos = [...(event.target.files ?? [])];
+            event.target.value = '';
+            void enviar(arquivos);
+          }}
+        />
+        <Button onClick={() => entrada.current?.click()}>
+          <IconUpload />
+          Enviar arquivos
+        </Button>
+      </div>
+
+      {envios.length > 0 && (
+        <ul className="mt-4 space-y-2 border-t border-ink-800 pt-3">
+          {envios.slice(-6).map((envio, i) => (
+            <li
+              key={`${envio.nome}-${i}`}
+              className="grid grid-cols-[minmax(0,1fr)_160px_90px] items-center gap-3 text-xs"
+            >
+              <span className="truncate text-ink-200">{envio.nome}</span>
+              <span className="h-1.5 overflow-hidden rounded-full bg-ink-700">
+                <span
+                  className={`block h-full ${envio.erro ? 'bg-accent-500' : envio.feito ? 'bg-emerald-400' : 'bg-brand-500'}`}
+                  style={{ width: `${envio.erro ? 100 : envio.progresso}%` }}
+                />
+              </span>
+              <span
+                className={
+                  envio.erro ? 'text-accent-400' : envio.feito ? 'text-emerald-300' : 'text-ink-400'
+                }
+              >
+                {envio.erro ?? (envio.feito ? 'na fila' : `${envio.progresso}%`)}
+              </span>
+            </li>
+          ))}
+          {emAndamento.length > 0 && (
+            <li className="text-xs text-ink-500">
+              {emAndamento.length}{' '}
+              {emAndamento.length === 1 ? 'arquivo enviando' : 'arquivos enviando'}
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** "Batman - Ano Um 003.cbz" → { titulo: "Batman - Ano Um", numero: 3 }. */
+function tituloDoArquivo(nome: string): { titulo: string; numero: number | null } {
+  const base = nome
+    .replace(/\.(cbr|cbz)$/i, '')
+    .replace(/[_.]+/g, ' ')
+    .trim();
+  const achado = base.match(/^(.*?)[\s#-]*(\d{1,4})(?:\s*\(.*\))?$/);
+  if (achado && achado[1]?.trim()) {
+    return { titulo: achado[1].trim(), numero: Number(achado[2]) };
+  }
+  return { titulo: base || nome, numero: null };
 }
 
 /**
@@ -305,14 +715,15 @@ function UploadButton({ comicId, hasFile }: { comicId: string; hasFile: boolean 
           className="hidden"
         />
         <span
-          className="rounded-lg px-2.5 py-2 text-sm text-ink-400 hover:bg-ink-800 hover:text-ink-100"
+          className="grid h-9 min-w-9 place-items-center rounded-[10px] border border-ink-600 px-1 text-base text-ink-100 hover:border-ink-500 hover:bg-ink-850"
           title={
             hasFile
-              ? 'Substituir arquivo'
+              ? 'Trocar o arquivo'
               : `Enviar .cbr/.cbz${serverConfig ? ` (até ${serverConfig.maxUploadMb} MB)` : ''}`
           }
         >
-          {uploading ? `${progress}%` : '⬆'}
+          {uploading ? <span className="text-[11px] font-bold">{progress}%</span> : <IconUpload />}
+          <span className="sr-only">{hasFile ? 'Trocar o arquivo' : 'Enviar arquivo'}</span>
         </span>
       </label>
 
@@ -342,9 +753,9 @@ interface ComicFormState {
   seriesId: string;
   seriesName: string;
   publisherId: string;
-  creators: string;
-  characters: string;
-  tags: string;
+  creators: string[];
+  characters: string[];
+  tags: string[];
 }
 
 const FORM_VAZIO: ComicFormState = {
@@ -354,9 +765,9 @@ const FORM_VAZIO: ComicFormState = {
   seriesId: '',
   seriesName: '',
   publisherId: '',
-  creators: '',
-  characters: '',
-  tags: '',
+  creators: [],
+  characters: [],
+  tags: [],
 };
 
 function ComicForm({ comic, onClose }: { comic?: ComicSummary; onClose: () => void }) {
@@ -364,6 +775,7 @@ function ComicForm({ comic, onClose }: { comic?: ComicSummary; onClose: () => vo
   const publishers = usePublishers();
   const createComic = useCreateComic();
   const updateComic = useUpdateComic();
+  const { data: personagens } = useCharacters();
 
   /**
    * A edicao precisa do ComicDetail, nao do ComicSummary.
@@ -389,9 +801,9 @@ function ComicForm({ comic, onClose }: { comic?: ComicSummary; onClose: () => vo
       // A API grava todo credito de HQ como 'writer' e o formulario tem um
       // campo so, entao os papeis nao sobrevivem a um round-trip. Preservar os
       // nomes ainda e melhor do que perde-los.
-      creators: detail.data.creators.map((credit) => credit.name).join(', '),
-      characters: detail.data.characters.join(', '),
-      tags: detail.data.tags.join(', '),
+      creators: detail.data.creators.map((credit) => credit.name),
+      characters: detail.data.characters,
+      tags: detail.data.tags,
     });
   }
 
@@ -434,17 +846,7 @@ function ComicForm({ comic, onClose }: { comic?: ComicSummary; onClose: () => vo
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="space-y-4 rounded-xl border border-ink-700 bg-ink-900 p-6"
-    >
-      <div className="flex items-center justify-between">
-        <h2 className="font-medium text-ink-100">{comic ? 'Editar HQ' : 'Nova HQ'}</h2>
-        <Button type="button" variant="ghost" onClick={onClose}>
-          ✕
-        </Button>
-      </div>
-
+    <form onSubmit={handleSubmit} className="space-y-4">
       {error && <ErrorNote>{error}</ErrorNote>}
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -490,21 +892,36 @@ function ComicForm({ comic, onClose }: { comic?: ComicSummary; onClose: () => vo
             ))}
           </Select>
         </Field>
-        <Field label="Tags" hint="Separadas por vírgula">
-          <Input value={form.tags} onChange={update('tags')} placeholder="crossover, evento" />
-        </Field>
-
-        <Field label="Autores" hint="Separados por vírgula">
-          <Input value={form.creators} onChange={update('creators')} placeholder="Tom King" />
-        </Field>
-        <Field label="Personagens" hint="Separados por vírgula">
-          <Input
-            value={form.characters}
-            onChange={update('characters')}
-            placeholder="Batman, Coringa"
-          />
-        </Field>
       </div>
+
+      <Field
+        label="Personagens"
+        hint="Enter ou vírgula adiciona; os já cadastrados aparecem primeiro"
+      >
+        <TagInput
+          label="Personagens"
+          value={form.characters}
+          onChange={(characters) => setForm((atual) => (atual ? { ...atual, characters } : atual))}
+          suggestions={(personagens ?? []).map((p) => p.name)}
+          placeholder="Batman, Coringa"
+        />
+      </Field>
+      <Field label="Autores">
+        <TagInput
+          label="Autores"
+          value={form.creators}
+          onChange={(creators) => setForm((atual) => (atual ? { ...atual, creators } : atual))}
+          placeholder="Tom King"
+        />
+      </Field>
+      <Field label="Tags">
+        <TagInput
+          label="Tags"
+          value={form.tags}
+          onChange={(tags) => setForm((atual) => (atual ? { ...atual, tags } : atual))}
+          placeholder="crossover, evento"
+        />
+      </Field>
 
       <Field label="Descrição">
         <Textarea rows={3} value={form.description} onChange={update('description')} />
@@ -531,7 +948,7 @@ function ComicForm({ comic, onClose }: { comic?: ComicSummary; onClose: () => vo
 
       {!comic && (
         <p className="text-xs text-ink-500">
-          Depois de criar, use o botão ⬆ na lista para enviar o arquivo .cbr/.cbz.
+          Depois de criar, envie o arquivo pelo botão de envio na linha da HQ.
         </p>
       )}
     </form>
