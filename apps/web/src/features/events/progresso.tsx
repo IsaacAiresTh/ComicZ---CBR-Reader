@@ -1,5 +1,46 @@
 import type { GuideItemView } from '@comicz/shared';
-import { agruparEmAtos, type Ato } from './EventTrail';
+
+/**
+ * A trilha do evento.
+ *
+ * Os atos nao sao uma entidade: sao itens seguidos com o mesmo `chapter`. Isso
+ * mantem "mover um item de ato" como uma edicao de texto, e nao como mover
+ * coisas entre listas — e um item sem capitulo simplesmente nao entra em bloco.
+ */
+export interface Ato {
+  id: string;
+  nome: string | null;
+  itens: GuideItemView[];
+}
+
+/** Ancora estavel para o indice: o nome do ato, sem acento nem espaco. */
+function ancora(nome: string | null, indice: number): string {
+  if (!nome) return `ato-${indice}`;
+  const limpo = nome
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  return `ato-${limpo || indice}`;
+}
+
+export function agruparEmAtos(itens: GuideItemView[]): Ato[] {
+  const atos: Ato[] = [];
+  const usados = new Set<string>();
+  for (const item of itens) {
+    const ultimo = atos.at(-1);
+    if (ultimo && ultimo.nome === (item.chapter ?? null)) ultimo.itens.push(item);
+    else {
+      // O mesmo nome pode voltar mais adiante na trilha; o id tem de ser unico.
+      let id = ancora(item.chapter ?? null, atos.length);
+      if (usados.has(id)) id = `${id}-${atos.length}`;
+      usados.add(id);
+      atos.push({ id, nome: item.chapter ?? null, itens: [item] });
+    }
+  }
+  return atos;
+}
 
 /** O que conta como lido: o mesmo criterio do guia e da lista de eventos. */
 export const lida = (item: GuideItemView) => Boolean(item.comic.progress?.completed);

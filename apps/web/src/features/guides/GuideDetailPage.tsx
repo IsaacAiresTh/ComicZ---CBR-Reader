@@ -106,7 +106,7 @@ export function GuideDetailPage() {
           )}
         </div>
 
-        <aside className="lg:sticky lg:top-6">
+        <aside className="lg:sticky lg:top-20">
           <div className="flex flex-col gap-4 rounded-[18px] border border-ink-600 bg-ink-850 p-[22px]">
             <Eyebrow tone="muted">Seu progresso</Eyebrow>
             <p className="flex items-baseline gap-2">
