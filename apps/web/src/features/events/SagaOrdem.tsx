@@ -477,14 +477,22 @@ export function MiniMapa({
     );
 
   return (
-    <aside className="flex flex-col gap-3 rounded-2xl border border-ink-800 bg-ink-900 p-4">
+    <aside className="flex max-h-[calc(100vh-7rem)] flex-col gap-3 overflow-y-auto overflow-x-hidden rounded-2xl border border-ink-800 bg-ink-900 p-4">
       <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-ink-400">
         Onde você está
       </p>
       <div className="relative flex flex-col items-center gap-2.5 py-1.5">
         <span aria-hidden className="absolute bottom-3 left-1/2 top-3 -ml-px w-0.5 bg-ink-700" />
         {linhas.map((linha) => (
-          <span key={linha[0]?.coluna} className="relative flex gap-2">
+          /*
+            A linha ocupa a largura da coluna e os tracinhos dividem o espaco:
+            numa saga com nove historias no mesmo passo, tracinhos de largura
+            fixa estouravam a coluna e cobriam a lista ao lado.
+          */
+          <span
+            key={linha[0]?.coluna}
+            className={`relative flex w-full justify-center ${linha.length > 5 ? 'gap-1' : 'gap-2'}`}
+          >
             {linha.map((node) => {
               const estado = estadoDe(node);
               return (
@@ -494,8 +502,8 @@ export function MiniMapa({
                   title={node.label}
                   aria-label={`${node.label} (${estado === 'atual' ? 'você está aqui' : estado})`}
                   onClick={() => onIr(node)}
-                  className={`h-[18px] rounded-[5px] transition-transform hover:scale-105 ${
-                    linha.length === 1 ? 'w-[120px]' : linha.length === 2 ? 'w-14' : 'w-9'
+                  className={`h-[18px] shrink rounded-[5px] transition-transform hover:scale-105 ${
+                    linha.length === 1 ? 'w-[120px]' : 'min-w-0 max-w-14 flex-1'
                   } ${
                     estado === 'lido'
                       ? 'bg-emerald-400'
