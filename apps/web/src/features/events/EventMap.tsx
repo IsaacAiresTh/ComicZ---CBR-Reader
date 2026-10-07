@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState, type PointerEvent as EventoDePonteiro } from 'react';
 import type { GuideNodeView } from '@comicz/shared';
 import { mediaUrl } from '../../services/api';
 import { partesDoAto } from './saga';
@@ -48,14 +49,43 @@ interface Props {
   opcionais?: Set<string>;
 }
 
+/** Quanto o mouse anda antes de um clique virar arrasto. */
+const LIMIAR_DE_ARRASTO = 5;
+
 export function EventMap({ blocos, atos, selecionado, onSelecionar, atual, opcionais }: Props) {
+  const vista = useRef<HTMLDivElement>(null);
+  const { arrastando, transborda, handlers, centralizar } = useArrastarParaRolar(vista);
+  const porId = new Map(blocos.map((b) => [b.id, b]));
+
+  // Abre ja mostrando onde o leitor esta, e nao o canto de cima a esquerda.
+  const inicial = atual ?? selecionado;
+  useEffect(() => {
+    const bloco = inicial ? porId.get(inicial) : undefined;
+    if (bloco) centralizar(x0(bloco.lane) + L / 2, y0(bloco.coluna) + A / 2, 'instant');
+    // So na abertura e quando o bloco da vez muda.
+  }, [atual]);
+
+  // Escolher uma historia pelo painel ("vem de", "depois desta") traz ela para a vista.
+  useEffect(() => {
+    const bloco = selecionado ? porId.get(selecionado) : undefined;
+    const el = vista.current;
+    if (!bloco || !el) return;
+    const x = x0(bloco.lane);
+    const y = y0(bloco.coluna);
+    const visivel =
+      x >= el.scrollLeft &&
+      x + L <= el.scrollLeft + el.clientWidth &&
+      y >= el.scrollTop &&
+      y + A <= el.scrollTop + el.clientHeight;
+    if (!visivel) centralizar(x + L / 2, y + A / 2, 'smooth');
+  }, [selecionado]);
+
   if (blocos.length === 0) return null;
 
   const colunas = Math.max(...blocos.map((b) => b.coluna)) + 1;
   const lanes = Math.max(...blocos.map((b) => b.lane)) + 1;
   const largura = lanes * L + (lanes - 1) * GX;
   const altura = colunas * A + (colunas - 1) * GY;
-  const porId = new Map(blocos.map((b) => [b.id, b]));
 
   const curvas = blocos.flatMap((filho) => {
     /*
@@ -85,72 +115,193 @@ export function EventMap({ blocos, atos, selecionado, onSelecionar, atual, opcio
     });
   });
 
+  const blocoAtual = atual ? porId.get(atual) : undefined;
+
   return (
-    <div className="overflow-x-auto pb-3">
-      <div className="relative" style={{ width: largura, height: altura }}>
-        <svg
-          className="pointer-events-none absolute inset-0"
-          width={largura}
-          height={altura}
-          aria-hidden
-        >
-          {/*
+    <div>
+      {transborda && (
+        <div className="mb-2 flex min-h-8 flex-wrap items-center justify-between gap-2">
+          <span className="text-xs text-ink-400">
+            Arraste o mapa com o mouse para seguir uma linha.
+          </span>
+          {blocoAtual && (
+            <button
+              type="button"
+              onClick={() =>
+                centralizar(x0(blocoAtual.lane) + L / 2, y0(blocoAtual.coluna) + A / 2, 'smooth')
+              }
+              className="rounded-full border evento-borda px-3 py-1 text-xs font-semibold evento-texto hover:evento-tinta"
+            >
+              Ir para onde estou
+            </button>
+          )}
+        </div>
+      )}
+      {/*
+        Uma janela de altura limitada que se arrasta com o mouse, como um mapa.
+        Antes o mapa tinha a altura inteira e so rolava de lado: a barra ficava
+        no pe dele, e para seguir uma linha era preciso descer a pagina ate a
+        barra e voltar. No toque, o dedo ja arrasta nativamente.
+      */}
+      <div
+        ref={vista}
+        tabIndex={0}
+        role="region"
+        aria-label="Mapa do evento. Arraste com o mouse ou use as setas para mover."
+        {...handlers}
+        className={`max-h-[min(70vh,720px)] select-none overflow-auto rounded-xl bg-ink-950/60 p-6 [background-image:radial-gradient(var(--color-ink-800)_1px,transparent_1.2px)] [background-size:18px_18px] focus-visible:outline-2 focus-visible:outline-brand-500 ${
+          transborda ? (arrastando ? 'cursor-grabbing' : 'cursor-grab') : ''
+        }`}
+      >
+        <div className="relative" style={{ width: largura, height: altura }}>
+          <svg
+            className="pointer-events-none absolute inset-0"
+            width={largura}
+            height={altura}
+            aria-hidden
+          >
+            {/*
             A seta e o que torna a direcao explicita quando a linha sobe tres
             niveis: sem ela, "de onde isto vem" e "para onde isto leva" tem o
             mesmo desenho. markerUnits fixo para a ponta nao engordar junto com
             o traco da curva acesa.
           */}
-          <defs>
-            <marker
-              id="evento-seta"
-              markerUnits="userSpaceOnUse"
-              markerWidth="9"
-              markerHeight="9"
-              refX="6"
-              refY="4.5"
-              orient="auto"
-            >
-              <path d="M1 1 L7 4.5 L1 8 Z" className="fill-ink-700" />
-            </marker>
-            <marker
-              id="evento-seta-acesa"
-              markerUnits="userSpaceOnUse"
-              markerWidth="9"
-              markerHeight="9"
-              refX="6"
-              refY="4.5"
-              orient="auto"
-            >
-              <path d="M1 1 L7 4.5 L1 8 Z" fill="var(--accent)" />
-            </marker>
-          </defs>
+            <defs>
+              <marker
+                id="evento-seta"
+                markerUnits="userSpaceOnUse"
+                markerWidth="9"
+                markerHeight="9"
+                refX="6"
+                refY="4.5"
+                orient="auto"
+              >
+                <path d="M1 1 L7 4.5 L1 8 Z" className="fill-ink-700" />
+              </marker>
+              <marker
+                id="evento-seta-acesa"
+                markerUnits="userSpaceOnUse"
+                markerWidth="9"
+                markerHeight="9"
+                refX="6"
+                refY="4.5"
+                orient="auto"
+              >
+                <path d="M1 1 L7 4.5 L1 8 Z" fill="var(--accent)" />
+              </marker>
+            </defs>
 
-          {curvas.map((curva) => (
-            <path
-              key={curva.chave}
-              d={curva.d}
-              fill="none"
-              strokeWidth={curva.aceso ? 2 : 1.5}
-              markerEnd={`url(#${curva.aceso ? 'evento-seta-acesa' : 'evento-seta'})`}
-              className={curva.aceso ? 'stroke-[var(--accent)]' : 'stroke-ink-700'}
+            {curvas.map((curva) => (
+              <path
+                key={curva.chave}
+                d={curva.d}
+                fill="none"
+                strokeWidth={curva.aceso ? 2 : 1.5}
+                markerEnd={`url(#${curva.aceso ? 'evento-seta-acesa' : 'evento-seta'})`}
+                className={curva.aceso ? 'stroke-[var(--accent)]' : 'stroke-ink-700'}
+              />
+            ))}
+          </svg>
+
+          {blocos.map((bloco) => (
+            <NodeCard
+              key={bloco.id}
+              bloco={bloco}
+              ato={atos.get(bloco.id) ?? null}
+              ativo={selecionado === bloco.id}
+              atual={atual === bloco.id}
+              opcional={opcionais?.has(bloco.id) ?? false}
+              onSelecionar={onSelecionar}
             />
           ))}
-        </svg>
-
-        {blocos.map((bloco) => (
-          <NodeCard
-            key={bloco.id}
-            bloco={bloco}
-            ato={atos.get(bloco.id) ?? null}
-            ativo={selecionado === bloco.id}
-            atual={atual === bloco.id}
-            opcional={opcionais?.has(bloco.id) ?? false}
-            onSelecionar={onSelecionar}
-          />
-        ))}
+        </div>
       </div>
     </div>
   );
+}
+
+/**
+ * Arrastar com o botao esquerdo do mouse rola o elemento nas duas direcoes.
+ *
+ * O arrasto so comeca depois de alguns pixels: ate la, apertar e soltar
+ * continua sendo um clique no bloco. Quando vira arrasto, o clique que o
+ * navegador dispara ao soltar e engolido, para nao selecionar o bloco onde o
+ * mouse parou.
+ */
+function useArrastarParaRolar(ref: React.RefObject<HTMLDivElement | null>) {
+  const inicio = useRef<{ x: number; y: number; left: number; top: number; id: number } | null>(
+    null,
+  );
+  const moveu = useRef(false);
+  const [arrastando, setArrastando] = useState(false);
+  const [transborda, setTransborda] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const medir = () =>
+      setTransborda(el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1);
+    medir();
+    const observador = new ResizeObserver(medir);
+    observador.observe(el);
+    return () => observador.disconnect();
+  }, [ref]);
+
+  function centralizar(x: number, y: number, behavior: ScrollBehavior) {
+    const el = ref.current;
+    if (!el) return;
+    // O conteudo tem o padding da janela (p-6 = 24px) antes do mapa.
+    el.scrollTo({ left: x + 24 - el.clientWidth / 2, top: y + 24 - el.clientHeight / 2, behavior });
+  }
+
+  const handlers = {
+    onPointerDown(evento: EventoDePonteiro<HTMLDivElement>) {
+      if (evento.pointerType !== 'mouse' || evento.button !== 0 || !ref.current) return;
+      moveu.current = false;
+      inicio.current = {
+        x: evento.clientX,
+        y: evento.clientY,
+        left: ref.current.scrollLeft,
+        top: ref.current.scrollTop,
+        id: evento.pointerId,
+      };
+    },
+    onPointerMove(evento: EventoDePonteiro<HTMLDivElement>) {
+      const comeco = inicio.current;
+      const el = ref.current;
+      if (!comeco || !el) return;
+      const dx = evento.clientX - comeco.x;
+      const dy = evento.clientY - comeco.y;
+      if (!moveu.current) {
+        if (Math.hypot(dx, dy) < LIMIAR_DE_ARRASTO) return;
+        moveu.current = true;
+        setArrastando(true);
+        el.setPointerCapture(comeco.id);
+      }
+      el.scrollLeft = comeco.left - dx;
+      el.scrollTop = comeco.top - dy;
+    },
+    onPointerUp() {
+      const comeco = inicio.current;
+      inicio.current = null;
+      if (!comeco || !moveu.current) return;
+      setArrastando(false);
+      if (ref.current?.hasPointerCapture(comeco.id)) ref.current.releasePointerCapture(comeco.id);
+    },
+    onPointerCancel() {
+      inicio.current = null;
+      moveu.current = false;
+      setArrastando(false);
+    },
+    onClickCapture(evento: React.MouseEvent<HTMLDivElement>) {
+      if (!moveu.current) return;
+      moveu.current = false;
+      evento.preventDefault();
+      evento.stopPropagation();
+    },
+  };
+
+  return { arrastando, transborda, handlers, centralizar };
 }
 
 function NodeCard({
@@ -189,7 +340,15 @@ function NodeCard({
       style={{ left: x0(bloco.lane), top: y0(bloco.coluna), width: L, height: A }}
     >
       <div className="h-full w-[46px] shrink-0 bg-ink-850">
-        {capa && <img src={capa} alt="" loading="lazy" className="h-full w-full object-cover" />}
+        {capa && (
+          <img
+            src={capa}
+            alt=""
+            loading="lazy"
+            draggable={false}
+            className="h-full w-full object-cover"
+          />
+        )}
       </div>
 
       <div className="flex min-w-0 flex-1 flex-col justify-between p-2.5">
