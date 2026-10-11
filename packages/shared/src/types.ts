@@ -220,8 +220,26 @@ export interface ReaderPage {
   height: number | null;
 }
 
+export interface ReaderNextComic {
+  id: string;
+  title: string;
+  issueNumber: number | null;
+  coverUrl: string | null;
+}
+
 export interface ReaderPayload {
-  comic: { id: string; title: string; issueNumber: number | null; seriesName: string | null };
+  comic: {
+    id: string;
+    title: string;
+    issueNumber: number | null;
+    seriesName: string | null;
+    seriesId?: string | null;
+  };
+  /**
+   * A edicao seguinte da mesma saga, pronta para ler. Alimenta o "fim da HQ"
+   * do app; null na ultima edicao, numa HQ avulsa ou sem numero.
+   */
+  next?: ReaderNextComic | null;
   pageCount: number;
   currentPage: number;
   /** URLs ja versionadas e sem token — o cookie de mídia autoriza os <img>. */

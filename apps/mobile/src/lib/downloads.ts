@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { Directory, File, Paths } from 'expo-file-system';
-import type { ReaderPayload } from '@comicz/shared';
+import type { ReaderNextComic, ReaderPayload } from '@comicz/shared';
 
 import { api, freshMediaToken } from './api';
 import { absoluteUrl } from './config';
@@ -27,6 +27,10 @@ export interface DownloadedComic {
   title: string;
   issueNumber: number | null;
   seriesName: string | null;
+  /** Ausente nos downloads feitos antes de o leitor mandar a saga. */
+  seriesId?: string | null;
+  /** A edição seguinte, para o "fim da HQ" funcionar sem rede. */
+  next?: ReaderNextComic | null;
   pageCount: number;
   pages: DownloadedPage[];
   hasCover: boolean;
@@ -190,6 +194,8 @@ export async function startDownload(comicId: string, coverUrl?: string | null): 
         title: payload.comic.title,
         issueNumber: payload.comic.issueNumber,
         seriesName: payload.comic.seriesName,
+        seriesId: payload.comic.seriesId ?? null,
+        next: payload.next ?? null,
         pageCount: payload.pageCount,
         pages: payload.pages.map(({ index, width, height }) => ({ index, width, height })),
         hasCover,

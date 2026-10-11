@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { FileStatus, LibraryStatus } from '@comicz/database';
-import type { ReaderPayload, UpdateProgressInput } from '@comicz/shared';
+import type { ReaderNextComic, ReaderPayload, UpdateProgressInput } from '@comicz/shared';
 import { PrismaService } from '../../prisma/prisma.service';
-import { mediaVersion, pageUrl } from '../files/media-urls';
+import { coverUrl, mediaVersion, pageUrl } from '../files/media-urls';
 
 @Injectable()
 export class ReaderService {
@@ -47,7 +47,9 @@ export class ReaderService {
         title: comic.title,
         issueNumber: comic.issueNumber,
         seriesName: comic.series?.name ?? null,
+        seriesId: comic.seriesId,
       },
+      next: await this.nextInSeries(comic),
       pageCount,
       currentPage,
       pages: comic.file.pages.map((page) => ({
@@ -56,6 +58,33 @@ export class ReaderService {
         width: page.width,
         height: page.height,
       })),
+    };
+  }
+
+  /**
+   * A proxima edicao da saga que ja pode ser lida. Pula as que ainda estao
+   * processando: oferecer "ler a #4" e abrir um erro seria pior que nada.
+   */
+  private async nextInSeries(comic: {
+    seriesId: string | null;
+    issueNumber: number | null;
+  }): Promise<ReaderNextComic | null> {
+    if (!comic.seriesId || comic.issueNumber == null) return null;
+    const next = await this.prisma.comic.findFirst({
+      where: {
+        seriesId: comic.seriesId,
+        issueNumber: { gt: comic.issueNumber },
+        file: { status: FileStatus.READY },
+      },
+      orderBy: { issueNumber: 'asc' },
+      select: { id: true, title: true, issueNumber: true, coverPath: true, updatedAt: true },
+    });
+    if (!next) return null;
+    return {
+      id: next.id,
+      title: next.title,
+      issueNumber: next.issueNumber,
+      coverUrl: coverUrl(next),
     };
   }
 
