@@ -5,24 +5,22 @@ import { useQueryClient } from '@tanstack/react-query';
 import type { PublicUser } from '@comicz/shared';
 
 import * as client from '@/lib/api';
-import { clearAllDownloads, loadDownloads } from '@/lib/downloads';
+import { loadDownloads } from '@/lib/downloads';
 import { clearProgress, flushProgress } from '@/lib/progress';
 
 type Status = 'loading' | 'signed-in' | 'signed-out';
 
 /**
- * Dono dos downloads no aparelho. Sobrevive ao logout de propósito: se a
- * mesma pessoa entrar de novo (sessão expirada, troca de senha), as HQs
- * baixadas continuam; se entrar OUTRA conta, elas são apagadas antes.
+ * Quem leu por último neste aparelho. As HQs baixadas ficam sempre — sair da
+ * conta não apaga nada, porque é o mesmo celular e quase sempre a mesma
+ * pessoa. O que é de cada conta é o progresso offline ainda não enviado: se
+ * entrar OUTRA conta, ele é descartado para não ir parar no histórico dela.
  */
 const OWNER_KEY = 'comicz.owner';
 
 async function claimDevice(userId: string): Promise<void> {
   const owner = await SecureStore.getItemAsync(OWNER_KEY);
-  if (owner && owner !== userId) {
-    clearAllDownloads();
-    clearProgress();
-  }
+  if (owner && owner !== userId) clearProgress();
   await SecureStore.setItemAsync(OWNER_KEY, userId);
 }
 
@@ -33,8 +31,13 @@ interface AuthValue {
   online: boolean;
   signIn(email: string, password: string): Promise<void>;
   register(input: { username: string; email: string; password: string }): Promise<void>;
-  /** `keepDownloads`: a mesma pessoa vai entrar de novo (troca de senha). */
-  signOut(options?: { keepDownloads?: boolean }): Promise<void>;
+  /**
+   * Sai da conta. As baixadas ficam no aparelho em todos os casos.
+   * `everywhere`: encerra também as outras sessões (site, outros celulares).
+   * `local`: só esquece a sessão daqui, sem avisar o servidor (troca de
+   * senha, quando o servidor já encerrou tudo).
+   */
+  signOut(options?: { everywhere?: boolean; local?: boolean }): Promise<void>;
   updateUser(user: PublicUser): Promise<void>;
   retryConnection(): Promise<boolean>;
 }
@@ -108,15 +111,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const signOut = useCallback(
-    async (options?: { keepDownloads?: boolean }) => {
-      if (options?.keepDownloads) {
-        await client.forgetSession();
-      } else {
-        await client.logout();
-        clearAllDownloads();
-        clearProgress();
-        await SecureStore.deleteItemAsync(OWNER_KEY);
-      }
+    async (options?: { everywhere?: boolean; local?: boolean }) => {
+      // O progresso lido offline vai antes de a sessão acabar.
+      if (!options?.local) await flushProgress().catch(() => undefined);
+      if (options?.local) await client.forgetSession();
+      else if (options?.everywhere) await client.logoutAll();
+      else await client.logout();
       // Biblioteca, progresso e perfil em cache são da conta que saiu.
       queryClient.clear();
       setUser(null);

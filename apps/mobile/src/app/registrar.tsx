@@ -6,12 +6,14 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  View,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { registerSchema } from '@comicz/shared';
 
 import { Body, Button } from '@/components/ui';
+import { Logo } from '@/components/Logo';
 import { Colors, Spacing } from '@/constants/theme';
 import { useAuth } from '@/features/auth/AuthContext';
 import { OfflineError, offlineMessage } from '@/lib/api';
@@ -60,7 +62,9 @@ export default function RegisterScreen() {
         style={{ flex: 1 }}
       >
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-          <Text style={styles.logo}>ComicZ</Text>
+          <View style={{ alignItems: 'center', marginBottom: Spacing.two }}>
+            <Logo size="lg" />
+          </View>
           <Body muted style={{ textAlign: 'center', marginBottom: Spacing.four }}>
             Crie sua conta. Ela vale no site e no app.
           </Body>
@@ -107,7 +111,6 @@ export default function RegisterScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.ink900 },
   container: { flexGrow: 1, justifyContent: 'center', padding: Spacing.four, gap: Spacing.three },
-  logo: { color: Colors.brand, fontSize: 44, fontWeight: '900', textAlign: 'center' },
   input: {
     backgroundColor: Colors.ink800,
     borderColor: Colors.ink700,

@@ -237,7 +237,7 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
 
-/** Ao sair da conta: o que foi baixado pertence a quem estava logado. */
+/** Apaga todas as baixadas (o botão "liberar espaço" da aba Baixadas). */
 export function clearAllDownloads(): void {
   controllers.forEach((controller) => controller.abort());
   const root = rootDir();

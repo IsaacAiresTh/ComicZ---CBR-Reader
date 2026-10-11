@@ -71,6 +71,7 @@ function RootStack() {
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen name="registrar" options={{ headerShown: false }} />
+          <Stack.Screen name="esqueci-senha" options={{ title: 'Esqueci a senha' }} />
           <Stack.Screen name="offline" options={{ title: 'HQs baixadas' }} />
         </Stack.Protected>
         <Stack.Protected guard={signedIn}>
