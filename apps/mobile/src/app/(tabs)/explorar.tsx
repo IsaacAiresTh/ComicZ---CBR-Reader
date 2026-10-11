@@ -13,9 +13,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { CharacterAvatar } from '@/components/CharacterAvatar';
 import { QueryError } from '@/components/QueryError';
 import { Shelf, type ShelfItem } from '@/components/Shelf';
-import { Loading, SectionHeader } from '@/components/ui';
-import { Colors, Spacing } from '@/constants/theme';
-import { plural } from '@/lib/format';
+import { Button, Eyebrow, Loading, ProgressBar, SectionHeader } from '@/components/ui';
+import { Colors, Fonts, Spacing } from '@/constants/theme';
+import { percent, plural } from '@/lib/format';
 import { useCharacters, useGuides } from '@/lib/queries';
 
 /**
@@ -49,6 +49,10 @@ export default function ExploreScreen() {
   const eventItems = all
     .filter((guide) => guide.kind === 'EVENT')
     .map(toItem('/eventos/[slug]', ['edição', 'edições']));
+  // A grande saga que a pessoa está no meio: o atalho mais útil desta aba.
+  const ongoing = all.find(
+    (guide) => guide.kind === 'EVENT' && guide.readCount > 0 && guide.readCount < guide.itemCount,
+  );
   // Os mais presentes no acervo primeiro: é por onde alguém novo começa.
   const topCharacters = [...(characters.data ?? [])]
     .sort((a, b) => b.comicCount - a.comicCount)
@@ -69,6 +73,29 @@ export default function ExploreScreen() {
         />
       }
     >
+      {ongoing ? (
+        <View style={styles.ongoing}>
+          <Eyebrow color={ongoing.accentColor ?? Colors.brandLight}>
+            Você está no meio desta
+          </Eyebrow>
+          <Text style={styles.ongoingTitle}>{ongoing.title}</Text>
+          <Text style={styles.ongoingMeta}>
+            {ongoing.readCount} de {plural(ongoing.itemCount, 'edição lida', 'edições lidas')}
+          </Text>
+          <ProgressBar
+            value={percent(ongoing.readCount, ongoing.itemCount)}
+            color={ongoing.accentColor ?? Colors.brand}
+          />
+          <Button
+            label="Continuar a saga"
+            onPress={() =>
+              router.push({ pathname: '/eventos/[slug]', params: { slug: ongoing.slug } })
+            }
+            style={{ marginTop: 4 }}
+          />
+        </View>
+      ) : null}
+
       <View style={styles.links}>
         <HubLink icon="map-outline" label="Guias" onPress={() => router.push('/guias')} />
         <HubLink icon="flash-outline" label="Eventos" onPress={() => router.push('/eventos')} />
@@ -140,6 +167,24 @@ function HubLink({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.ink900 },
+  ongoing: {
+    gap: 8,
+    margin: Spacing.three,
+    marginBottom: 0,
+    padding: Spacing.three,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.ink700,
+    backgroundColor: Colors.ink850,
+  },
+  ongoingTitle: {
+    color: Colors.ink100,
+    fontFamily: Fonts.display,
+    fontSize: 30,
+    lineHeight: 30,
+    letterSpacing: 0.5,
+  },
+  ongoingMeta: { color: Colors.ink300, fontSize: 13 },
   links: {
     flexDirection: 'row',
     gap: Spacing.two,

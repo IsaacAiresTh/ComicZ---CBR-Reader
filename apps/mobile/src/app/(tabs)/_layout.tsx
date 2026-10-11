@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Logo } from '@/components/Logo';
 import { Colors } from '@/constants/theme';
 import { useAuth } from '@/features/auth/AuthContext';
+import { useDownloads } from '@/lib/downloads';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -46,6 +47,9 @@ const TABS: { name: string; title: string; icon: IconName }[] = [
 ];
 
 export default function TabsLayout() {
+  // Um número na aba enquanto há HQs baixando: dá para sair da saga e acompanhar.
+  const { active } = useDownloads();
+  const downloading = Object.values(active).filter((item) => !item.error).length;
   return (
     <Tabs
       screenOptions={{
@@ -64,6 +68,8 @@ export default function TabsLayout() {
           options={{
             title: tab.title,
             headerTitle: tab.name === 'index' ? () => <Logo size="sm" /> : tab.title,
+            tabBarBadge: tab.name === 'baixadas' && downloading > 0 ? downloading : undefined,
+            tabBarBadgeStyle: { backgroundColor: Colors.brand, color: Colors.ink950 },
             tabBarIcon: ({ color, size }) => (
               <Ionicons name={tab.icon} color={color as string} size={size} />
             ),

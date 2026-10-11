@@ -189,3 +189,30 @@ export function useCollectionActions() {
 /** O "Em destaque" do início, escolhido no painel do site. */
 export const useFeatured = () =>
   useQuery({ queryKey: ['featured'], queryFn: () => api<FeaturedItem[]>('/featured') });
+
+/**
+ * "Já li": marca como lida sem abrir o leitor, para quem leu a edição em outro
+ * lugar. Grava o progresso concluído, que é o que guias e eventos contam.
+ */
+export function useMarkRead() {
+  const onSuccess = useInvalidate(COMIC_STATE_KEYS);
+  return useMutation({
+    mutationFn: (input: { comicId: string; pageCount: number }) =>
+      patch(`/comics/${input.comicId}/progress`, {
+        currentPage: Math.max(1, input.pageCount),
+        completed: true,
+      }),
+    onSuccess,
+  });
+}
+
+/** Guarda várias edições de uma vez (as de um guia). O servidor ignora as repetidas. */
+export function useAddManyToLibrary() {
+  const onSuccess = useInvalidate(COMIC_STATE_KEYS);
+  return useMutation({
+    mutationFn: async (comicIds: string[]) => {
+      for (const comicId of comicIds) await post(`/library/${comicId}`);
+    },
+    onSuccess,
+  });
+}

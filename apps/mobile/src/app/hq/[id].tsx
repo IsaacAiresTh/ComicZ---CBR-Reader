@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import type { LibraryStatus } from '@comicz/shared';
 
+import { ActionSheet, type SheetAction } from '@/components/ActionSheet';
 import { CharacterText } from '@/components/CharacterText';
 import { CollectionPicker } from '@/components/CollectionPicker';
 import { QueryError } from '@/components/QueryError';
 import { Badge, Body, Button, Eyebrow, Loading, MediaImage, ProgressBar } from '@/components/ui';
-import { Colors, Spacing } from '@/constants/theme';
+import { Colors, Fonts, Spacing } from '@/constants/theme';
 import {
   cancelDownload,
   coverUri,
@@ -26,6 +28,7 @@ export default function ComicScreen() {
   const { comics: downloaded, active } = useDownloads();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   if (query.isPending) return <Loading />;
   if (query.isError) return <QueryError error={query.error} onRetry={() => void query.refetch()} />;
@@ -50,116 +53,169 @@ export default function ComicScreen() {
   // Atalho para quem procura a saga inteira aqui, e não na página da saga.
   const addSeries = (seriesId: string) =>
     void run(
-      library.addSeries.mutateAsync(seriesId).then((result) =>
-        setMessage(
-          result.added === 0
-            ? 'A saga inteira já estava na biblioteca'
-            : result.alreadyInLibrary > 0
-              ? `${result.added} adicionadas · ${result.alreadyInLibrary} já estavam`
-              : plural(result.added, 'edição adicionada', 'edições adicionadas'),
+      library.addSeries
+        .mutateAsync(seriesId)
+        .then((result) =>
+          setMessage(
+            result.added === 0
+              ? 'A saga inteira já estava na biblioteca'
+              : result.alreadyInLibrary > 0
+                ? `${result.added} adicionadas · ${result.alreadyInLibrary} já estavam`
+                : plural(result.added, 'edição adicionada', 'edições adicionadas'),
+          ),
         ),
-      ),
     );
+
+  const pageCount = comic.file?.pageCount ?? progress?.pageCount ?? null;
+  const year = comic.publicationDate ? new Date(comic.publicationDate).getFullYear() : null;
+  const meta = [
+    comic.publisher?.name,
+    year,
+    pageCount ? plural(pageCount, 'página', 'páginas') : null,
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const readLabel =
+    readable || local
+      ? started
+        ? `Continuar · página ${progress!.currentPage}`
+        : progress?.completed
+          ? 'Ler de novo'
+          : 'Ler agora'
+      : comic.file
+        ? fileStatusLabel(comic.file.status)
+        : 'Sem arquivo';
+
+  const downloadLabel = local
+    ? `Baixada · ${formatBytes(local.sizeBytes)}`
+    : downloading?.error
+      ? 'Falhou · tentar de novo'
+      : downloading?.queued
+        ? 'Na fila · tirar da fila'
+        : downloading
+          ? downloading.total
+            ? `Baixando ${percent(downloading.done, downloading.total)}% · cancelar`
+            : 'Preparando · cancelar'
+          : 'Baixar para ler sem internet';
+
+  const onDownload = () => {
+    if (local) {
+      Alert.alert('Remover download?', 'Ela deixa de estar disponível sem internet.', [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Remover', style: 'destructive', onPress: () => removeDownload(comic.id) },
+      ]);
+    } else if (downloading && !downloading.error) {
+      cancelDownload(comic.id);
+    } else {
+      void startDownload(comic.id, comic.coverUrl);
+    }
+  };
+
+  const sheetActions: SheetAction[] = [
+    {
+      label: comic.libraryStatus === 'READ' ? 'Marcar como não lida' : 'Marcar como lida',
+      onPress: () =>
+        void run(
+          library.update.mutateAsync({
+            comicId: comic.id,
+            status: (comic.libraryStatus === 'READ' ? 'READING' : 'READ') as LibraryStatus,
+          }),
+        ),
+    },
+    ...(comic.series
+      ? [{ label: 'Guardar a saga inteira', onPress: () => addSeries(comic.series!.id) }]
+      : []),
+    { label: 'Guardar em pasta', onPress: () => setPickerOpen(true) },
+  ];
 
   return (
     <>
-      <Stack.Screen options={{ title: comicLabel(comic) }} />
-      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-        <MediaImage
-          url={comic.coverUrl}
-          localUri={local?.hasCover ? coverUri(comic.id) : null}
-          style={styles.cover}
-        />
-
-        <View style={{ gap: Spacing.two }}>
-          {comic.series ? (
+      <Stack.Screen
+        options={{
+          title: comicLabel(comic),
+          headerRight: () => (
             <Pressable
-              onPress={() =>
-                router.push({ pathname: '/saga/[id]', params: { id: comic.series!.id } })
-              }
+              hitSlop={12}
+              onPress={() => setSheetOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Mais ações"
             >
-              <Text style={styles.series}>{comic.series.name}</Text>
+              <Ionicons name="ellipsis-horizontal" size={22} color={Colors.ink100} />
             </Pressable>
-          ) : null}
-          <Text style={styles.title}>{comicLabel(comic)}</Text>
-          <View style={styles.badges}>
-            {comic.publisher ? <Badge label={comic.publisher.name} /> : null}
-            {comic.publicationDate ? (
-              <Badge label={String(new Date(comic.publicationDate).getFullYear())} />
+          ),
+        }}
+      />
+      <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+        <View style={styles.hero}>
+          <MediaImage
+            url={comic.coverUrl}
+            localUri={local?.hasCover ? coverUri(comic.id) : null}
+            style={styles.cover}
+          />
+          <View style={styles.heroText}>
+            {comic.series ? (
+              <Pressable
+                hitSlop={6}
+                onPress={() =>
+                  router.push({ pathname: '/saga/[id]', params: { id: comic.series!.id } })
+                }
+              >
+                <Text style={styles.series} numberOfLines={2}>
+                  {comic.series.name} ›
+                </Text>
+              </Pressable>
             ) : null}
-            {comic.file ? (
+            <Text style={styles.title}>{comicLabel(comic)}</Text>
+            {meta ? <Text style={styles.meta}>{meta}</Text> : null}
+            {comic.file && !readable ? (
               <Badge
                 label={fileStatusLabel(comic.file.status)}
-                tone={readable ? 'success' : comic.file.status === 'FAILED' ? 'danger' : 'warning'}
+                tone={comic.file.status === 'FAILED' ? 'danger' : 'warning'}
               />
             ) : null}
-            {comic.file?.pageCount ? <Badge label={`${comic.file.pageCount} páginas`} /> : null}
-            {local ? (
-              <Badge label={`Baixada · ${formatBytes(local.sizeBytes)}`} tone="brand" />
+            {progress && progress.pageCount > 0 ? (
+              <View style={styles.progress}>
+                <View style={{ flex: 1 }}>
+                  <ProgressBar
+                    value={percent(progress.currentPage, progress.pageCount)}
+                    color={progress.completed ? Colors.success : Colors.brand}
+                  />
+                </View>
+                <Text style={styles.small}>
+                  {progress.completed ? 'lida' : `p. ${progress.currentPage}`}
+                </Text>
+              </View>
             ) : null}
           </View>
         </View>
 
-        {progress && progress.pageCount > 0 ? (
-          <View style={{ gap: 6 }}>
-            <View style={styles.progressLabels}>
-              <Text style={styles.small}>
-                {progress.completed
-                  ? 'Leitura concluída'
-                  : `Página ${progress.currentPage} de ${progress.pageCount}`}
-              </Text>
-              <Text style={styles.small}>{percent(progress.currentPage, progress.pageCount)}%</Text>
-            </View>
-            <ProgressBar value={percent(progress.currentPage, progress.pageCount)} />
-          </View>
-        ) : null}
-
-        <View style={{ gap: Spacing.two }}>
+        <View style={{ gap: 10 }}>
           <Button
-            label={
-              readable || local
-                ? started
-                  ? 'Continuar leitura'
-                  : progress?.completed
-                    ? 'Ler de novo'
-                    : 'Ler agora'
-                : comic.file
-                  ? fileStatusLabel(comic.file.status)
-                  : 'Sem arquivo'
-            }
+            label={readLabel}
             disabled={!readable && !local}
             onPress={() => router.push({ pathname: '/ler/[id]', params: { id: comic.id } })}
           />
           {readable || local ? (
             <Button
-              variant="ghost"
-              label={
-                local
-                  ? 'Remover download'
-                  : downloading?.error
-                    ? 'Tentar baixar de novo'
-                    : downloading
-                      ? downloading.total
-                        ? `Baixando ${percent(downloading.done, downloading.total)}% · cancelar`
-                        : 'Preparando download · cancelar'
-                      : 'Baixar para ler offline'
+              variant="secondary"
+              label={downloadLabel}
+              icon={
+                <Ionicons
+                  name={
+                    local
+                      ? 'checkmark-circle'
+                      : downloading?.error
+                        ? 'refresh'
+                        : downloading
+                          ? 'close'
+                          : 'arrow-down'
+                  }
+                  size={18}
+                  color={local ? Colors.success : Colors.ink100}
+                />
               }
-              onPress={() => {
-                if (local) {
-                  Alert.alert('Remover download?', 'Ela deixa de estar disponível offline.', [
-                    { text: 'Cancelar', style: 'cancel' },
-                    {
-                      text: 'Remover',
-                      style: 'destructive',
-                      onPress: () => removeDownload(comic.id),
-                    },
-                  ]);
-                } else if (downloading && !downloading.error) {
-                  cancelDownload(comic.id);
-                } else {
-                  void startDownload(comic.id, comic.coverUrl);
-                }
-              }}
+              onPress={onDownload}
             />
           ) : null}
         </View>
@@ -177,13 +233,6 @@ export default function ComicScreen() {
               )
             }
           />
-          {comic.series ? (
-            <Action
-              label="+ Saga inteira"
-              disabled={busy}
-              onPress={() => addSeries(comic.series!.id)}
-            />
-          ) : null}
           <Action
             label={comic.favorite ? '★ Favorita' : '☆ Favoritar'}
             active={!!comic.favorite}
@@ -192,20 +241,7 @@ export default function ComicScreen() {
               void run(library.update.mutateAsync({ comicId: comic.id, favorite: !comic.favorite }))
             }
           />
-          <Action
-            label={comic.libraryStatus === 'READ' ? 'Lida ✓' : 'Marcar lida'}
-            active={comic.libraryStatus === 'READ'}
-            disabled={busy}
-            onPress={() =>
-              void run(
-                library.update.mutateAsync({
-                  comicId: comic.id,
-                  status: (comic.libraryStatus === 'READ' ? 'READING' : 'READ') as LibraryStatus,
-                }),
-              )
-            }
-          />
-          <Action label="Guardar em pasta" onPress={() => setPickerOpen(true)} />
+          {comic.libraryStatus === 'READ' ? <Action label="Lida ✓" active disabled /> : null}
         </View>
         {message ? <Text style={styles.message}>{message}</Text> : null}
 
@@ -221,15 +257,28 @@ export default function ComicScreen() {
           />
         ) : null}
 
+        {comic.characters.length > 0 ? (
+          <View style={styles.metaBox}>
+            <Eyebrow>Nesta edição</Eyebrow>
+            <CharacterText
+              texto={comic.characters.join(', ')}
+              style={styles.metaText}
+              linkColor={Colors.brandLight}
+            />
+          </View>
+        ) : null}
         {comic.creators.length > 0 ? (
           <Meta label="Autores" value={comic.creators.map((creator) => creator.name).join(', ')} />
-        ) : null}
-        {comic.characters.length > 0 ? (
-          <Meta label="Personagens" value={comic.characters.join(', ')} />
         ) : null}
         {comic.tags.length > 0 ? <Meta label="Tags" value={comic.tags.join(', ')} /> : null}
       </ScrollView>
 
+      <ActionSheet
+        visible={sheetOpen}
+        title={comicLabel(comic).toUpperCase()}
+        actions={sheetActions}
+        onClose={() => setSheetOpen(false)}
+      />
       <CollectionPicker
         target={{ kind: 'comic', id: comic.id }}
         visible={pickerOpen}
@@ -249,16 +298,17 @@ function Action({
   label: string;
   active?: boolean;
   disabled?: boolean;
-  onPress: () => void;
+  onPress?: () => void;
 }) {
   return (
     <Pressable
-      disabled={disabled}
+      disabled={disabled || !onPress}
       onPress={onPress}
       style={({ pressed }) => [
         styles.action,
         active && styles.actionActive,
-        (pressed || disabled) && { opacity: 0.6 },
+        pressed && { opacity: 0.6 },
+        disabled && !active && { opacity: 0.6 },
       ]}
     >
       <Text style={[styles.actionLabel, active && { color: Colors.brandLight }]}>{label}</Text>
@@ -278,11 +328,26 @@ function Meta({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.ink900 },
   content: { padding: Spacing.three, gap: Spacing.four, paddingBottom: Spacing.five },
-  cover: { width: 200, height: 300, borderRadius: 12, alignSelf: 'center' },
-  series: { color: Colors.brandLight, fontSize: 14 },
-  title: { color: Colors.ink100, fontSize: 26, fontWeight: '800' },
-  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  progressLabels: { flexDirection: 'row', justifyContent: 'space-between' },
+  hero: { flexDirection: 'row', gap: 16 },
+  cover: {
+    width: 124,
+    height: 186,
+    borderRadius: 8,
+    boxShadow: `4px 4px 0 0 ${Colors.brand}`,
+  },
+  heroText: { flex: 1, minWidth: 0, gap: 6, justifyContent: 'center' },
+  series: { color: Colors.brandLight, fontSize: 13, fontWeight: '700' },
+  title: {
+    color: Colors.ink100,
+    fontFamily: Fonts.display,
+    fontSize: 32,
+    lineHeight: 32,
+    letterSpacing: 0.5,
+  },
+  meta: { color: Colors.ink300, fontSize: 13 },
+  progress: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  metaBox: { gap: 4 },
+  metaText: { color: Colors.ink300, fontSize: 15, lineHeight: 22 },
   small: { color: Colors.ink400, fontSize: 12 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   action: {

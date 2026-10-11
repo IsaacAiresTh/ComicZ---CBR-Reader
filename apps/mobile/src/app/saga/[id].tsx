@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import type { BulkLibraryResult, SeriesDetail } from '@comicz/shared';
+import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import type { BulkLibraryResult, ComicSummary, SeriesDetail } from '@comicz/shared';
 
 import { CollectionPicker } from '@/components/CollectionPicker';
 import { ComicRow } from '@/components/ComicRow';
 import { QueryError } from '@/components/QueryError';
 import { Badge, Body, Button, Eyebrow, Loading, MediaImage } from '@/components/ui';
-import { Colors, Spacing } from '@/constants/theme';
-import { startDownload, useDownloads } from '@/lib/downloads';
+import { Colors, Fonts, Spacing } from '@/constants/theme';
+import { cancelDownload, enqueueDownloads, useDownloads } from '@/lib/downloads';
 import {
+  comicLabel,
   creditRoleLabel,
   groupCredits,
   plural,
@@ -117,9 +119,15 @@ function Header({ series }: { series: SeriesDetail }) {
   );
 }
 
+/** A edição por onde seguir: a primeira pronta que ainda não foi lida até o fim. */
+function nextToRead(series: SeriesDetail): ComicSummary | null {
+  const ready = series.comics.filter((comic) => comic.file?.status === 'READY');
+  return ready.find((comic) => !comic.progress?.completed) ?? null;
+}
+
 /**
- * Biblioteca, pasta e download da saga inteira de uma vez. Adicionar edição a
- * edição continua funcionando pela página de cada HQ.
+ * O que se faz com a saga: seguir lendo (a ação principal), baixar o que
+ * falta de uma vez, e guardar na biblioteca ou numa pasta.
  */
 function SeriesActions({ series }: { series: SeriesDetail }) {
   const library = useLibraryActions();
@@ -134,10 +142,13 @@ function SeriesActions({ series }: { series: SeriesDetail }) {
   const inLibrary = series.comics.filter((comic) => comic.inLibrary).length;
   const missing = total - inLibrary;
   const busy = library.addSeries.isPending || library.removeSeries.isPending;
-  const toDownload = series.comics.filter(
-    (comic) => comic.file?.status === 'READY' && !downloaded[comic.id] && !active[comic.id],
-  );
-  const readyCount = series.comics.filter((comic) => comic.file?.status === 'READY').length;
+  const ready = series.comics.filter((comic) => comic.file?.status === 'READY');
+  const onDevice = ready.filter((comic) => downloaded[comic.id]).length;
+  const working = ready.filter((comic) => active[comic.id] && !active[comic.id]!.error);
+  const failed = ready.filter((comic) => active[comic.id]?.error).length;
+  const toDownload = ready.filter((comic) => !downloaded[comic.id] && !working.includes(comic));
+  const next = nextToRead(series);
+  const nextStarted = Boolean(next?.progress && next.progress.currentPage > 1);
 
   async function run(action: 'add' | 'remove') {
     setError(null);
@@ -159,52 +170,96 @@ function SeriesActions({ series }: { series: SeriesDetail }) {
     }
   }
 
-  // Em fila, uma HQ por vez: cada uma já baixa 3 páginas em paralelo.
-  async function downloadAll() {
-    for (const comic of toDownload) await startDownload(comic.id, comic.coverUrl);
-  }
+  const downloadAll = () =>
+    enqueueDownloads(toDownload.map((comic) => ({ comicId: comic.id, coverUrl: comic.coverUrl })));
+  const cancelAll = () => working.forEach((comic) => cancelDownload(comic.id));
 
   return (
     <View style={{ gap: Spacing.two }}>
-      {missing > 0 ? (
+      {next ? (
         <Button
           label={
-            inLibrary === 0
-              ? `Adicionar saga à biblioteca (${total})`
-              : `Adicionar as ${missing} restantes`
+            nextStarted
+              ? `Continuar na ${comicLabel(next)} · página ${next.progress!.currentPage}`
+              : next === ready[0]
+                ? `Começar pela ${comicLabel(next)}`
+                : `Seguir na ${comicLabel(next)}`
           }
-          loading={library.addSeries.isPending}
-          disabled={busy}
-          onPress={() => void run('add')}
+          onPress={() => router.push({ pathname: '/ler/[id]', params: { id: next.id } })}
         />
       ) : null}
-      {inLibrary > 0 ? (
-        <Button
-          variant="ghost"
-          label={
-            missing === 0 ? 'Remover saga da biblioteca' : `Remover as ${inLibrary} da biblioteca`
-          }
-          disabled={busy}
-          onPress={() => void run('remove')}
-        />
+
+      {ready.length > 0 ? (
+        <View style={styles.downloadCard}>
+          <View style={styles.downloadHead}>
+            <Ionicons
+              name={onDevice === ready.length ? 'checkmark-circle' : 'arrow-down-circle-outline'}
+              size={22}
+              color={onDevice === ready.length ? Colors.success : Colors.brandLight}
+            />
+            <Text style={styles.downloadTitle}>
+              {onDevice === ready.length
+                ? 'A saga inteira está no celular'
+                : working.length > 0
+                  ? `Baixando · ${onDevice} de ${ready.length} no celular`
+                  : onDevice > 0
+                    ? `${onDevice} de ${ready.length} no celular`
+                    : 'Ler sem internet'}
+            </Text>
+          </View>
+          {onDevice < ready.length ? (
+            <View style={styles.downloadTrack}>
+              <View
+                style={[
+                  styles.downloadFill,
+                  { width: `${Math.round((onDevice / ready.length) * 100)}%` },
+                ]}
+              />
+            </View>
+          ) : null}
+          {failed > 0 ? (
+            <Text style={styles.error}>
+              {plural(failed, 'edição falhou', 'edições falharam')} — toque em baixar para tentar de
+              novo.
+            </Text>
+          ) : null}
+          {working.length > 0 ? (
+            <Button variant="secondary" label="Cancelar downloads" onPress={cancelAll} />
+          ) : toDownload.length > 0 ? (
+            <Button
+              variant="secondary"
+              label={
+                onDevice === 0
+                  ? `Baixar a saga inteira (${toDownload.length})`
+                  : `Baixar as ${toDownload.length} que faltam`
+              }
+              icon={<Ionicons name="arrow-down" size={18} color={Colors.ink100} />}
+              onPress={downloadAll}
+            />
+          ) : null}
+        </View>
       ) : null}
+
       <View style={styles.row}>
-        <Button
-          variant="ghost"
-          label="Guardar em pasta"
-          style={{ flex: 1 }}
-          onPress={() => setPickerOpen(true)}
-        />
-        {toDownload.length > 0 ? (
+        {missing > 0 ? (
           <Button
-            variant="ghost"
-            label={
-              toDownload.length === readyCount ? 'Baixar todas' : `Baixar ${toDownload.length}`
-            }
+            variant="secondary"
+            label={inLibrary === 0 ? 'Guardar na biblioteca' : `Guardar as ${missing} restantes`}
+            loading={library.addSeries.isPending}
+            disabled={busy}
             style={{ flex: 1 }}
-            onPress={() => void downloadAll()}
+            onPress={() => void run('add')}
           />
-        ) : null}
+        ) : (
+          <Button
+            variant="quiet"
+            label="Tirar da biblioteca"
+            disabled={busy}
+            style={{ flex: 1 }}
+            onPress={() => void run('remove')}
+          />
+        )}
+        <Button variant="secondary" label="Pasta" onPress={() => setPickerOpen(true)} />
       </View>
       {feedback ? <Text style={styles.feedback}>{feedback}</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -229,8 +284,26 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.two,
   },
   top: { flexDirection: 'row', gap: Spacing.three },
-  cover: { width: 110, height: 165, borderRadius: 8 },
-  title: { color: Colors.ink100, fontSize: 22, fontWeight: '800' },
+  cover: { width: 110, height: 165, borderRadius: 8, boxShadow: `4px 4px 0 0 ${Colors.brand}` },
+  title: {
+    color: Colors.ink100,
+    fontFamily: Fonts.display,
+    fontSize: 32,
+    lineHeight: 32,
+    letterSpacing: 0.5,
+  },
+  downloadCard: {
+    gap: 10,
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.ink700,
+    backgroundColor: Colors.ink850,
+  },
+  downloadHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  downloadTitle: { flex: 1, color: Colors.ink100, fontSize: 15, fontWeight: '700' },
+  downloadTrack: { height: 6, borderRadius: 3, backgroundColor: Colors.ink700, overflow: 'hidden' },
+  downloadFill: { height: '100%', backgroundColor: Colors.success },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   more: { color: Colors.brandLight, fontSize: 13, marginTop: 4 },
   credits: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.three },
