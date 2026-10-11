@@ -9,6 +9,7 @@ import type {
   CollectionSummary,
   ComicDetail,
   ComicSummary,
+  FeaturedItem,
   GuideDetail,
   GuideSummary,
   LibraryStatus,
@@ -102,6 +103,8 @@ export const useCollection = (id: string) =>
 
 /** Tudo que mostra estado de biblioteca/progresso. */
 const COMIC_STATE_KEYS = [
+  'featured',
+  'guides',
   'comics',
   'catalog',
   'comic',
@@ -182,3 +185,7 @@ export function useCollectionActions() {
     }),
   };
 }
+
+/** O "Em destaque" do início, escolhido no painel do site. */
+export const useFeatured = () =>
+  useQuery({ queryKey: ['featured'], queryFn: () => api<FeaturedItem[]>('/featured') });

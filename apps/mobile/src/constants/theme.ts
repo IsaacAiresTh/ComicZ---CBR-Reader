@@ -16,6 +16,8 @@ export const Colors = {
   ink100: '#eef1f7',
   brand: '#f5b301',
   brandLight: '#ffd23f',
+  brandDark: '#d99700',
+  success: '#6ee7a8',
   accent: '#e03131',
 } as const;
 

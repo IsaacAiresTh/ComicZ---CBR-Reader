@@ -68,45 +68,60 @@ export function Body({ style, muted, ...rest }: TextProps & { muted?: boolean })
   return <Text style={[styles.body, muted && styles.muted, style]} {...rest} />;
 }
 
+/*
+ * Os botoes do site: uma acao amarela por tela, com a sombra deslocada de
+ * pagina impressa. O secundario era cinza cheio e parecia desabilitado; agora
+ * e contorno. `ghost` fica como sinonimo de `secondary`, que e como as telas
+ * antigas o usavam.
+ */
 export function Button({
   label,
   variant = 'primary',
   loading,
   disabled,
+  icon,
   style,
   ...rest
 }: PressableProps & {
   label: string;
-  variant?: 'primary' | 'ghost' | 'danger';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'quiet' | 'danger';
   loading?: boolean;
+  /** Icone a esquerda do rotulo, como o de baixar. */
+  icon?: React.ReactNode;
   style?: StyleProp<ViewStyle>;
 }) {
   const off = disabled || loading;
+  const outline = variant === 'secondary' || variant === 'ghost';
+  const fg =
+    variant === 'primary' ? Colors.ink950 : variant === 'quiet' ? Colors.ink300 : Colors.ink100;
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityState={{ disabled: !!off, busy: !!loading }}
       disabled={off}
       style={({ pressed }) => [
         styles.button,
         variant === 'primary' && styles.buttonPrimary,
-        variant === 'ghost' && styles.buttonGhost,
+        variant === 'primary' && !pressed && !off && styles.buttonPrimaryShadow,
+        variant === 'primary' && pressed && styles.buttonPressed,
+        outline && styles.buttonOutline,
+        outline && pressed && { backgroundColor: Colors.ink850 },
+        variant === 'quiet' && pressed && { backgroundColor: Colors.ink800 },
         variant === 'danger' && styles.buttonDanger,
-        (pressed || off) && { opacity: 0.6 },
+        off && { opacity: 0.5 },
         style,
       ]}
       {...rest}
     >
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? Colors.ink950 : Colors.ink100} />
+        <ActivityIndicator color={fg} />
       ) : (
-        <Text
-          style={[
-            styles.buttonLabel,
-            variant === 'primary' ? { color: Colors.ink950 } : { color: Colors.ink100 },
-          ]}
-        >
-          {label}
-        </Text>
+        <View style={styles.buttonInner}>
+          {icon}
+          <Text style={[styles.buttonLabel, { color: variant === 'danger' ? '#ffffff' : fg }]}>
+            {label}
+          </Text>
+        </View>
       )}
     </Pressable>
   );
@@ -167,8 +182,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonPrimary: { backgroundColor: Colors.brand },
-  buttonGhost: { backgroundColor: Colors.ink800, borderWidth: 1, borderColor: Colors.ink700 },
+  buttonPrimaryShadow: {
+    boxShadow: `3px 3px 0 0 ${Colors.ink950}, 3px 3px 0 1px ${Colors.brandDark}`,
+  },
+  buttonPressed: { transform: [{ translateX: 1 }, { translateY: 1 }] },
+  buttonOutline: { backgroundColor: 'transparent', borderWidth: 1, borderColor: Colors.ink600 },
   buttonDanger: { backgroundColor: Colors.accent },
+  buttonInner: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   buttonLabel: {
     fontSize: 15,
     fontWeight: '700',
