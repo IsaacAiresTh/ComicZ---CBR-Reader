@@ -3,7 +3,15 @@ export * from './comic-filename';
 export * from './schemas';
 export * from './types';
 
-export const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.avif'] as const;
+export const IMAGE_EXTENSIONS = [
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+  '.gif',
+  '.bmp',
+  '.avif',
+] as const;
 export const ARCHIVE_EXTENSIONS = ['.cbr', '.cbz'] as const;
 
 /**

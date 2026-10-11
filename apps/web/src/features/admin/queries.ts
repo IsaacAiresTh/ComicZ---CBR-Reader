@@ -4,6 +4,8 @@ import type {
   CharacterImportReport,
   GuideNodeView,
   ComicDetail,
+  FeaturedItem,
+  SaveFeaturedInput,
   ImportCharactersInput,
   SetCharacterComicsInput,
   SetMilestonesInput,
@@ -533,5 +535,17 @@ export function useReorderGuideItems() {
     mutationFn: (input: { guideId: string; itemIds: string[] }) =>
       api.patch(`/guides/${input.guideId}/reorder`, { itemIds: input.itemIds }),
     onSuccess: () => invalidateGuides(queryClient),
+  });
+}
+
+/**
+ * Grava a lista inteira do "Em destaque", na ordem em que aparece. Devolve a
+ * lista ja montada, que vira o cache do inicio sem outra ida ao servidor.
+ */
+export function useSaveFeatured() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SaveFeaturedInput) => api.put<FeaturedItem[]>('/featured', input),
+    onSuccess: (lista) => queryClient.setQueryData(['featured'], lista),
   });
 }

@@ -10,6 +10,7 @@ import { RegisterPage } from '../features/auth/RegisterPage';
 import { AdminCharactersPage } from '../features/admin/AdminCharactersPage';
 import { AdminComicsPage } from '../features/admin/AdminComicsPage';
 import { AdminDashboard } from '../features/admin/AdminDashboard';
+import { AdminFeaturedPage } from '../features/admin/AdminFeaturedPage';
 import { AdminGuidesPage } from '../features/admin/AdminGuidesPage';
 import { AdminJobsPage } from '../features/admin/AdminJobsPage';
 import { AdminLayout } from '../features/admin/AdminLayout';
@@ -66,6 +67,7 @@ export function AppRouter() {
           <Route index element={<AdminDashboard />} />
           <Route path="hqs" element={<AdminComicsPage />} />
           <Route path="series" element={<AdminSeriesPage />} />
+          <Route path="destaques" element={<AdminFeaturedPage />} />
           <Route path="guias" element={<AdminGuidesPage />} />
           <Route path="personagens" element={<AdminCharactersPage />} />
           <Route path="fila" element={<AdminJobsPage />} />

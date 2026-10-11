@@ -13,6 +13,7 @@ import { CharactersModule } from './modules/characters/characters.module';
 import { ComicsModule } from './modules/comics/comics.module';
 import { FilesModule } from './modules/files/files.module';
 import { GuidesModule } from './modules/guides/guides.module';
+import { FeaturedModule } from './modules/featured/featured.module';
 import { CollectionsModule } from './modules/collections/collections.module';
 import { LibraryModule } from './modules/library/library.module';
 import { MetaModule } from './modules/meta/meta.module';
@@ -37,6 +38,7 @@ import { UsersModule } from './modules/users/users.module';
     PublishersModule,
     LibraryModule,
     CollectionsModule,
+    FeaturedModule,
     ReaderModule,
     GuidesModule,
     AdminModule,

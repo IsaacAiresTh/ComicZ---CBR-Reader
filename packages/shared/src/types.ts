@@ -585,3 +585,31 @@ export interface AppAndroidInfo {
   sizeBytes: number;
   publishedAt: string;
 }
+
+/**
+ * Um item do "Em destaque" do inicio, pronto para virar card: a saga (ou a HQ
+ * avulsa) com capa, a frase de por que ler e por qual edicao comecar.
+ */
+export interface FeaturedItem {
+  id: string;
+  kind: 'series' | 'comic';
+  /** Id da saga ou da HQ, conforme `kind`. */
+  targetId: string;
+  title: string;
+  /** Slug da saga; null para HQ avulsa. */
+  slug: string | null;
+  coverUrl: string | null;
+  publisher: PublisherSummary | null;
+  status: SeriesStatus | null;
+  /** Edicoes no acervo (1 para HQ avulsa). */
+  issueCount: number;
+  /** A frase do painel; sem ela, um trecho da sinopse. */
+  note: string | null;
+  /** A frase veio do painel (e nao da sinopse). */
+  ownNote: boolean;
+  /** Edicao por onde seguir: a primeira nao lida que ja pode ser lida. */
+  startComicId: string | null;
+  startLabel: string | null;
+  /** Quantas edicoes quem pede ja terminou. */
+  readCount: number;
+}
