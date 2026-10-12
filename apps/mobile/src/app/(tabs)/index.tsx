@@ -130,7 +130,11 @@ function ContinueHero({ comic }: { comic: ComicSummary }) {
         </Text>
         {left != null ? (
           <Text style={styles.heroMeta}>
-            {left === 0 ? 'última página' : `faltam ${plural(left, 'página', 'páginas')}`}
+            {left === 0
+              ? 'última página'
+              : left === 1
+                ? 'falta 1 página'
+                : `faltam ${left} páginas`}
           </Text>
         ) : null}
         {progress ? (

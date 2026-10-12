@@ -225,7 +225,7 @@ export function DownloadsList() {
                 </Text>
                 <Text style={styles.muted}>
                   {plural(group.comics.length, 'edição', 'edições')} · {formatBytes(group.bytes)}
-                  {read > 0 ? ` · ${read} lidas` : ''}
+                  {read > 0 ? ` · ${read} ${read === 1 ? 'lida' : 'lidas'}` : ''}
                 </Text>
               </View>
               <Ionicons

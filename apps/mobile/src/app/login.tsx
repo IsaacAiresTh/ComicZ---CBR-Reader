@@ -99,7 +99,7 @@ export default function LoginScreen() {
               </View>
               <View style={styles.passwordRow}>
                 <TextInput
-                  style={[styles.input, { flex: 1, borderWidth: 0 }]}
+                  style={[styles.input, { flex: 1, minWidth: 0, borderWidth: 0 }]}
                   placeholder="Sua senha"
                   placeholderTextColor={Colors.ink500}
                   secureTextEntry={!showPassword}

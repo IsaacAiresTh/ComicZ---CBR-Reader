@@ -192,6 +192,7 @@ const styles = StyleSheet.create({
   buttonLabel: {
     fontSize: 15,
     fontWeight: '700',
+    textAlign: 'center',
   },
   badge: {
     alignSelf: 'flex-start',

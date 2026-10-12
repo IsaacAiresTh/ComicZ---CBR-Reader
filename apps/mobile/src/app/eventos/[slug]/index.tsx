@@ -1,152 +1,406 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import type { GuideDetail, GuideNodeView } from '@comicz/shared';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import type { GuideDetail, GuideItemView, GuideNodeView } from '@comicz/shared';
 
 import { CharacterText } from '@/components/CharacterText';
 import { EventNodeSheet } from '@/components/EventNodeSheet';
-import { TimelineRowView } from '@/components/EventTimeline';
-import { trailRows, TrailRowView, type TrailRow } from '@/components/EventTrail';
+import { StepOverviewRow, StepRow } from '@/components/EventStepMap';
+import { nextItem, TrailRowView, type TrailRow } from '@/components/EventTrail';
 import { QueryError } from '@/components/QueryError';
 import { Badge, Eyebrow, Loading, MediaImage, ProgressBar } from '@/components/ui';
 import { Colors, Fonts, mix, readableOn, Spacing } from '@/constants/theme';
-import {
-  buildTimeline,
-  isOptionalNode,
-  nodeState,
-  optionalByNode,
-  type NodeOptional,
-  type TimelineRow,
-} from '@/lib/eventTimeline';
-import { percent } from '@/lib/format';
+import { enqueueDownloads, useDownloads } from '@/lib/downloads';
+import { actByNode, buildSteps, currentStepIndex, lineOf, type Step } from '@/lib/eventSteps';
+import { isOptionalNode, optionalByNode } from '@/lib/eventTimeline';
+import { agruparEmAtos, comicLabel, percent, plural } from '@/lib/format';
 import { useCharacters, useGuide } from '@/lib/queries';
 
-type Row = { kind: 'map'; row: TimelineRow } | { kind: 'trail'; row: TrailRow };
+type Mode = 'ordem' | 'mapa';
+
+type Row =
+  | { kind: 'step'; key: string; step: Step; index: number }
+  | { kind: 'overview'; key: string; step: Step; index: number }
+  | { kind: 'trail'; key: string; row: TrailRow }
+  | { kind: 'actDone'; key: string; actKey: string; name: string; count: number };
 
 /**
- * A página de um evento, no desenho do app: topo com a capa desfocada, elenco,
- * "o que é" recolhido, os pontos de partida e o mapa como linha do tempo.
- * Tocar numa história abre uma folha com o resumo e o "começar/continuar".
+ * A ordem por atos. Um ato todo lido fecha numa linha só ("✓ Ato 1 · 3
+ * edições lidas"): numa saga de 300 edições, o que já passou não deve
+ * empurrar para baixo o que vem agora.
+ */
+function orderRows(items: GuideItemView[], essentialOnly: boolean, openActs: Set<string>): Row[] {
+  const visible = essentialOnly ? items.filter((item) => !item.optional) : items;
+  return agruparEmAtos(visible).flatMap((act): Row[] => {
+    const done = act.itens.every((item) => item.comic.progress?.completed);
+    if (act.nome && done && !openActs.has(act.key)) {
+      return [
+        {
+          kind: 'actDone',
+          key: `feito-${act.key}`,
+          actKey: act.key,
+          name: act.nome,
+          count: act.itens.length,
+        },
+      ];
+    }
+    return [
+      ...(act.nome
+        ? [
+            {
+              kind: 'trail' as const,
+              key: act.key,
+              row: { kind: 'act' as const, key: act.key, name: act.nome, count: act.itens.length },
+            },
+          ]
+        : []),
+      ...act.itens.map((item) => ({
+        kind: 'trail' as const,
+        key: item.id,
+        row: { kind: 'item' as const, key: item.id, item },
+      })),
+    ];
+  });
+}
+
+/**
+ * A página de uma grande saga no celular.
  *
- * Evento sem mapa (só a trilha) cai direto na lista de edições, como no site.
+ * Duas formas de ver: a ORDEM (a lista por atos, para quem só quer seguir) e
+ * o MAPA (um passo por linha; o que corre em paralelo desliza para o lado).
+ * No mapa dá para afastar até ver a saga inteira de uma vez e para "seguir
+ * só uma linha" — a trilha de uma frente num evento com nove. Em qualquer
+ * das duas, a próxima edição fica presa no pé da tela, a um toque.
  */
 export default function EventScreen() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
   const query = useGuide(slug);
+  const { comics: downloaded, active } = useDownloads();
   const [selected, setSelected] = useState<GuideNodeView | null>(null);
   const [essentialOnly, setEssentialOnly] = useState(false);
-
-  if (query.isPending) return <Loading />;
-  if (query.isError) return <QueryError error={query.error} onRetry={() => void query.refetch()} />;
+  const [mode, setMode] = useState<Mode>('mapa');
+  const [overview, setOverview] = useState(false);
+  const [following, setFollowing] = useState<GuideNodeView | null>(null);
+  const [openActs, setOpenActs] = useState<Set<string>>(new Set());
+  const listRef = useRef<FlatList<Row>>(null);
+  // Rola só quando a pessoa pede (trocou de vista, tocou na visão geral):
+  // ao abrir, o topo com o resumo da saga vem primeiro.
+  const pendingScroll = useRef<number | null>(null);
 
   const guide = query.data;
+  const hasMap = (guide?.nodes.length ?? 0) > 0;
+  const effectiveMode: Mode = hasMap ? mode : 'ordem';
+
+  const optional = optionalByNode(guide?.items ?? []);
+  const line = following && guide ? lineOf(guide.nodes, following.id) : null;
+  const steps = guide
+    ? buildSteps(
+        guide.nodes,
+        guide.items,
+        (node) =>
+          (!essentialOnly || !isOptionalNode(optional.get(node.id))) &&
+          (!line || line.has(node.id)),
+      )
+    : [];
+  const next = guide ? nextItem(guide.items) : null;
+  const currentId = next && !next.comic.progress?.completed ? next.nodeId : null;
+
+  const rows: Row[] = !guide
+    ? []
+    : effectiveMode === 'ordem'
+      ? orderRows(guide.items, essentialOnly, openActs)
+      : overview
+        ? steps.map((step, index) => ({ kind: 'overview', key: `ov-${step.key}`, step, index }))
+        : steps.map((step, index) => ({ kind: 'step', key: step.key, step, index }));
+
+  useEffect(() => {
+    const index = pendingScroll.current;
+    if (index == null || index < 0) return;
+    pendingScroll.current = null;
+    requestAnimationFrame(() =>
+      listRef.current?.scrollToIndex({ index, viewPosition: 0.3, animated: true }),
+    );
+  }, [effectiveMode, overview, following]);
+
+  if (query.isPending) return <Loading />;
+  if (query.isError || !guide)
+    return <QueryError error={query.error} onRetry={() => void query.refetch()} />;
+
   const accent = guide.accentColor ?? Colors.brand;
   const accentText = mix(accent, '#ffffff', 0.35);
-  const optional = optionalByNode(guide.items);
   const skippable = guide.nodes.filter((node) => isOptionalNode(optional.get(node.id)));
-  // "Só o essencial" no mapa esconde as histórias que dá para pular inteiras.
-  const shownNodes = essentialOnly
-    ? guide.nodes.filter((node) => !isOptionalNode(optional.get(node.id)))
-    : guide.nodes;
-  const { entries, rows: timeline } = buildTimeline(shownNodes);
-  const hasMap = guide.nodes.length > 0;
-
-  const rows: Row[] = hasMap
-    ? timeline.map((row) => ({ kind: 'map', row }))
-    : trailRows(guide.items, essentialOnly).map((row) => ({ kind: 'trail', row }));
   const optionalCount = guide.items.filter((item) => item.optional).length;
+
+  // Seguindo uma linha: quantas histórias de cada ato ficaram de fora.
+  const acts = actByNode(guide.items);
+  const hiddenByAct = new Map<string, number>();
+  if (line) {
+    for (const node of guide.nodes) {
+      const act = acts.get(node.id);
+      if (!line.has(node.id) && act) hiddenByAct.set(act, (hiddenByAct.get(act) ?? 0) + 1);
+    }
+  }
+
+  // Histórias que dividem o passo com outras: correm em paralelo.
+  const parallelIds = new Set(
+    steps.filter((step) => step.nodes.length > 1).flatMap((step) => step.nodes.map((n) => n.id)),
+  );
+
+  const switchMode = (value: Mode) => {
+    if (value === mode) return;
+    if (value === 'mapa') pendingScroll.current = currentStepIndex(steps, currentId);
+    setMode(value);
+  };
+
+  const follow = (node: GuideNodeView) => {
+    setSelected(null);
+    setOverview(false);
+    setMode('mapa');
+    const lineSteps = buildSteps(guide.nodes, guide.items, (candidate) =>
+      lineOf(guide.nodes, node.id).has(candidate.id),
+    );
+    pendingScroll.current = currentStepIndex(lineSteps, node.id);
+    setFollowing(node);
+  };
 
   const openEditions = (node: GuideNodeView) => {
     setSelected(null);
     router.push({ pathname: '/eventos/[slug]/[bloco]', params: { slug, bloco: node.id } });
   };
 
+  // "Baixar o ato": o que falta ler no ato da próxima edição.
+  const actItems = next
+    ? guide.items.filter((item) =>
+        next.chapter ? item.chapter === next.chapter : item.nodeId === next.nodeId,
+      )
+    : [];
+  const toDownload = actItems.filter(
+    (item) =>
+      item.comic.file?.status === 'READY' &&
+      !item.comic.progress?.completed &&
+      !downloaded[item.comic.id] &&
+      !active[item.comic.id],
+  );
+  const nextIndex = next ? guide.items.findIndex((item) => item.id === next.id) : -1;
+
+  const controls = (
+    <View style={[styles.padded, { gap: 12 }]}>
+      {hasMap ? (
+        <View style={styles.segmented} accessibilityRole="tablist">
+          {(['ordem', 'mapa'] as const).map((value) => (
+            <Pressable
+              key={value}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: effectiveMode === value }}
+              onPress={() => switchMode(value)}
+              style={[styles.segment, effectiveMode === value && styles.segmentActive]}
+            >
+              <Text
+                style={[styles.segmentLabel, effectiveMode === value && styles.segmentLabelActive]}
+              >
+                {value === 'ordem' ? 'Ordem' : 'Mapa'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : (
+        <Eyebrow>A trilha</Eyebrow>
+      )}
+
+      {effectiveMode === 'mapa' ? (
+        <>
+          <View style={styles.legend}>
+            <Legend color={Colors.success} label="lida" />
+            <Legend color={accent} label="você está aqui" />
+            <Legend dashed label="opcional" />
+            <Pressable
+              hitSlop={8}
+              onPress={() => {
+                if (overview) pendingScroll.current = currentStepIndex(steps, currentId);
+                setOverview((value) => !value);
+              }}
+              style={styles.overviewButton}
+              accessibilityRole="button"
+            >
+              <Ionicons
+                name={overview ? 'expand-outline' : 'contract-outline'}
+                size={15}
+                color={accentText}
+              />
+              <Text style={[styles.overviewLabel, { color: accentText }]}>
+                {overview ? 'Aproximar' : 'Visão geral'}
+              </Text>
+            </Pressable>
+          </View>
+          {overview ? (
+            <Text style={styles.help}>
+              Cada tracinho é uma história. Toque numa fileira para aproximar ali.
+            </Text>
+          ) : !following ? (
+            <Text style={styles.help}>
+              A leitura <Text style={styles.strong}>desce</Text>. Quando várias histórias acontecem
+              ao mesmo tempo, elas ficam lado a lado — deslize e leia na ordem que quiser.
+            </Text>
+          ) : null}
+          {following ? (
+            <View style={[styles.following, { borderColor: mix(accent, Colors.ink900, 0.4) }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.followingEyebrow, { color: accentText }]}>
+                  SEGUINDO A LINHA DE
+                </Text>
+                <Text style={styles.followingName} numberOfLines={1}>
+                  {following.label}
+                </Text>
+              </View>
+              <Pressable
+                onPress={() => setFollowing(null)}
+                style={styles.followingButton}
+                accessibilityRole="button"
+              >
+                <Text style={styles.followingButtonLabel}>Ver tudo</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          {skippable.length > 0 && !following ? (
+            <View style={styles.toggle}>
+              <Text style={styles.small}>
+                Só o essencial
+                {essentialOnly
+                  ? ` · ${guide.nodes.length - skippable.length} de ${guide.nodes.length} histórias`
+                  : ` · esconde ${skippable.length} opcionais`}
+              </Text>
+              <Switch
+                value={essentialOnly}
+                onValueChange={setEssentialOnly}
+                trackColor={{ true: accent, false: Colors.ink700 }}
+              />
+            </View>
+          ) : null}
+        </>
+      ) : optionalCount > 0 ? (
+        <View style={styles.toggle}>
+          <Text style={styles.small}>Só o essencial · esconde {optionalCount} opcionais</Text>
+          <Switch
+            value={essentialOnly}
+            onValueChange={setEssentialOnly}
+            trackColor={{ true: accent, false: Colors.ink700 }}
+          />
+        </View>
+      ) : null}
+    </View>
+  );
+
   return (
     <View style={styles.screen}>
       <FlatList
+        ref={listRef}
         data={rows}
-        keyExtractor={(row) => row.row.key}
-        contentContainerStyle={{ paddingBottom: Spacing.five }}
+        keyExtractor={(row) => row.key}
+        contentContainerStyle={{ paddingBottom: next ? 120 : Spacing.five }}
+        onScrollToIndexFailed={({ index, averageItemLength }) => {
+          listRef.current?.scrollToOffset({ offset: averageItemLength * index, animated: false });
+          setTimeout(
+            () => listRef.current?.scrollToIndex({ index, viewPosition: 0.3, animated: true }),
+            120,
+          );
+        }}
         ListHeaderComponent={
-          <View style={{ gap: Spacing.four }}>
+          <View style={{ gap: Spacing.four, marginBottom: Spacing.two }}>
             <Hero guide={guide} accent={accent} accentText={accentText} />
             <Cast guide={guide} accent={accent} />
             <About text={guide.description} accentText={accentText} />
-            {hasMap ? (
-              <>
-                <View style={styles.padded}>
-                  <Eyebrow>O mapa</Eyebrow>
-                  <Text style={styles.help}>
-                    Cada bloco é uma história inteira, e a leitura{' '}
-                    <Text style={styles.strong}>desce</Text>: o que está mais embaixo se lê depois.
-                    As histórias <Text style={styles.strong}>recuadas</Text> correm em paralelo —
-                    leia na ordem que quiser, antes de onde elas voltam. As marcadas como{' '}
-                    <Text style={styles.strong}>opcional</Text> dá para pular.
-                  </Text>
-                  {skippable.length > 0 ? (
-                    <View style={styles.essential}>
-                      <Text style={styles.small}>
-                        Só o essencial
-                        {essentialOnly
-                          ? ` · ${guide.nodes.length - skippable.length} de ${guide.nodes.length} histórias`
-                          : ` · esconde ${skippable.length} opcionais`}
-                      </Text>
-                      <Switch
-                        value={essentialOnly}
-                        onValueChange={setEssentialOnly}
-                        trackColor={{ true: accent, false: Colors.ink700 }}
-                      />
-                    </View>
-                  ) : null}
-                </View>
-                <View style={[styles.padded, { gap: Spacing.two }]}>
-                  {entries.map((node) => (
-                    <EntryCard
-                      key={node.id}
-                      node={node}
-                      accent={accent}
-                      optional={optional.get(node.id)}
-                      onPress={() => setSelected(node)}
-                    />
-                  ))}
-                </View>
-              </>
-            ) : (
-              <View style={[styles.padded, styles.trailHeader]}>
-                <Eyebrow>A trilha</Eyebrow>
-                {optionalCount > 0 ? (
-                  <View style={styles.toggle}>
-                    <Text style={styles.small}>Só o essencial</Text>
-                    <Switch
-                      value={essentialOnly}
-                      onValueChange={setEssentialOnly}
-                      trackColor={{ true: accent, false: Colors.ink700 }}
-                    />
-                  </View>
-                ) : null}
-              </View>
-            )}
+            {controls}
           </View>
         }
-        ListEmptyComponent={
-          hasMap ? null : <Text style={styles.empty}>Este evento ainda não tem HQs.</Text>
-        }
-        renderItem={({ item }) =>
-          item.kind === 'map' ? (
-            <View style={styles.padded}>
-              <TimelineRowView
-                row={item.row}
+        ListEmptyComponent={<Text style={styles.empty}>Esta saga ainda não tem HQs.</Text>}
+        renderItem={({ item, index }) => {
+          if (item.kind === 'step') {
+            return (
+              <StepRow
+                step={item.step}
+                first={index === 0}
                 accent={accent}
-                optional={item.row.kind === 'node' ? optional.get(item.row.node.id) : undefined}
+                currentId={currentId}
+                optional={optional}
+                hiddenInAct={item.step.act ? hiddenByAct.get(item.step.act) : undefined}
                 onPress={setSelected}
               />
-            </View>
-          ) : (
-            <TrailRowView row={item.row} accent={accent} />
-          )
-        }
+            );
+          }
+          if (item.kind === 'overview') {
+            return (
+              <StepOverviewRow
+                step={item.step}
+                accent={accent}
+                currentId={currentId}
+                optional={optional}
+                onPress={() => {
+                  pendingScroll.current = item.index;
+                  setOverview(false);
+                }}
+              />
+            );
+          }
+          if (item.kind === 'actDone') {
+            return (
+              <Pressable
+                style={styles.actDone}
+                onPress={() => setOpenActs((open) => new Set(open).add(item.actKey))}
+              >
+                <Text style={styles.actDoneCheck}>✓</Text>
+                <Text style={styles.actDoneLabel} numberOfLines={1}>
+                  {item.name} · {plural(item.count, 'edição lida', 'edições lidas')}
+                </Text>
+                <Text style={styles.small}>abrir</Text>
+              </Pressable>
+            );
+          }
+          return <TrailRowView row={item.row} accent={accent} />;
+        }}
       />
+
+      {next ? (
+        <SafeAreaView edges={['bottom']} style={styles.nextBarWrap} pointerEvents="box-none">
+          <View style={[styles.nextBar, { borderColor: mix(accent, Colors.ink900, 0.45) }]}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.nextEyebrow, { color: accentText }]}>
+                {next.comic.progress?.completed ? 'RELER' : 'PRÓXIMA'} · {nextIndex + 1} DE{' '}
+                {guide.items.length}
+              </Text>
+              <Text style={styles.nextTitle} numberOfLines={1}>
+                {comicLabel(next.comic)}
+              </Text>
+            </View>
+            {toDownload.length > 0 ? (
+              <Pressable
+                onPress={() =>
+                  enqueueDownloads(
+                    toDownload.map((item) => ({
+                      comicId: item.comic.id,
+                      coverUrl: item.comic.coverUrl,
+                    })),
+                  )
+                }
+                style={styles.nextIcon}
+                accessibilityRole="button"
+                accessibilityLabel={`Baixar ${plural(toDownload.length, 'edição', 'edições')} ${next.chapter ? `do ${next.chapter}` : 'desta história'}`}
+              >
+                <Ionicons name="arrow-down" size={18} color={Colors.ink100} />
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={() => router.push({ pathname: '/ler/[id]', params: { id: next.comic.id } })}
+              style={[styles.nextRead, { backgroundColor: accent }]}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.nextReadLabel, { color: readableOn(accent) }]}>Ler</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      ) : null}
 
       <EventNodeSheet
         node={selected}
@@ -166,11 +420,13 @@ export default function EventScreen() {
             : []
         }
         context={
-          selected?.entry
-            ? 'Comece aqui'
-            : selected && selected.lane > 0
-              ? 'Ramo'
-              : 'Linha principal'
+          selected?.id === currentId
+            ? 'Você está aqui'
+            : selected?.entry
+              ? 'Comece aqui'
+              : selected && parallelIds.has(selected.id)
+                ? 'Acontece junto com outras'
+                : 'Linha principal'
         }
         accent={accent}
         accentText={accentText}
@@ -180,7 +436,24 @@ export default function EventScreen() {
           setSelected(null);
           router.push({ pathname: '/ler/[id]', params: { id: item.comic.id } });
         }}
+        onFollow={following?.id === selected?.id ? undefined : follow}
       />
+    </View>
+  );
+}
+
+function Legend({ color, dashed, label }: { color?: string; dashed?: boolean; label: string }) {
+  return (
+    <View style={styles.legendItem}>
+      <View
+        style={[
+          styles.legendDot,
+          dashed
+            ? { borderWidth: 1, borderStyle: 'dashed', borderColor: Colors.ink400 }
+            : { backgroundColor: color },
+        ]}
+      />
+      <Text style={styles.small}>{label}</Text>
     </View>
   );
 }
@@ -308,54 +581,6 @@ function About({ text, accentText }: { text: string | null; accentText: string }
   );
 }
 
-function EntryCard({
-  node,
-  accent,
-  optional,
-  onPress,
-}: {
-  node: GuideNodeView;
-  accent: string;
-  optional?: NodeOptional;
-  onPress: () => void;
-}) {
-  const done = nodeState(node) === 'done';
-  // Abertura opcional (o "Prólogo do Tony" da Guerra Civil): contexto, não obrigação.
-  const skippable = isOptionalNode(optional);
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.entry,
-        { borderColor: accent, backgroundColor: mix(accent, Colors.ink900, 0.85) },
-        pressed && { opacity: 0.8 },
-      ]}
-    >
-      <MediaImage url={node.coverUrl} style={styles.entryCover} />
-      <View style={{ flex: 1, gap: 4 }}>
-        <View style={styles.entryTags}>
-          <Text style={[styles.entryBadge, { backgroundColor: accent, color: readableOn(accent) }]}>
-            COMECE AQUI
-          </Text>
-          {skippable ? (
-            <Text style={[styles.entryBadge, styles.optionalBadge]}>OPCIONAL</Text>
-          ) : null}
-        </View>
-        <Text style={styles.entryTitle}>{node.label}</Text>
-        {node.note ? (
-          <Text style={styles.entryNote} numberOfLines={2}>
-            {node.note}
-          </Text>
-        ) : null}
-        <Text style={styles.small}>
-          {node.itemCount} ed.
-          {done ? ' · lida' : node.readCount ? ` · ${node.readCount} lidas` : ''}
-        </Text>
-      </View>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.ink900 },
   padded: { paddingHorizontal: Spacing.three },
@@ -407,31 +632,93 @@ const styles = StyleSheet.create({
   },
   aboutText: { color: Colors.ink300, fontSize: 14, lineHeight: 22 },
   more: { fontSize: 14, fontWeight: '500', paddingVertical: 4 },
-  help: { color: Colors.ink300, fontSize: 14, lineHeight: 21, marginTop: 8 },
-  entry: { flexDirection: 'row', gap: 12, padding: 12, borderRadius: 14, borderWidth: 1.5 },
-  entryCover: { width: 56, height: 84, borderRadius: 6 },
-  entryTags: { flexDirection: 'row', gap: 6 },
-  optionalBadge: { backgroundColor: Colors.ink700, color: Colors.ink300 },
-  essential: {
+  help: { color: Colors.ink300, fontSize: 13, lineHeight: 19 },
+  toggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  segmented: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.ink700,
+    backgroundColor: Colors.ink850,
+  },
+  segment: { flex: 1, height: 40, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  segmentActive: { backgroundColor: Colors.ink700 },
+  segmentLabel: { color: Colors.ink400, fontSize: 14, fontWeight: '600' },
+  segmentLabelActive: { color: Colors.ink100, fontWeight: '800' },
+  legend: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 12 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  legendDot: { width: 10, height: 10, borderRadius: 3 },
+  overviewButton: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 'auto' },
+  overviewLabel: { fontSize: 13, fontWeight: '700' },
+  following: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: Spacing.two,
+    gap: 10,
+    padding: 10,
+    paddingLeft: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: Colors.ink850,
   },
-  entryBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 4,
-    overflow: 'hidden',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.8,
+  followingEyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.4 },
+  followingName: { color: Colors.ink100, fontSize: 14, fontWeight: '800' },
+  followingButton: {
+    height: 36,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.ink600,
+    justifyContent: 'center',
   },
-  entryTitle: { color: Colors.ink100, fontSize: 16, fontWeight: '500', lineHeight: 21 },
-  entryNote: { color: Colors.ink300, fontSize: 13, lineHeight: 18 },
-  trailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  toggle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  followingButtonLabel: { color: Colors.ink100, fontSize: 13, fontWeight: '700' },
+  actDone: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: Spacing.three,
+    marginTop: Spacing.three,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.ink800,
+  },
+  actDoneCheck: { color: Colors.success, fontWeight: '900' },
+  actDoneLabel: { flex: 1, color: Colors.ink300, fontSize: 14 },
+  nextBarWrap: { position: 'absolute', left: 0, right: 0, bottom: 0 },
+  nextBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 12,
+    marginBottom: 12,
+    padding: 10,
+    paddingLeft: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    backgroundColor: Colors.ink850,
+    boxShadow: '0 -8px 24px rgba(0, 0, 0, 0.5)',
+  },
+  nextEyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.4 },
+  nextTitle: { color: Colors.ink100, fontSize: 14, fontWeight: '800', marginTop: 2 },
+  nextIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.ink600,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextRead: {
+    height: 44,
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextReadLabel: { fontSize: 15, fontWeight: '800' },
   empty: { color: Colors.ink500, textAlign: 'center', padding: Spacing.four },
 });
 

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Alert, FlatList, StyleSheet, Text, View } from 'react-native';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CharacterText } from '@/components/CharacterText';
@@ -10,7 +11,6 @@ import { TrailStop } from '@/components/ReadingTrail';
 import { Badge, Button, Loading } from '@/components/ui';
 import { Colors, Fonts, Spacing } from '@/constants/theme';
 import { enqueueDownloads, useDownloads } from '@/lib/downloads';
-import { plural } from '@/lib/format';
 import { useAddManyToLibrary, useGuide } from '@/lib/queries';
 
 export default function GuideScreen() {
@@ -101,7 +101,8 @@ export default function GuideScreen() {
           {toDownload.length > 0 ? (
             <Button
               variant="secondary"
-              label={`Baixar ${plural(toDownload.length, 'que falta', 'que faltam')}`}
+              label={`Baixar ${toDownload.length}`}
+              icon={<Ionicons name="arrow-down" size={18} color={Colors.ink100} />}
               style={{ flex: 1 }}
               onPress={() =>
                 enqueueDownloads(
@@ -116,7 +117,7 @@ export default function GuideScreen() {
           {notSaved.length > 0 ? (
             <Button
               variant="secondary"
-              label="Guardar na biblioteca"
+              label="Guardar todas"
               loading={addMany.isPending}
               style={{ flex: 1 }}
               onPress={() =>
