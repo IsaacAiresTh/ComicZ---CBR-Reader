@@ -12,16 +12,30 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import type { CollectionSummary, LibraryGroup, Paginated } from '@comicz/shared';
+import type {
+  CollectionSummary,
+  ComicSummary,
+  LibraryCounts,
+  LibraryGroup,
+  Paginated,
+} from '@comicz/shared';
 
 import { ComicRow } from '@/components/ComicRow';
 import { QueryError } from '@/components/QueryError';
 import { LibrarySeriesRow } from '@/components/SeriesRow';
-import { Button, Chip, EmptyState, Loading, MediaImage, SectionHeader } from '@/components/ui';
+import {
+  Button,
+  Chip,
+  EmptyState,
+  Loading,
+  MediaImage,
+  ProgressBar,
+  SectionHeader,
+} from '@/components/ui';
 import { Colors, Spacing } from '@/constants/theme';
 import { api } from '@/lib/api';
-import { plural } from '@/lib/format';
-import { useCollectionActions, useCollections } from '@/lib/queries';
+import { comicLabel, percent, plural } from '@/lib/format';
+import { useCollectionActions, useCollections, useContinueReading } from '@/lib/queries';
 
 const TABS = [
   { key: 'all', label: 'Tudo' },
@@ -48,13 +62,21 @@ export default function LibraryScreen() {
       const params = new URLSearchParams({ page: String(pageParam), perPage: '30' });
       if (tab === 'favorites') params.set('favorite', 'true');
       else if (tab !== 'all') params.set('status', tab);
-      return api<Paginated<LibraryGroup>>(`/library?${params}`);
+      return api<Paginated<LibraryGroup> & { counts?: LibraryCounts }>(`/library?${params}`);
     },
     getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
   });
 
   const groups = query.data?.pages.flatMap((page) => page.items) ?? [];
   const total = query.data?.pages[0]?.total;
+  const counts = query.data?.pages[0]?.counts;
+  const countOf: Record<TabKey, number | undefined> = {
+    all: counts?.all,
+    READING: counts?.reading,
+    WANT_TO_READ: counts?.wantToRead,
+    READ: counts?.read,
+    favorites: counts?.favorites,
+  };
 
   return (
     <View style={styles.screen}>
@@ -72,6 +94,7 @@ export default function LibraryScreen() {
         onRefresh={() => void query.refetch()}
         ListHeaderComponent={
           <>
+            <ReadingNow />
             <Collections />
             <ScrollView
               horizontal
@@ -81,7 +104,9 @@ export default function LibraryScreen() {
               {TABS.map((item) => (
                 <Chip
                   key={item.key}
-                  label={item.label}
+                  label={
+                    countOf[item.key] != null ? `${item.label} ${countOf[item.key]}` : item.label
+                  }
                   active={tab === item.key}
                   onPress={() => setTab(item.key)}
                 />
@@ -124,6 +149,54 @@ function LibraryItem({ group }: { group: LibraryGroup }) {
     return <ComicRow comic={{ ...group.entry.comic, progress: group.entry.progress }} />;
   }
   return <LibrarySeriesRow series={group.series} />;
+}
+
+// ------------------------------------------------------------ lendo agora
+
+/** O que está no meio, com quanto falta e um toque para continuar. */
+function ReadingNow() {
+  const { data } = useContinueReading();
+  const reading = (data ?? []).slice(0, 6);
+  if (reading.length === 0) return null;
+  return (
+    <View style={{ paddingTop: Spacing.three }}>
+      <SectionHeader title="Lendo agora" />
+      <FlatList
+        horizontal
+        data={reading}
+        keyExtractor={(comic) => comic.id}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: Spacing.three, gap: 10 }}
+        renderItem={({ item }) => <ReadingCard comic={item} />}
+      />
+    </View>
+  );
+}
+
+function ReadingCard({ comic }: { comic: ComicSummary }) {
+  const progress = comic.progress;
+  return (
+    <Pressable
+      onPress={() => router.push({ pathname: '/ler/[id]', params: { id: comic.id } })}
+      style={({ pressed }) => [styles.readingCard, pressed && { opacity: 0.8 }]}
+    >
+      <MediaImage url={comic.coverUrl} style={styles.readingCover} />
+      <View style={{ flex: 1, gap: 6, justifyContent: 'center' }}>
+        <Text style={styles.readingTitle} numberOfLines={2}>
+          {comicLabel(comic)}
+        </Text>
+        {progress ? (
+          <>
+            <ProgressBar value={percent(progress.currentPage, progress.pageCount)} />
+            <Text style={styles.readingMeta}>
+              {progress.currentPage}/{progress.pageCount}
+            </Text>
+          </>
+        ) : null}
+        <Text style={styles.readingAction}>Continuar →</Text>
+      </View>
+    </Pressable>
+  );
 }
 
 // ------------------------------------------------------------ pastas
@@ -221,6 +294,20 @@ function CollectionCard({ collection }: { collection: CollectionSummary }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.ink900 },
+  readingCard: {
+    width: 250,
+    flexDirection: 'row',
+    gap: 12,
+    padding: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(245, 179, 1, 0.35)',
+    backgroundColor: '#13110a',
+  },
+  readingCover: { width: 56, height: 84, borderRadius: 6 },
+  readingTitle: { color: Colors.ink100, fontSize: 14, fontWeight: '700' },
+  readingMeta: { color: Colors.ink400, fontSize: 11 },
+  readingAction: { color: Colors.brandLight, fontSize: 12, fontWeight: '700' },
   collections: { paddingTop: Spacing.three, paddingBottom: Spacing.two },
   create: {
     flexDirection: 'row',

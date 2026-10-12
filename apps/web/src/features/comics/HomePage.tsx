@@ -7,9 +7,10 @@ import { fromHere } from '../../lib/navigation';
 import { mediaUrl } from '../../services/api';
 import { useAuth } from '../auth/AuthContext';
 import { CatalogGrid } from './CatalogGrid';
+import { DestaqueGrande, EmDestaque, FilaDeDestaques } from './EmDestaque';
 import { CARD_GRID_CLASS } from './ComicCard';
 import { GuideCoverCard } from '../guides/GuideCard';
-import { useCatalog, useContinueReading, useGuides, useUserStats } from './queries';
+import { useCatalog, useContinueReading, useFeatured, useGuides, useUserStats } from './queries';
 
 /**
  * A home abre pelo que a pessoa estava fazendo: a leitura em andamento vem
@@ -24,60 +25,80 @@ export function HomePage() {
   const recent = useCatalog({ sort: 'recent', page: 1, perPage: 12 });
   const guides = useGuides();
   const stats = useUserStats();
+  const featured = useFeatured();
 
   const publishedGuides = (guides.data ?? []).filter(
     (guide) => guide.published && guide.kind !== 'EVENT',
   );
   const lendo = continueReading.data ?? [];
   const [atual, ...naMesa] = lendo;
+  const destaques = featured.data ?? [];
+  // Quem ainda nao leu nada nao tem "continue lendo": o destaque assume o topo.
+  const destaqueNoTopo = !atual && !continueReading.isLoading && destaques.length > 0;
+  const [primeiroDestaque, ...outrosDestaques] = destaques;
 
   return (
     <div className="space-y-14">
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
-        {atual ? (
-          <LeituraAtual comic={atual} />
-        ) : (
-          <PrimeiraVisita nome={user?.username} guia={publishedGuides[0]} />
-        )}
-
-        <div className="flex flex-col gap-3 rounded-2xl border border-ink-800 bg-ink-900 p-6">
-          <div className="flex items-baseline justify-between">
-            <h2 className="text-base font-bold text-ink-100">
-              {naMesa.length > 0 ? 'Também na sua mesa' : 'Sua biblioteca'}
-            </h2>
-            <Link to="/biblioteca" className="text-sm text-brand-400 hover:underline">
-              biblioteca
-            </Link>
-          </div>
-
-          {naMesa.length > 0 ? (
-            <ul className="-mx-2 flex flex-col">
-              {naMesa.slice(0, 4).map((comic) => (
-                <li key={comic.id}>
-                  <NaMesa comic={comic} />
-                </li>
-              ))}
-            </ul>
+      {destaqueNoTopo && primeiroDestaque ? (
+        <section
+          className={`grid gap-6 ${outrosDestaques.length > 0 ? 'lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]' : ''}`}
+        >
+          <DestaqueGrande item={primeiroDestaque} eyebrow="Primeira vez aqui? Comece por esta" />
+          {outrosDestaques.length > 0 && (
+            <div className="rounded-2xl border border-ink-800 bg-ink-900 p-5">
+              <FilaDeDestaques itens={outrosDestaques} titulo="Também em destaque" />
+            </div>
+          )}
+        </section>
+      ) : (
+        <section className="grid gap-6 lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)]">
+          {atual ? (
+            <LeituraAtual comic={atual} />
           ) : (
-            <p className="text-sm leading-relaxed text-ink-400">
-              O que você começar a ler aparece aqui, com a página em que parou.
-            </p>
+            <PrimeiraVisita nome={user?.username} guia={publishedGuides[0]} />
           )}
 
-          {stats.data && (
-            <p className="mt-auto border-t border-ink-800 pt-4 text-sm text-ink-400">
-              <strong className="text-ink-100">{stats.data.inLibrary}</strong> salvas ·{' '}
-              <strong className="text-ink-100">{stats.data.reading}</strong> lendo ·{' '}
-              <strong className="text-ink-100">{stats.data.finished}</strong> lidas ·{' '}
-              <strong className="text-ink-100">{stats.data.favorites}</strong> favoritas
-            </p>
-          )}
-        </div>
-      </section>
+          <div className="flex flex-col gap-3 rounded-2xl border border-ink-800 bg-ink-900 p-6">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-base font-bold text-ink-100">
+                {naMesa.length > 0 ? 'Também na sua mesa' : 'Sua biblioteca'}
+              </h2>
+              <Link to="/biblioteca" className="text-sm text-brand-400 hover:underline">
+                biblioteca
+              </Link>
+            </div>
+
+            {naMesa.length > 0 ? (
+              <ul className="-mx-2 flex flex-col">
+                {naMesa.slice(0, 4).map((comic) => (
+                  <li key={comic.id}>
+                    <NaMesa comic={comic} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm leading-relaxed text-ink-400">
+                O que você começar a ler aparece aqui, com a página em que parou.
+              </p>
+            )}
+
+            {stats.data && (
+              <p className="mt-auto border-t border-ink-800 pt-4 text-sm text-ink-400">
+                <strong className="text-ink-100">{stats.data.inLibrary}</strong> salvas ·{' '}
+                <strong className="text-ink-100">{stats.data.reading}</strong> lendo ·{' '}
+                <strong className="text-ink-100">{stats.data.finished}</strong> lidas ·{' '}
+                <strong className="text-ink-100">{stats.data.favorites}</strong> favoritas
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+
+      {!destaqueNoTopo && <EmDestaque itens={destaques} />}
 
       <section>
         <SectionHeader
-          eyebrow="Não sabe por onde começar?"
+          eyebrow={destaqueNoTopo ? 'Prefere uma ordem pronta?' : 'Não sabe por onde começar?'}
           title="Siga um guia, na ordem"
           action={
             <Link to="/guias" className="text-brand-400 hover:underline">

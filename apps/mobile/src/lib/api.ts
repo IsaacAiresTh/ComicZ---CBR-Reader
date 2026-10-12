@@ -318,6 +318,25 @@ export async function restoreSession(): Promise<RestoredSession | null> {
   }
 }
 
+/**
+ * Pede o link de nova senha. O servidor responde igual exista a conta ou não,
+ * para ninguém descobrir quais e-mails estão cadastrados.
+ */
+export async function forgotPassword(email: string): Promise<void> {
+  const response = await rawFetch('/auth/forgot-password', {
+    method: 'POST',
+    headers: { ...CLIENT_HEADERS, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  if (!response.ok) throw await errorFrom(response);
+}
+
+/** Encerra as sessões da conta em todo lugar — site e outros celulares. */
+export async function logoutAll(): Promise<void> {
+  await api('/auth/logout-all', { method: 'POST' }).catch(() => undefined);
+  await clearSession();
+}
+
 export async function logout(): Promise<void> {
   const refreshToken = await SecureStore.getItemAsync(REFRESH_KEY);
   if (refreshToken) {

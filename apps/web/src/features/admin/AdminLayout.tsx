@@ -23,6 +23,7 @@ export function AdminLayout() {
     { to: '/admin', label: 'Painel', end: true },
     { to: '/admin/hqs', label: 'HQs', conta: stats?.comics },
     { to: '/admin/series', label: 'Sagas', conta: stats?.series },
+    { to: '/admin/destaques', label: 'Destaques' },
     { to: '/admin/guias', label: 'Guias', conta: stats?.guides },
     { to: '/admin/personagens', label: 'Personagens', conta: personagens?.length },
     { to: '/admin/fila', label: 'Fila', conta: naFila || undefined, alerta: falhas || undefined },

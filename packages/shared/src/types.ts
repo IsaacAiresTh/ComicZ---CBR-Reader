@@ -220,8 +220,26 @@ export interface ReaderPage {
   height: number | null;
 }
 
+export interface ReaderNextComic {
+  id: string;
+  title: string;
+  issueNumber: number | null;
+  coverUrl: string | null;
+}
+
 export interface ReaderPayload {
-  comic: { id: string; title: string; issueNumber: number | null; seriesName: string | null };
+  comic: {
+    id: string;
+    title: string;
+    issueNumber: number | null;
+    seriesName: string | null;
+    seriesId?: string | null;
+  };
+  /**
+   * A edicao seguinte da mesma saga, pronta para ler. Alimenta o "fim da HQ"
+   * do app; null na ultima edicao, numa HQ avulsa ou sem numero.
+   */
+  next?: ReaderNextComic | null;
   pageCount: number;
   currentPage: number;
   /** URLs ja versionadas e sem token — o cookie de mídia autoriza os <img>. */
@@ -584,4 +602,32 @@ export interface AppAndroidInfo {
   version: string;
   sizeBytes: number;
   publishedAt: string;
+}
+
+/**
+ * Um item do "Em destaque" do inicio, pronto para virar card: a saga (ou a HQ
+ * avulsa) com capa, a frase de por que ler e por qual edicao comecar.
+ */
+export interface FeaturedItem {
+  id: string;
+  kind: 'series' | 'comic';
+  /** Id da saga ou da HQ, conforme `kind`. */
+  targetId: string;
+  title: string;
+  /** Slug da saga; null para HQ avulsa. */
+  slug: string | null;
+  coverUrl: string | null;
+  publisher: PublisherSummary | null;
+  status: SeriesStatus | null;
+  /** Edicoes no acervo (1 para HQ avulsa). */
+  issueCount: number;
+  /** A frase do painel; sem ela, um trecho da sinopse. */
+  note: string | null;
+  /** A frase veio do painel (e nao da sinopse). */
+  ownNote: boolean;
+  /** Edicao por onde seguir: a primeira nao lida que ja pode ser lida. */
+  startComicId: string | null;
+  startLabel: string | null;
+  /** Quantas edicoes quem pede ja terminou. */
+  readCount: number;
 }

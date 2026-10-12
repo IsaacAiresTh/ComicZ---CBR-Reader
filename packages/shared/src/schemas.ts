@@ -483,3 +483,20 @@ export type SetMilestonesInput = z.infer<typeof setMilestonesSchema>;
 export type SetSeriesNotesInput = z.infer<typeof setSeriesNotesSchema>;
 export type SetCharacterComicsInput = z.infer<typeof setCharacterComicsSchema>;
 export type ReorderCharacterImagesInput = z.infer<typeof reorderCharacterImagesSchema>;
+
+// ------------------------------------------------------------ destaques
+
+/** A lista inteira do "Em destaque", na ordem. O painel regrava tudo de uma vez. */
+export const saveFeaturedSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        kind: z.enum(['series', 'comic']),
+        id: z.string().uuid(),
+        note: z.string().trim().max(140, 'A frase pode ter no maximo 140 caracteres').nullish(),
+      }),
+    )
+    .max(4, 'No maximo 4 destaques'),
+});
+
+export type SaveFeaturedInput = z.infer<typeof saveFeaturedSchema>;

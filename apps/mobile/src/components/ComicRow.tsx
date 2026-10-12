@@ -10,6 +10,7 @@ import {
   removeDownload,
   startDownload,
   useDownloads,
+  type ActiveDownload,
 } from '@/lib/downloads';
 import { comicLabel, fileStatusLabel } from '@/lib/format';
 import { Badge, MediaImage } from './ui';
@@ -118,7 +119,7 @@ export function DownloadButton({
   comicId: string;
   coverUrl: string | null;
   downloaded: boolean;
-  active?: { done: number; total: number; error?: string };
+  active?: ActiveDownload;
   label: string;
 }) {
   if (downloaded) {
@@ -149,6 +150,19 @@ export function DownloadButton({
         style={styles.action}
       >
         <Ionicons name="refresh-circle" size={26} color={Colors.accent} />
+      </Pressable>
+    );
+  }
+
+  if (active?.queued) {
+    return (
+      <Pressable
+        hitSlop={10}
+        accessibilityLabel="Na fila para baixar · tirar da fila"
+        onPress={() => cancelDownload(comicId)}
+        style={styles.action}
+      >
+        <Ionicons name="time-outline" size={24} color={Colors.ink300} />
       </Pressable>
     );
   }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import * as SplashScreen from 'expo-splash-screen';
 import { Bangers_400Regular, useFonts } from '@expo-google-fonts/bangers';
 import { StatusBar } from 'expo-status-bar';
@@ -11,6 +12,8 @@ import { ServerWakingBanner, StartupScreen } from '@/components/ServerWaking';
 import { AuthProvider, useAuth } from '@/features/auth/AuthContext';
 
 void SplashScreen.preventAutoHideAsync();
+// Retrato em todo o app; só o leitor destrava o giro (e trava de novo ao sair).
+void ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP).catch(() => {});
 
 /** Quanto a splash nativa espera a sessão antes de dar lugar à tela de abertura. */
 const SPLASH_MAX_MS = 2_500;
@@ -68,6 +71,7 @@ function RootStack() {
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="login" options={{ headerShown: false }} />
           <Stack.Screen name="registrar" options={{ headerShown: false }} />
+          <Stack.Screen name="esqueci-senha" options={{ title: 'Esqueci a senha' }} />
           <Stack.Screen name="offline" options={{ title: 'HQs baixadas' }} />
         </Stack.Protected>
         <Stack.Protected guard={signedIn}>

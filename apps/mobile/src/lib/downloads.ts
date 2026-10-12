@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { Directory, File, Paths } from 'expo-file-system';
-import type { ReaderPayload } from '@comicz/shared';
+import type { ReaderNextComic, ReaderPayload } from '@comicz/shared';
 
 import { api, freshMediaToken } from './api';
 import { absoluteUrl } from './config';
@@ -27,6 +27,10 @@ export interface DownloadedComic {
   title: string;
   issueNumber: number | null;
   seriesName: string | null;
+  /** Ausente nos downloads feitos antes de o leitor mandar a saga. */
+  seriesId?: string | null;
+  /** A edição seguinte, para o "fim da HQ" funcionar sem rede. */
+  next?: ReaderNextComic | null;
   pageCount: number;
   pages: DownloadedPage[];
   hasCover: boolean;
@@ -38,6 +42,8 @@ export interface ActiveDownload {
   done: number;
   total: number;
   error?: string;
+  /** Na fila, esperando a HQ da frente terminar. */
+  queued?: boolean;
 }
 
 interface Manifest {
@@ -61,6 +67,9 @@ const manifestFile = () => new File(Paths.document, 'downloads.json');
 let state: DownloadState = { comics: {}, active: {} };
 const listeners = new Set<() => void>();
 const controllers = new Map<string, AbortController>();
+/** Fila de "baixar a saga": uma HQ por vez, cada uma com 3 páginas em paralelo. */
+const queue: { comicId: string; coverUrl: string | null }[] = [];
+let draining = false;
 
 function emit(next: DownloadState): void {
   state = next;
@@ -148,7 +157,8 @@ async function downloadWithRetry(
  * disparado já tem a capa, e o payload do leitor não traz.
  */
 export async function startDownload(comicId: string, coverUrl?: string | null): Promise<void> {
-  if (state.active[comicId] && !state.active[comicId].error) return;
+  const current = state.active[comicId];
+  if (current && !current.error && !current.queued) return;
   if (state.comics[comicId]) return;
 
   const controller = new AbortController();
@@ -190,6 +200,8 @@ export async function startDownload(comicId: string, coverUrl?: string | null): 
         title: payload.comic.title,
         issueNumber: payload.comic.issueNumber,
         seriesName: payload.comic.seriesName,
+        seriesId: payload.comic.seriesId ?? null,
+        next: payload.next ?? null,
         pageCount: payload.pageCount,
         pages: payload.pages.map(({ index, width, height }) => ({ index, width, height })),
         hasCover,
@@ -213,7 +225,62 @@ export async function startDownload(comicId: string, coverUrl?: string | null): 
 
 export function cancelDownload(comicId: string): void {
   controllers.get(comicId)?.abort();
-  if (state.active[comicId]?.error) setActive(comicId, null);
+  const index = queue.findIndex((item) => item.comicId === comicId);
+  if (index >= 0) queue.splice(index, 1);
+  const current = state.active[comicId];
+  if (current?.error || current?.queued) setActive(comicId, null);
+}
+
+/**
+ * Põe várias HQs na fila — a saga inteira, o ato de um evento. Elas aparecem
+ * na hora como "na fila" e baixam uma depois da outra; as que já estão no
+ * aparelho ou baixando ficam de fora.
+ */
+export function enqueueDownloads(items: { comicId: string; coverUrl: string | null }[]): void {
+  const fresh = items.filter(
+    (item) =>
+      !state.comics[item.comicId] &&
+      !(state.active[item.comicId] && !state.active[item.comicId]!.error) &&
+      !queue.some((queued) => queued.comicId === item.comicId),
+  );
+  if (fresh.length === 0) return;
+  queue.push(...fresh);
+  const active = { ...state.active };
+  for (const item of fresh) active[item.comicId] = { done: 0, total: 0, queued: true };
+  emit({ ...state, active });
+  void drain();
+}
+
+async function drain(): Promise<void> {
+  if (draining) return;
+  draining = true;
+  try {
+    while (queue.length > 0) {
+      const next = queue.shift()!;
+      // Cancelada enquanto esperava, ou já aberta à mão pela página da HQ.
+      if (!state.active[next.comicId]?.queued) continue;
+      await startDownload(next.comicId, next.coverUrl);
+    }
+  } finally {
+    draining = false;
+  }
+}
+
+/** Cancela tudo que está baixando ou na fila. */
+export function cancelAllDownloads(): void {
+  queue.length = 0;
+  controllers.forEach((controller) => controller.abort());
+  emit({ ...state, active: {} });
+}
+
+/** Espaço livre no aparelho, em bytes; null quando o sistema não informa. */
+export function freeDiskSpace(): number | null {
+  try {
+    const bytes = Paths.availableDiskSpace;
+    return Number.isFinite(bytes) && bytes > 0 ? bytes : null;
+  } catch {
+    return null;
+  }
 }
 
 export function removeDownload(comicId: string): void {
@@ -231,8 +298,9 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / 1024 ** 3).toFixed(2)} GB`;
 }
 
-/** Ao sair da conta: o que foi baixado pertence a quem estava logado. */
+/** Apaga todas as baixadas (o botão "liberar espaço" da aba Baixadas). */
 export function clearAllDownloads(): void {
+  queue.length = 0;
   controllers.forEach((controller) => controller.abort());
   const root = rootDir();
   if (root.exists) root.delete();

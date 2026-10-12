@@ -123,6 +123,7 @@ model Series {
   collectionItems CollectionItem[]
   startHereFor    Character[]
   characterNotes  CharacterSeriesNote[]
+  featured        FeaturedItem?
 
   @@index([publisherId])
   @@map("series")
@@ -312,6 +313,8 @@ model Comic {
   progress        ReadingProgress[]
   guideItems      GuideItem[]
   collectionItems CollectionItem[]
+
+  featured FeaturedItem?
 
   @@index([seriesId, issueNumber])
   @@index([title])
@@ -630,4 +633,24 @@ model CollectionItem {
   @@unique([collectionId, seriesId])
   @@index([collectionId, position])
   @@map("collection_items")
+}
+
+/// "Em destaque" do inicio: o que a curadoria quer que alguem novo leia.
+/// Cada linha aponta para uma saga OU para uma HQ avulsa (nunca as duas, e
+/// garantido por CHECK na migration). A ordem e `position`; a lista inteira e
+/// regravada de uma vez pelo painel, entao nao ha buracos para manter.
+model FeaturedItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  seriesId  String?  @unique @map("series_id") @db.Uuid
+  comicId   String?  @unique @map("comic_id") @db.Uuid
+  /// "Por que ler", em uma frase. Sem ela, o inicio usa a sinopse.
+  note      String?
+  position  Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  series Series? @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  comic  Comic?  @relation(fields: [comicId], references: [id], onDelete: Cascade)
+
+  @@index([position])
+  @@map("featured_items")
 }

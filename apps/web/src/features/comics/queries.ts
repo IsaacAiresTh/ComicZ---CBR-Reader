@@ -12,6 +12,7 @@ import type {
   Paginated,
   PublisherSummary,
   SeriesListItem,
+  FeaturedItem,
 } from '@comicz/shared';
 import { api } from '../../services/api';
 
@@ -92,6 +93,14 @@ export function usePublishers() {
   return useQuery({
     queryKey: ['publishers'],
     queryFn: () => api.get<(PublisherSummary & { _count: { comics: number } })[]>('/publishers'),
+  });
+}
+
+/** O "Em destaque" do inicio, escolhido no painel. */
+export function useFeatured() {
+  return useQuery({
+    queryKey: ['featured'],
+    queryFn: () => api.get<FeaturedItem[]>('/featured'),
   });
 }
 
